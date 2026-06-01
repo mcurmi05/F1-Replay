@@ -67,9 +67,22 @@ export interface ReplayDriver {
   team_colour: string | null
 }
 
+export interface ReplayLap {
+  lap: number | null
+  position: number | null
+  compound: string | null
+  tyre_age: number | null
+  stint: number | null
+  pitted: boolean
+  start: number | null
+}
+
 export interface ReplayData {
+  available: boolean
   step: number
   duration: number
+  race_start: number | null
+  total_laps: number | null
   time: number[]
   track: { x: number[]; y: number[] }
   corners: { number: number | null; x: number | null; y: number | null }[]
@@ -77,6 +90,14 @@ export interface ReplayData {
   drivers: ReplayDriver[]
   positions: Record<
     string,
-    { x: (number | null)[]; y: (number | null)[]; speed?: (number | null)[] }
+    {
+      x: (number | null)[]
+      y: (number | null)[]
+      speed?: (number | null)[]
+      throttle?: (number | null)[]
+      brake?: (number | null)[]
+      gear?: (number | null)[]
+    }
   >
+  laps: Record<string, ReplayLap[]>
 }

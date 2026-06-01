@@ -46,6 +46,11 @@ export default function TrackMap({
   const i1 = Math.min(i0 + 1, length - 1)
   const frac = Math.max(0, Math.min(ratio - base, 1))
 
+  const selectedDriver = selected ? replay.drivers.find((d) => d.number === selected) : null
+  const selectedPath = selected ? replay.positions[selected] : undefined
+  const selX = selectedPath ? lerp(selectedPath.x, i0, i1, frac) : null
+  const selY = selectedPath ? lerp(selectedPath.y, i0, i1, frac) : null
+
   return (
     <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" className="h-full w-full">
       <polyline
@@ -82,6 +87,20 @@ export default function TrackMap({
           />
         )
       })}
+      {selectedDriver && selX !== null && selY !== null ? (
+        <text
+          x={selX + radius * 1.8}
+          y={flipY(selY) - radius}
+          fontSize={radius * 2.6}
+          fill="#ffffff"
+          stroke="#000000"
+          strokeWidth={radius * 0.12}
+          style={{ paintOrder: 'stroke' }}
+          className="font-semibold"
+        >
+          {selectedDriver.abbreviation ?? selectedDriver.number}
+        </text>
+      ) : null}
     </svg>
   )
 }

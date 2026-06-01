@@ -50,3 +50,12 @@ export function PauseIcon({ className }: IconProps) {
     </svg>
   )
 }
+
+export function SkipToStartIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <rect x="4" y="4" width="2.5" height="12" rx="1" />
+      <path d="M16 4.5v11l-8-5.5z" />
+    </svg>
+  )
+}

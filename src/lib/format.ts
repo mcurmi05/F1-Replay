@@ -16,6 +16,14 @@ export function formatClock(seconds: number): string {
   return `${minutes}:${String(total % 60).padStart(2, '0')}`
 }
 
+export function formatSigned(seconds: number): string {
+  const sign = seconds < 0 ? '-' : '+'
+  const abs = Math.abs(seconds)
+  const minutes = Math.floor(abs / 60)
+  const rest = Math.floor(abs % 60)
+  return `${sign}${minutes}:${String(rest).padStart(2, '0')}`
+}
+
 export function teamColor(value: string | null | undefined): string {
   if (!value) {
     return '#71717a'

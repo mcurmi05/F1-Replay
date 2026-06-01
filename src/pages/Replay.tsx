@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { ArrowRightIcon } from '../components/icons'
@@ -19,6 +20,7 @@ function SessionView({
   session: string
 }) {
   const { summary, results, laps } = data
+  const [revealed, setRevealed] = useState(false)
   const ordered = [...results].sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
   const fastest = laps
     .map((lap) => lap.lap_time)
@@ -38,7 +40,7 @@ function SessionView({
           <span>{summary.location}</span>
           <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
           <span>{laps.length} laps recorded</span>
-          {Number.isFinite(fastest) ? (
+          {revealed && Number.isFinite(fastest) ? (
             <>
               <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
               <span>Fastest lap {formatLapTime(fastest)}</span>
@@ -49,42 +51,60 @@ function SessionView({
 
       <ReplayViewer year={year} event={event} session={session} />
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
-            <tr>
-              <th className="px-5 py-3 font-medium">Pos</th>
-              <th className="px-5 py-3 font-medium">Driver</th>
-              <th className="px-5 py-3 font-medium">Team</th>
-              <th className="px-5 py-3 text-right font-medium">Points</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ordered.map((row) => (
-              <tr
-                key={row.driver_number ?? row.abbreviation}
-                className="border-b border-zinc-800/60 last:border-0"
-              >
-                <td className="px-5 py-3 font-mono text-zinc-400">{row.position ?? '-'}</td>
-                <td className="px-5 py-3">
-                  <span className="inline-flex items-center gap-2.5">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: teamColor(row.team_colour) }}
-                    />
-                    <span className="font-medium text-white">
-                      {row.abbreviation ?? row.full_name}
-                    </span>
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-zinc-400">{row.team_name}</td>
-                <td className="px-5 py-3 text-right text-zinc-300">{row.points ?? 0}</td>
-                <td className="px-5 py-3 text-zinc-400">{row.status ?? '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Results</h2>
+          <button
+            type="button"
+            onClick={() => setRevealed((value) => !value)}
+            className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:bg-zinc-800"
+          >
+            {revealed ? 'Hide results' : 'Reveal results'}
+          </button>
+        </div>
+        {revealed ? (
+          <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
+                <tr>
+                  <th className="px-5 py-3 font-medium">Pos</th>
+                  <th className="px-5 py-3 font-medium">Driver</th>
+                  <th className="px-5 py-3 font-medium">Team</th>
+                  <th className="px-5 py-3 text-right font-medium">Points</th>
+                  <th className="px-5 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordered.map((row) => (
+                  <tr
+                    key={row.driver_number ?? row.abbreviation}
+                    className="border-b border-zinc-800/60 last:border-0"
+                  >
+                    <td className="px-5 py-3 font-mono text-zinc-400">{row.position ?? '-'}</td>
+                    <td className="px-5 py-3">
+                      <span className="inline-flex items-center gap-2.5">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: teamColor(row.team_colour) }}
+                        />
+                        <span className="font-medium text-white">
+                          {row.abbreviation ?? row.full_name}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-zinc-400">{row.team_name}</td>
+                    <td className="px-5 py-3 text-right text-zinc-300">{row.points ?? 0}</td>
+                    <td className="px-5 py-3 text-zinc-400">{row.status ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-zinc-800 bg-surface p-8 text-center text-sm text-zinc-500">
+            Results hidden for spoiler-free viewing. Reveal when you are ready.
+          </div>
+        )}
       </div>
     </div>
   )
@@ -106,7 +126,7 @@ export default function Replay() {
         Back to home
       </Link>
 
-      {loading ? <StatusCard text="Loading session..." /> : null}
+      {loading ? <StatusCard text="Downloading session..." spinner /> : null}
       {error ? <StatusCard text={`Could not load session: ${error.message}`} /> : null}
       {data ? (
         <SessionView data={data} year={yearNumber} event={event ?? ''} session={session ?? ''} />

@@ -141,6 +141,12 @@ def _seconds_axis(frame):
     return frame["SessionTime"].dt.total_seconds().to_numpy()
 
 
+def _seconds_rel(value, origin):
+    if value is None or pd.isna(value):
+        return None
+    return round(pd.Timedelta(value).total_seconds() - origin, 2)
+
+
 def _grid_values(grid, times, values, ndigits=0):
     interpolated = np.interp(grid, times, values, left=np.nan, right=np.nan)
     rounded = np.round(interpolated, ndigits)
@@ -174,14 +180,18 @@ def build_replay(session, step=0.5):
 
     if not samples:
         return {
+            "available": False,
             "step": step,
             "duration": 0.0,
+            "race_start": None,
+            "total_laps": None,
             "time": [],
             "track": {"x": [], "y": []},
             "corners": [],
             "bounds": {},
             "drivers": [],
             "positions": {},
+            "laps": {},
         }
 
     start = float(min(starts))
@@ -197,7 +207,11 @@ def build_replay(session, step=0.5):
         }
         car = session.car_data.get(number)
         if car is not None and len(car):
-            entry["speed"] = _grid_values(grid, _seconds_axis(car), car["Speed"].to_numpy())
+            car_times = _seconds_axis(car)
+            entry["speed"] = _grid_values(grid, car_times, car["Speed"].to_numpy())
+            entry["throttle"] = _grid_values(grid, car_times, car["Throttle"].to_numpy())
+            entry["brake"] = _grid_values(grid, car_times, car["Brake"].astype(float).to_numpy())
+            entry["gear"] = _grid_values(grid, car_times, car["nGear"].to_numpy())
         positions[number] = entry
 
         row = results_by_number.get(number)
@@ -237,13 +251,41 @@ def build_replay(session, step=0.5):
         "max_y": max(ys),
     }
 
+    race_start = None
+    status = session.session_status
+    if status is not None and len(status):
+        started = status[status["Status"] == "Started"]
+        if len(started):
+            race_start = round(float(started.iloc[0]["Time"].total_seconds()) - start, 2)
+
+    laps_by_driver = {}
+    for number in samples:
+        entries = []
+        for _, lap in session.laps.pick_drivers(number).iterrows():
+            pit_in = lap.get("PitInTime")
+            pit_out = lap.get("PitOutTime")
+            entries.append({
+                "lap": _int(lap.get("LapNumber")),
+                "position": _int(lap.get("Position")),
+                "compound": _text(lap.get("Compound")),
+                "tyre_age": _int(lap.get("TyreLife")),
+                "stint": _int(lap.get("Stint")),
+                "pitted": bool(pd.notna(pit_in) or pd.notna(pit_out)),
+                "start": _seconds_rel(lap.get("LapStartTime"), start),
+            })
+        laps_by_driver[number] = entries
+
     return {
+        "available": True,
         "step": step,
         "duration": end - start,
+        "race_start": race_start,
+        "total_laps": _int(getattr(session, "total_laps", None)),
         "time": [round(float(t - start), 2) for t in grid],
         "track": track,
         "corners": corners,
         "bounds": bounds,
         "drivers": drivers,
         "positions": positions,
+        "laps": laps_by_driver,
     }

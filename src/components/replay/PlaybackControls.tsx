@@ -1,4 +1,4 @@
-import { PauseIcon, PlayIcon } from '../icons'
+import { PauseIcon, PlayIcon, SkipToStartIcon } from '../icons'
 import { formatClock } from '../../lib/format'
 import type { Playback } from '../../hooks/usePlayback'
 
@@ -7,9 +7,11 @@ const SPEEDS = [1, 2, 5, 10, 20]
 export default function PlaybackControls({
   playback,
   duration,
+  raceStart,
 }: {
   playback: Playback
   duration: number
+  raceStart: number | null
 }) {
   const { currentTime, playing, speed, setSpeed, toggle, seek } = playback
 
@@ -22,6 +24,17 @@ export default function PlaybackControls({
 
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-800 bg-surface p-4">
+      {raceStart !== null ? (
+        <button
+          type="button"
+          onClick={() => seek(raceStart)}
+          title="Jump to race start"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 text-zinc-300 transition hover:bg-zinc-800"
+        >
+          <SkipToStartIcon className="h-4 w-4" />
+        </button>
+      ) : null}
+
       <button
         type="button"
         onClick={handleToggle}
