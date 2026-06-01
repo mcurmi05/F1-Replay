@@ -1,80 +1,24 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+
 import { ArrowRightIcon, ChevronDownIcon } from '../components/icons'
+import { useSchedule } from '../hooks/useApi'
 
-const isLiveNow = false
+const YEARS = [2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018]
 
-const featuredSession = {
-  sessionKey: 9999,
-  meeting: 'Monaco Grand Prix',
-  sessionName: 'Race',
-  circuit: 'Circuit de Monaco',
-  date: 'May 26, 2024',
-}
-
-const recentSessions = [
-  {
-    sessionKey: 9998,
-    meeting: 'Spanish Grand Prix',
-    sessionName: 'Race',
-    country: 'Spain',
-    date: 'Jun 23, 2024',
-  },
-  {
-    sessionKey: 9997,
-    meeting: 'Canadian Grand Prix',
-    sessionName: 'Qualifying',
-    country: 'Canada',
-    date: 'Jun 8, 2024',
-  },
-  {
-    sessionKey: 9996,
-    meeting: 'Austrian Grand Prix',
-    sessionName: 'Race',
-    country: 'Austria',
-    date: 'Jun 30, 2024',
-  },
+const SESSION_TYPES = [
+  { label: 'Practice 1', value: 'FP1' },
+  { label: 'Practice 2', value: 'FP2' },
+  { label: 'Practice 3', value: 'FP3' },
+  { label: 'Qualifying', value: 'Q' },
+  { label: 'Sprint Qualifying', value: 'SQ' },
+  { label: 'Sprint', value: 'Sprint' },
+  { label: 'Race', value: 'R' },
 ]
 
-const years = [2024, 2023]
-
-const locations = [
-  'Bahrain',
-  'Saudi Arabia',
-  'Australia',
-  'Japan',
-  'China',
-  'Miami',
-  'Monaco',
-  'Spain',
-  'Canada',
-  'Austria',
-  'Great Britain',
-  'Hungary',
-  'Belgium',
-  'Netherlands',
-  'Italy',
-  'Singapore',
-  'United States',
-  'Mexico',
-  'Brazil',
-  'Las Vegas',
-  'Qatar',
-  'Abu Dhabi',
-]
-
-const sessionTypes = [
-  'FP1',
-  'FP2',
-  'FP3',
-  'Qualifying',
-  'Sprint Qualifying',
-  'Sprint Race',
-  'Race',
-]
-
-function Dot() {
-  return <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
+interface Option {
+  label: string
+  value: string
 }
 
 function SelectField({
@@ -82,12 +26,14 @@ function SelectField({
   value,
   placeholder,
   options,
+  disabled,
   onChange,
 }: {
   label: string
   value: string
   placeholder: string
-  options: Array<string | number>
+  options: Option[]
+  disabled?: boolean
   onChange: (value: string) => void
 }) {
   return (
@@ -98,15 +44,16 @@ function SelectField({
       <div className="relative">
         <select
           value={value}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full appearance-none rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2.5 pr-9 text-sm text-zinc-200 transition focus:border-f1-red focus:outline-none"
+          className="w-full appearance-none rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2.5 pr-9 text-sm text-zinc-200 transition focus:border-f1-red focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           <option value="" disabled>
             {placeholder}
           </option>
           {options.map((option) => (
-            <option key={option} value={String(option)}>
-              {option}
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
@@ -118,18 +65,25 @@ function SelectField({
 
 export default function Home() {
   const navigate = useNavigate()
-  const [year, setYear] = useState('')
-  const [location, setLocation] = useState('')
-  const [session, setSession] = useState('')
+  const [year, setYear] = useState(String(YEARS[0]))
+  const [round, setRound] = useState('')
+  const [session, setSession] = useState('R')
 
-  const canView = year !== '' && location !== '' && session !== ''
+  const schedule = useSchedule(Number(year))
+  const races = (schedule.data ?? []).filter((event) => event.round !== null)
 
-  function openHistoricalSession() {
-    if (!canView) return
-    const key = `${year}-${location}-${session}`
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-    navigate(`/replay/${encodeURIComponent(key)}`)
+  const eventOptions = races.map((event) => ({
+    label: event.event_name ?? `Round ${event.round}`,
+    value: String(event.round),
+  }))
+
+  const canView = year !== '' && round !== '' && session !== ''
+
+  function openSession() {
+    if (!canView) {
+      return
+    }
+    navigate(`/replay/${year}/${round}/${session}`)
   }
 
   return (
@@ -148,100 +102,12 @@ export default function Home() {
             Live timing, track maps, tyre strategy and lap-by-lap telemetry, for
             the session happening right now or any session from the past.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              to="/live"
-              className="group inline-flex items-center gap-2 rounded-lg bg-f1-red px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
-            >
-              {isLiveNow ? (
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-                </span>
-              ) : null}
-              {isLiveNow ? 'Watch live now' : 'Go to live'}
-              <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </Link>
-            <Link
-              to={`/replay/${featuredSession.sessionKey}`}
-              className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-900/50 px-5 py-2.5 text-sm font-semibold text-zinc-200 transition hover:bg-zinc-800"
-            >
-              Open latest replay
-            </Link>
-          </div>
         </div>
       </section>
 
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          {isLiveNow ? 'Happening now' : 'Most recent session'}
-        </h2>
-        <Link
-          to={`/replay/${featuredSession.sessionKey}`}
-          className="group block rounded-2xl border border-zinc-800 bg-surface p-6 transition hover:border-zinc-700 hover:bg-surface-2"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2.5">
-                {isLiveNow ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-f1-red/15 px-2.5 py-1 text-xs font-semibold text-f1-red">
-                    <span className="h-1.5 w-1.5 rounded-full bg-f1-red" />
-                    LIVE
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-400">
-                    FINISHED
-                  </span>
-                )}
-                <span className="text-xs text-zinc-500">{featuredSession.date}</span>
-              </div>
-              <h3 className="mt-3 text-2xl font-bold text-white">
-                {featuredSession.meeting}
-              </h3>
-              <div className="mt-1.5 flex items-center gap-2 text-sm text-zinc-400">
-                <span>{featuredSession.sessionName}</span>
-                <Dot />
-                <span>{featuredSession.circuit}</span>
-              </div>
-            </div>
-            <span className="inline-flex items-center gap-1 text-sm font-medium text-zinc-500 transition group-hover:text-f1-red">
-              Open replay
-              <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </span>
-          </div>
-        </Link>
-      </section>
-
-      <section>
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Recent sessions
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {recentSessions.map((item) => (
-            <Link
-              key={item.sessionKey}
-              to={`/replay/${item.sessionKey}`}
-              className="group rounded-xl border border-zinc-800 bg-surface p-5 transition hover:border-zinc-700 hover:bg-surface-2"
-            >
-              <p className="text-xs text-zinc-500">{item.date}</p>
-              <h3 className="mt-2 text-lg font-semibold text-white">{item.meeting}</h3>
-              <div className="mt-1 flex items-center gap-2 text-sm text-zinc-400">
-                <span>{item.sessionName}</span>
-                <Dot />
-                <span>{item.country}</span>
-              </div>
-              <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-500 transition group-hover:text-f1-red">
-                Open replay
-                <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Historical sessions
+          Open a session
         </h2>
         <div className="rounded-2xl border border-zinc-800 bg-surface p-6">
           <div className="grid gap-4 sm:grid-cols-3">
@@ -249,35 +115,72 @@ export default function Home() {
               label="Year"
               value={year}
               placeholder="Select year"
-              options={years}
-              onChange={setYear}
+              options={YEARS.map((value) => ({ label: String(value), value: String(value) }))}
+              onChange={(next) => {
+                setYear(next)
+                setRound('')
+              }}
             />
             <SelectField
-              label="Location"
-              value={location}
-              placeholder="Select location"
-              options={locations}
-              onChange={setLocation}
+              label="Grand Prix"
+              value={round}
+              placeholder={schedule.loading ? 'Loading...' : 'Select Grand Prix'}
+              options={eventOptions}
+              disabled={schedule.loading || eventOptions.length === 0}
+              onChange={setRound}
             />
             <SelectField
               label="Session"
               value={session}
               placeholder="Select session"
-              options={sessionTypes}
+              options={SESSION_TYPES}
               onChange={setSession}
             />
           </div>
+          {schedule.error ? (
+            <p className="mt-4 text-sm text-f1-red">
+              Could not load the schedule. Is the data server running?
+            </p>
+          ) : null}
           <div className="mt-5 flex justify-end">
             <button
               type="button"
-              onClick={openHistoricalSession}
+              onClick={openSession}
               disabled={!canView}
               className="inline-flex items-center gap-2 rounded-lg bg-f1-red px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              View session
+              Open replay
               <ArrowRightIcon className="h-4 w-4" />
             </button>
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+          {year} season
+        </h2>
+        {schedule.loading ? <p className="text-sm text-zinc-500">Loading schedule...</p> : null}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {races.map((event) => (
+            <Link
+              key={event.round}
+              to={`/replay/${year}/${event.round}/R`}
+              className="group rounded-xl border border-zinc-800 bg-surface p-5 transition hover:border-zinc-700 hover:bg-surface-2"
+            >
+              <p className="text-xs text-zinc-500">Round {event.round}</p>
+              <h3 className="mt-2 text-lg font-semibold text-white">{event.event_name}</h3>
+              <div className="mt-1 flex items-center gap-2 text-sm text-zinc-400">
+                <span>{event.location}</span>
+                <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
+                <span>{event.country}</span>
+              </div>
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-500 transition group-hover:text-f1-red">
+                Open race
+                <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </Link>
+          ))}
         </div>
       </section>
     </div>

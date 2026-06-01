@@ -11,7 +11,7 @@ function App() {
         <Route index element={<Navigate to="/home" replace />} />
         <Route path="home" element={<Home />} />
         <Route path="live" element={<Live />} />
-        <Route path="replay/:sessionKey" element={<Replay />} />
+        <Route path="replay/:year/:event/:session" element={<Replay />} />
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Route>
     </Routes>
