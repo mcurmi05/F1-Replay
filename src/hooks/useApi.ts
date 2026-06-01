@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { api } from '../lib/api/client'
-import type { ScheduleEvent, SessionData, TelemetryPoint } from '../lib/api/types'
+import type {
+  ReplayData,
+  ScheduleEvent,
+  SessionData,
+  TelemetryPoint,
+} from '../lib/api/types'
 
 export interface QueryState<T> {
   data: T | undefined
@@ -74,6 +79,14 @@ export function useTelemetry(
   return useQuery<TelemetryPoint[]>(
     `telemetry:${year}:${event}:${sessionType}:${driver}`,
     (signal) => api.telemetry(year, event, sessionType, driver, signal),
+    enabled,
+  )
+}
+
+export function useReplay(year: number, event: string, sessionType: string, enabled = true) {
+  return useQuery<ReplayData>(
+    `replay:${year}:${event}:${sessionType}`,
+    (signal) => api.replay(year, event, sessionType, signal),
     enabled,
   )
 }

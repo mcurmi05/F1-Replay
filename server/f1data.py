@@ -2,6 +2,7 @@ import os
 import threading
 
 import fastf1
+import numpy as np
 import pandas as pd
 
 CACHE_DIR = os.environ.get("FASTF1_CACHE_DIR", ".fastf1_cache")
@@ -134,3 +135,115 @@ def driver_telemetry(session, driver):
             "y": _float(point.get("Y")),
         })
     return rows
+
+
+def _seconds_axis(frame):
+    return frame["SessionTime"].dt.total_seconds().to_numpy()
+
+
+def _grid_values(grid, times, values, ndigits=0):
+    interpolated = np.interp(grid, times, values, left=np.nan, right=np.nan)
+    rounded = np.round(interpolated, ndigits)
+    out = []
+    for value in rounded:
+        if np.isnan(value):
+            out.append(None)
+        elif ndigits <= 0:
+            out.append(int(value))
+        else:
+            out.append(float(value))
+    return out
+
+
+def build_replay(session, step=0.5):
+    results_by_number = {
+        str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
+    }
+
+    samples = {}
+    starts = []
+    ends = []
+    for number in session.drivers:
+        pos = session.pos_data.get(number)
+        if pos is None or len(pos) == 0:
+            continue
+        times = _seconds_axis(pos)
+        samples[number] = (times, pos)
+        starts.append(times[0])
+        ends.append(times[-1])
+
+    if not samples:
+        return {
+            "step": step,
+            "duration": 0.0,
+            "time": [],
+            "track": {"x": [], "y": []},
+            "corners": [],
+            "bounds": {},
+            "drivers": [],
+            "positions": {},
+        }
+
+    start = float(min(starts))
+    end = float(max(ends))
+    grid = np.arange(start, end, step)
+
+    positions = {}
+    drivers = []
+    for number, (times, pos) in samples.items():
+        entry = {
+            "x": _grid_values(grid, times, pos["X"].to_numpy()),
+            "y": _grid_values(grid, times, pos["Y"].to_numpy()),
+        }
+        car = session.car_data.get(number)
+        if car is not None and len(car):
+            entry["speed"] = _grid_values(grid, _seconds_axis(car), car["Speed"].to_numpy())
+        positions[number] = entry
+
+        row = results_by_number.get(number)
+        drivers.append({
+            "number": number,
+            "abbreviation": _text(row.get("Abbreviation")) if row is not None else None,
+            "full_name": _text(row.get("FullName")) if row is not None else None,
+            "team_name": _text(row.get("TeamName")) if row is not None else None,
+            "team_colour": _text(row.get("TeamColor")) if row is not None else None,
+        })
+
+    lap_tel = session.laps.pick_fastest().get_telemetry()
+    tx = lap_tel["X"].to_numpy()
+    ty = lap_tel["Y"].to_numpy()
+    mask = ~(np.isnan(tx) | np.isnan(ty))
+    track = {
+        "x": [int(round(v)) for v in tx[mask]],
+        "y": [int(round(v)) for v in ty[mask]],
+    }
+
+    corners = []
+    info = session.get_circuit_info()
+    if info is not None:
+        for _, corner in info.corners.iterrows():
+            corners.append({
+                "number": _int(corner.get("Number")),
+                "x": _float(corner.get("X")),
+                "y": _float(corner.get("Y")),
+            })
+
+    xs = track["x"] + [c["x"] for c in corners if c["x"] is not None]
+    ys = track["y"] + [c["y"] for c in corners if c["y"] is not None]
+    bounds = {
+        "min_x": min(xs),
+        "max_x": max(xs),
+        "min_y": min(ys),
+        "max_y": max(ys),
+    }
+
+    return {
+        "step": step,
+        "duration": end - start,
+        "time": [round(float(t - start), 2) for t in grid],
+        "track": track,
+        "corners": corners,
+        "bounds": bounds,
+        "drivers": drivers,
+        "positions": positions,
+    }

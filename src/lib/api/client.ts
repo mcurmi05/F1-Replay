@@ -1,4 +1,4 @@
-import type { ScheduleEvent, SessionData, TelemetryPoint } from './types'
+import type { ReplayData, ScheduleEvent, SessionData, TelemetryPoint } from './types'
 
 const BASE_URL = '/api'
 
@@ -30,6 +30,11 @@ export const api = {
   ) =>
     get<TelemetryPoint[]>(
       `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/telemetry/${encodeURIComponent(driver)}`,
+      signal,
+    ),
+  replay: (year: number, event: string, sessionType: string, signal?: AbortSignal) =>
+    get<ReplayData>(
+      `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/replay`,
       signal,
     ),
 }

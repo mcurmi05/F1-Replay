@@ -33,3 +33,20 @@ export function ChevronDownIcon({ className }: IconProps) {
     </svg>
   )
 }
+
+export function PlayIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path d="M6 4.5v11l9-5.5z" />
+    </svg>
+  )
+}
+
+export function PauseIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <rect x="5" y="4" width="3.5" height="12" rx="1" />
+      <rect x="11.5" y="4" width="3.5" height="12" rx="1" />
+    </svg>
+  )
+}

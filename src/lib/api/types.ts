@@ -58,3 +58,25 @@ export interface TelemetryPoint {
   x: number | null
   y: number | null
 }
+
+export interface ReplayDriver {
+  number: string
+  abbreviation: string | null
+  full_name: string | null
+  team_name: string | null
+  team_colour: string | null
+}
+
+export interface ReplayData {
+  step: number
+  duration: number
+  time: number[]
+  track: { x: number[]; y: number[] }
+  corners: { number: number | null; x: number | null; y: number | null }[]
+  bounds: { min_x: number; max_x: number; min_y: number; max_y: number }
+  drivers: ReplayDriver[]
+  positions: Record<
+    string,
+    { x: (number | null)[]; y: (number | null)[]; speed?: (number | null)[] }
+  >
+}

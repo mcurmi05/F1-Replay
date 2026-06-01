@@ -1,26 +1,23 @@
 import { Link, useParams } from 'react-router-dom'
 
 import { ArrowRightIcon } from '../components/icons'
+import StatusCard from '../components/StatusCard'
+import ReplayViewer from '../components/replay/ReplayViewer'
 import { useSession } from '../hooks/useApi'
-import { formatLapTime } from '../lib/format'
+import { formatLapTime, teamColor } from '../lib/format'
 import type { SessionData } from '../lib/api/types'
 
-function teamColour(value: string | null) {
-  if (!value) {
-    return '#71717a'
-  }
-  return value.startsWith('#') ? value : `#${value}`
-}
-
-function StatusCard({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-surface p-8 text-zinc-400">
-      {text}
-    </div>
-  )
-}
-
-function SessionView({ data }: { data: SessionData }) {
+function SessionView({
+  data,
+  year,
+  event,
+  session,
+}: {
+  data: SessionData
+  year: number
+  event: string
+  session: string
+}) {
   const { summary, results, laps } = data
   const ordered = [...results].sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
   const fastest = laps
@@ -50,6 +47,8 @@ function SessionView({ data }: { data: SessionData }) {
         </div>
       </div>
 
+      <ReplayViewer year={year} event={event} session={session} />
+
       <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
@@ -72,7 +71,7 @@ function SessionView({ data }: { data: SessionData }) {
                   <span className="inline-flex items-center gap-2.5">
                     <span
                       className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: teamColour(row.team_colour) }}
+                      style={{ backgroundColor: teamColor(row.team_colour) }}
                     />
                     <span className="font-medium text-white">
                       {row.abbreviation ?? row.full_name}
@@ -92,12 +91,7 @@ function SessionView({ data }: { data: SessionData }) {
 }
 
 export default function Replay() {
-  const { year, event, session } = useParams<{
-    year: string
-    event: string
-    session: string
-  }>()
-
+  const { year, event, session } = useParams<{ year: string; event: string; session: string }>()
   const yearNumber = Number(year)
   const ready = Boolean(year && event && session) && !Number.isNaN(yearNumber)
   const { data, error, loading } = useSession(yearNumber, event ?? '', session ?? '', ready)
@@ -114,7 +108,9 @@ export default function Replay() {
 
       {loading ? <StatusCard text="Loading session..." /> : null}
       {error ? <StatusCard text={`Could not load session: ${error.message}`} /> : null}
-      {data ? <SessionView data={data} /> : null}
+      {data ? (
+        <SessionView data={data} year={yearNumber} event={event ?? ''} session={session ?? ''} />
+      ) : null}
     </div>
   )
 }

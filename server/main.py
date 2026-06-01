@@ -47,4 +47,10 @@ def telemetry(year: int, event: str, session_type: str, driver: str):
     return f1data.driver_telemetry(loaded, driver)
 
 
+@api.get("/session/{year}/{event}/{session_type}/replay")
+def replay(year: int, event: str, session_type: str, step: float = 0.5):
+    loaded = _load(year, event, session_type)
+    return f1data.build_replay(loaded, step=step)
+
+
 app.include_router(api)
