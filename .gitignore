@@ -37,3 +37,13 @@ venv/
 
 # FastF1 cache
 .fastf1_cache/
+
+# PyInstaller build output
+server/build_tmp/
+server/dist_app/
+server/*.spec
+
+# Electron desktop
+desktop/node_modules/
+desktop/release/
+desktop/.vite/

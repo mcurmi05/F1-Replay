@@ -13,7 +13,21 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return (await response.json()) as T
 }
 
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`)
+  }
+  return (await response.json()) as T
+}
+
 export const api = {
+  getCache: (signal?: AbortSignal) => get<{ dir: string | null }>('/cache', signal),
+  setCache: (dir: string) => post<{ dir: string | null }>('/cache', { dir }),
   schedule: (year: number, signal?: AbortSignal) =>
     get<ScheduleEvent[]>(`/schedule/${year}`, signal),
   session: (year: number, event: string, sessionType: string, signal?: AbortSignal) =>

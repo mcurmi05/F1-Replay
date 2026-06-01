@@ -5,11 +5,24 @@ import fastf1
 import numpy as np
 import pandas as pd
 
-CACHE_DIR = os.environ.get("FASTF1_CACHE_DIR", ".fastf1_cache")
-os.makedirs(CACHE_DIR, exist_ok=True)
-fastf1.Cache.enable_cache(CACHE_DIR)
-
 _load_lock = threading.Lock()
+_cache_dir = None
+
+
+def set_cache(directory):
+    global _cache_dir
+    os.makedirs(directory, exist_ok=True)
+    fastf1.Cache.enable_cache(directory)
+    _cache_dir = directory
+
+
+def get_cache():
+    return _cache_dir
+
+
+_env_cache = os.environ.get("FASTF1_CACHE_DIR")
+if _env_cache:
+    set_cache(_env_cache)
 
 
 def _iso(value):
