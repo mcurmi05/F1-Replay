@@ -1,8 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
-const navItems = [
+const navItems: { to: string; label: string; live?: boolean }[] = [
   { to: '/home', label: 'Home' },
-  { to: '/live', label: 'Live' },
+  { to: '/live', label: 'Live', live: true },
 ]
 
 export default function Layout() {
@@ -23,13 +23,19 @@ export default function Layout() {
                 to={item.to}
                 className={({ isActive }) =>
                   [
-                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                     isActive
                       ? 'bg-zinc-800 text-white'
                       : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-white',
                   ].join(' ')
                 }
               >
+                {item.live ? (
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-f1-red opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-f1-red" />
+                  </span>
+                ) : null}
                 {item.label}
               </NavLink>
             ))}
