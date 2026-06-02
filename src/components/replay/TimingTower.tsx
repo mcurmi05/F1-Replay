@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { teamColor } from '../../lib/format'
 import { tyreIcon } from '../../lib/replay'
@@ -26,6 +26,80 @@ export default function TimingTower({
   const listRef = useRef<HTMLUListElement>(null)
   const tops = useRef<Map<string, number>>(new Map())
   const order = useRef<string>('')
+
+  const [moves, setMoves] = useState<Record<string, { dir: 'up' | 'down'; count: number }>>({})
+  const lastPos = useRef<Map<string, number>>(new Map())
+  const anchorPos = useRef<Map<string, number>>(new Map())
+  const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  useEffect(() => {
+    const changed: Record<string, { dir: 'up' | 'down'; count: number } | null> = {}
+    for (const row of rows) {
+      if (row.position === null) {
+        continue
+      }
+      const previous = lastPos.current.get(row.number)
+      lastPos.current.set(row.number, row.position)
+      if (previous === undefined || previous === row.position) {
+        continue
+      }
+      let anchor = anchorPos.current.get(row.number)
+      if (anchor === undefined) {
+        anchor = previous
+        anchorPos.current.set(row.number, anchor)
+      }
+      const count = Math.abs(row.position - anchor)
+      changed[row.number] = count === 0 ? null : { dir: row.position < anchor ? 'up' : 'down', count }
+    }
+    const ids = Object.keys(changed)
+    if (ids.length === 0) {
+      return
+    }
+    setMoves((current) => {
+      const next = { ...current }
+      for (const id of ids) {
+        const value = changed[id]
+        if (value === null) {
+          delete next[id]
+        } else {
+          next[id] = value
+        }
+      }
+      return next
+    })
+    for (const id of ids) {
+      const existing = timers.current.get(id)
+      if (existing) {
+        clearTimeout(existing)
+      }
+      if (changed[id] === null) {
+        timers.current.delete(id)
+        anchorPos.current.delete(id)
+        continue
+      }
+      timers.current.set(
+        id,
+        setTimeout(() => {
+          timers.current.delete(id)
+          anchorPos.current.delete(id)
+          setMoves((current) => {
+            const next = { ...current }
+            delete next[id]
+            return next
+          })
+        }, 2000),
+      )
+    }
+  }, [rows])
+
+  useEffect(() => {
+    const pending = timers.current
+    return () => {
+      for (const timer of pending.values()) {
+        clearTimeout(timer)
+      }
+    }
+  }, [])
 
   useLayoutEffect(() => {
     const list = listRef.current
@@ -69,6 +143,7 @@ export default function TimingTower({
         {rows.map((row, idx) => {
           const icon = tyreIcon(row.compound)
           const isSelected = selected === row.number
+          const move = moves[row.number]
           return (
             <li key={row.number} data-driver={row.number}>
               <button
@@ -85,6 +160,19 @@ export default function TimingTower({
                   style={{ backgroundColor: teamColor(row.team_colour) }}
                 />
                 <span className="font-semibold text-white">{row.abbreviation ?? row.number}</span>
+                {move ? (
+                  <span
+                    className={[
+                      'flex items-center gap-0.5 text-[10px] font-bold leading-none',
+                      move.dir === 'up' ? 'text-emerald-500' : 'text-f1-red',
+                    ].join(' ')}
+                  >
+                    <svg viewBox="0 0 10 10" className="h-2.5 w-2.5" fill="currentColor" aria-hidden="true">
+                      {move.dir === 'up' ? <path d="M5 1l4 7H1z" /> : <path d="M5 9L1 2h8z" />}
+                    </svg>
+                    {move.count}
+                  </span>
+                ) : null}
                 <span className="ml-auto w-16 text-right font-mono text-xs text-zinc-300">
                   {idx === 0 ? '' : row.interval ?? '-'}
                 </span>
