@@ -76,6 +76,18 @@ export interface LiveRow {
   compound: string | null
   tyre_age: number | null
   stint: number | null
+  sector_1: string | null
+  sector_2: string | null
+  sector_3: string | null
+  sector_1_pb: boolean
+  sector_2_pb: boolean
+  sector_3_pb: boolean
+  speed_i1: string | null
+  speed_i2: string | null
+  speed_fl: string | null
+  speed_st: string | null
+  pit_stops: number | null
+  tyre_fresh: boolean | null
   in_pit: boolean
   retired: boolean
   status: string | null
@@ -101,12 +113,20 @@ export interface LiveWeather {
   humidity: number | null
   rainfall: boolean
   wind_speed: number | null
+  wind_direction: number | null
+  pressure: number | null
 }
 
 export interface LiveNextSession {
   event_name: string | null
   session_name: string | null
   start_utc: string
+}
+
+export interface TeamRadioClip {
+  utc: string | null
+  driver_number: string
+  url: string
 }
 
 export interface LiveState {
@@ -116,6 +136,8 @@ export interface LiveState {
   session: LiveSession | null
   weather: LiveWeather | null
   rows: LiveRow[]
+  race_control_messages: RaceControlMessage[]
+  team_radio: TeamRadioClip[]
   next_session: LiveNextSession | null
   updated_at: string
 }

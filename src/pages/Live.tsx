@@ -1,5 +1,6 @@
-import TimingTower from '../components/replay/TimingTower'
-import type { TimingTowerRow } from '../components/replay/TimingTower'
+import LiveTimingTable from '../components/live/LiveTimingTable'
+import LiveRaceControl from '../components/live/LiveRaceControl'
+import LiveTeamRadio from '../components/live/LiveTeamRadio'
 import { useLive } from '../hooks/useApi'
 import type { LiveRow, LiveState } from '../lib/api/types'
 
@@ -127,6 +128,18 @@ function Header({ state }: { state: LiveState }) {
               <span className="font-mono text-zinc-200">{state.weather.wind_speed.toFixed(1)} m/s</span>
             </span>
           ) : null}
+          {state.weather.wind_direction !== null ? (
+            <span className="text-zinc-400">
+              Direction{' '}
+              <span className="font-mono text-zinc-200">{state.weather.wind_direction.toFixed(0)}°</span>
+            </span>
+          ) : null}
+          {state.weather.pressure !== null ? (
+            <span className="text-zinc-400">
+              Pressure{' '}
+              <span className="font-mono text-zinc-200">{state.weather.pressure.toFixed(1)} mb</span>
+            </span>
+          ) : null}
           {state.weather.rainfall ? (
             <span className="font-semibold text-blue-400">Rain</span>
           ) : null}
@@ -136,18 +149,6 @@ function Header({ state }: { state: LiveState }) {
   )
 }
 
-function toTowerRows(rows: LiveRow[]): TimingTowerRow[] {
-  return rows.map((row) => ({
-    number: row.driver_number,
-    abbreviation: row.abbreviation,
-    team_colour: row.team_colour,
-    position: row.position,
-    compound: row.compound,
-    pitted: row.in_pit,
-    interval: row.interval,
-    gap_leader: row.gap,
-  }))
-}
 
 function EmptyState({ state }: { state: LiveState }) {
   const next = state.next_session
@@ -207,7 +208,13 @@ export default function Live() {
     <div className="space-y-6">
       <Header state={data} />
       {data.rows.length > 0 ? (
-        <TimingTower rows={toTowerRows(data.rows)} />
+        <>
+          <LiveTimingTable rows={data.rows} />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <LiveRaceControl messages={data.race_control_messages} />
+            <LiveTeamRadio clips={data.team_radio} drivers={data.rows} />
+          </div>
+        </>
       ) : (
         <div className="flex items-center justify-center gap-3 rounded-2xl border border-zinc-800 bg-surface py-16 text-zinc-400">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />

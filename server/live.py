@@ -305,6 +305,98 @@ def _current_stint(app_line):
     return stints.get(str(best_key))
 
 
+def _stint_index(app_line):
+    stints = app_line.get("Stints")
+    if not isinstance(stints, dict) or not stints:
+        return None, None
+    best_key = None
+    for key in stints:
+        try:
+            value = int(key)
+        except (TypeError, ValueError):
+            continue
+        if best_key is None or value > best_key:
+            best_key = value
+    if best_key is None:
+        return None, None
+    return stints.get(str(best_key)), best_key
+
+
+def _sectors(line):
+    sectors = line.get("Sectors")
+    if not isinstance(sectors, dict):
+        return {"s1": None, "s2": None, "s3": None, "s1_pb": False, "s2_pb": False, "s3_pb": False}
+    result = {}
+    for i, key in enumerate(["0", "1", "2"], 1):
+        sector = sectors.get(key, {})
+        if isinstance(sector, dict):
+            value = _clean(sector.get("Value"))
+            result[f"s{i}"] = value
+            result[f"s{i}_pb"] = bool(sector.get("PersonalFastest", False))
+        else:
+            result[f"s{i}"] = None
+            result[f"s{i}_pb"] = False
+    return result
+
+
+def _speeds(line):
+    speeds = line.get("Speeds")
+    if not isinstance(speeds, dict):
+        return {"i1": None, "i2": None, "fl": None, "st": None}
+    result = {}
+    for key, short in [("I1", "i1"), ("I2", "i2"), ("FL", "fl"), ("ST", "st")]:
+        speed = speeds.get(key, {})
+        if isinstance(speed, dict):
+            result[short] = _clean(speed.get("Value"))
+        else:
+            result[short] = None
+    return result
+
+
+def _race_control_live(topics):
+    rcm = topics.get("RaceControlMessages", {})
+    if not isinstance(rcm, dict):
+        return []
+    messages = rcm.get("Messages", {})
+    if not isinstance(messages, dict):
+        return []
+    result = []
+    for key, msg in messages.items():
+        if not isinstance(msg, dict):
+            continue
+        result.append({
+            "time": _clean(msg.get("Utc")),
+            "category": _clean(msg.get("Category")),
+            "message": _clean(msg.get("Message")),
+            "status": _clean(msg.get("Status")),
+            "flag": _clean(msg.get("Flag")),
+        })
+    result.sort(key=lambda m: m["time"] or "")
+    return result
+
+
+def _team_radio_live(topics):
+    tr = topics.get("TeamRadio", {})
+    if not isinstance(tr, dict):
+        return []
+    captures = tr.get("Captures", {})
+    if not isinstance(captures, dict):
+        return []
+    result = []
+    for key, capture in captures.items():
+        if not isinstance(capture, dict):
+            continue
+        path = capture.get("Path")
+        if path:
+            result.append({
+                "utc": _clean(capture.get("Utc")),
+                "driver_number": _clean(str(capture.get("RacingNumber"))),
+                "url": f"https://livetiming.formula1.com/static/{path}",
+            })
+    result.sort(key=lambda c: c["utc"] or "")
+    return result
+
+
 def _live_snapshot(current, topics):
     session = current["session"]
     drivers = _drivers_from_topics(topics)
@@ -317,7 +409,8 @@ def _live_snapshot(current, topics):
             continue
         info = drivers.get(str(number), {})
         app_line = app_data.get(number, {}) if isinstance(app_data.get(number), dict) else {}
-        stint = _current_stint(app_line) or {}
+        stint, stint_number = _stint_index(app_line)
+        stint = stint or {}
 
         position = line.get("Position")
         try:
@@ -340,6 +433,9 @@ def _live_snapshot(current, topics):
         except (TypeError, ValueError):
             tyre_age = None
 
+        sectors = _sectors(line)
+        speeds = _speeds(line)
+
         rows.append({
             "position": position,
             "driver_number": str(number),
@@ -353,7 +449,19 @@ def _live_snapshot(current, topics):
             "best_lap": _clean(_nested(line, "BestLapTime", "Value")),
             "compound": _compound(stint.get("Compound")),
             "tyre_age": tyre_age,
-            "stint": None,
+            "stint": stint_number,
+            "sector_1": sectors["s1"],
+            "sector_2": sectors["s2"],
+            "sector_3": sectors["s3"],
+            "sector_1_pb": sectors["s1_pb"],
+            "sector_2_pb": sectors["s2_pb"],
+            "sector_3_pb": sectors["s3_pb"],
+            "speed_i1": speeds["i1"],
+            "speed_i2": speeds["i2"],
+            "speed_fl": speeds["fl"],
+            "speed_st": speeds["st"],
+            "pit_stops": _to_int(line.get("NumberOfPitStops")),
+            "tyre_fresh": bool(stint.get("New")) if stint.get("New") is not None else None,
             "in_pit": in_pit,
             "retired": retired,
             "status": status,
@@ -391,6 +499,8 @@ def _live_snapshot(current, topics):
         },
         "weather": _weather(weather),
         "rows": rows,
+        "race_control_messages": _race_control_live(topics),
+        "team_radio": _team_radio_live(topics),
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -404,6 +514,8 @@ def _empty_snapshot(current, session_meta=None):
         "session": _session_meta_payload(session_meta, "Finished") if session_meta else None,
         "weather": None,
         "rows": [],
+        "race_control_messages": [],
+        "team_radio": [],
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -418,6 +530,8 @@ def _connecting_snapshot(current):
         "session": _session_meta_payload(session, "Connecting"),
         "weather": None,
         "rows": [],
+        "race_control_messages": [],
+        "team_radio": [],
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -443,6 +557,7 @@ def _historical_snapshot(current):
         return _empty_snapshot(current, session_meta)
 
     rows = _historical_rows(loaded)
+    rows = _historical_rows_with_new_fields(rows)
     return {
         "available": bool(rows),
         "live": False,
@@ -450,6 +565,8 @@ def _historical_snapshot(current):
         "session": _session_meta_payload(session_meta, "Finished", loaded),
         "weather": None,
         "rows": rows,
+        "race_control_messages": [],
+        "team_radio": [],
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -507,6 +624,23 @@ def _historical_rows(session):
     return rows
 
 
+def _historical_rows_with_new_fields(rows):
+    for row in rows:
+        row["sector_1"] = None
+        row["sector_2"] = None
+        row["sector_3"] = None
+        row["sector_1_pb"] = False
+        row["sector_2_pb"] = False
+        row["sector_3_pb"] = False
+        row["speed_i1"] = None
+        row["speed_i2"] = None
+        row["speed_fl"] = None
+        row["speed_st"] = None
+        row["pit_stops"] = None
+        row["tyre_fresh"] = None
+    return rows
+
+
 def _result_gap(position, time_value, status):
     if status and status != "Finished" and not status.startswith("+"):
         return status
@@ -555,6 +689,8 @@ def _weather(weather):
         "humidity": _to_float(weather.get("Humidity")),
         "rainfall": str(weather.get("Rainfall")) in ("1", "True", "true"),
         "wind_speed": _to_float(weather.get("WindSpeed")),
+        "wind_direction": _to_float(weather.get("WindDirection")),
+        "pressure": _to_float(weather.get("Pressure")),
     }
 
 
