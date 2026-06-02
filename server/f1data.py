@@ -1,9 +1,23 @@
+import logging
 import os
 import threading
+import time
 
 import fastf1
 import numpy as np
 import pandas as pd
+from fastf1.exceptions import RateLimitExceededError
+
+_SUPPRESSED_FASTF1_WARNINGS = ("lap accuracy check", "Lap timing integrity check")
+
+
+def _fastf1_log_filter(record):
+    message = record.getMessage()
+    return not any(text in message for text in _SUPPRESSED_FASTF1_WARNINGS)
+
+
+for _handler in logging.getLogger("fastf1").handlers:
+    _handler.addFilter(_fastf1_log_filter)
 
 _load_lock = threading.Lock()
 _cache_dir = None
@@ -80,8 +94,22 @@ def _text(value):
     return str(value)
 
 
+def _fetch_schedule(year, attempts=3, delay=0.75):
+    last_exc = None
+    for attempt in range(attempts):
+        try:
+            return fastf1.get_event_schedule(year, include_testing=False)
+        except RateLimitExceededError:
+            raise
+        except Exception as exc:
+            last_exc = exc
+            if attempt < attempts - 1:
+                time.sleep(delay)
+    raise last_exc
+
+
 def get_schedule(year):
-    schedule = fastf1.get_event_schedule(year, include_testing=False)
+    schedule = _fetch_schedule(year)
     events = []
     for _, row in schedule.iterrows():
         sessions = []

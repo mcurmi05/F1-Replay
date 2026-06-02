@@ -105,7 +105,12 @@ def live_status():
 @api.get("/schedule/{year}")
 def schedule(year: int):
     _require_cache()
-    return f1data.get_schedule(year)
+    try:
+        return f1data.get_schedule(year)
+    except RateLimitExceededError:
+        raise HTTPException(status_code=429, detail="FastF1 rate limit reached, try again later")
+    except Exception:
+        raise HTTPException(status_code=503, detail="Schedule data is temporarily unavailable, please try again")
 
 
 @api.get("/session/{year}/{event}/{session_type}/cached")
