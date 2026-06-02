@@ -382,6 +382,31 @@ def _weather_series(session, start):
     return series
 
 
+def _session_window(session, start):
+    try:
+        status = session.session_status
+        if status is None or len(status) == 0:
+            return None
+        started = None
+        finished = None
+        for _, row in status.iterrows():
+            state = row.get("Status")
+            if state == "Started" and started is None:
+                started = row.get("Time")
+            elif state == "Finished":
+                finished = row.get("Time")
+        if started is None:
+            return None
+        if finished is None:
+            finished = status["Time"].iloc[-1]
+        return {
+            "start": round(float(pd.Timedelta(started).total_seconds()) - start, 2),
+            "end": round(float(pd.Timedelta(finished).total_seconds()) - start, 2),
+        }
+    except Exception:
+        return None
+
+
 def _qualifying_segments(session, start):
     quali_like = getattr(session, "_QUALI_LIKE_SESSIONS", ())
     if session.name not in quali_like:
@@ -454,6 +479,7 @@ def build_replay(session, step=0.5):
             "laps": {},
             "weather": [],
             "qualifying_segments": [],
+            "session_window": None,
         }
 
     start = float(min(starts))
@@ -563,6 +589,7 @@ def build_replay(session, step=0.5):
     race_control = _race_control_messages(session, start)
     weather = _weather_series(session, start)
     qualifying_segments = _qualifying_segments(session, start)
+    session_window = _session_window(session, start)
 
     return {
         "available": True,
@@ -581,4 +608,5 @@ def build_replay(session, step=0.5):
         "race_control_messages": race_control,
         "weather": weather,
         "qualifying_segments": qualifying_segments,
+        "session_window": session_window,
     }

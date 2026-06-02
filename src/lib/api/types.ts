@@ -209,6 +209,11 @@ export interface QualifyingSegment {
   end: number
 }
 
+export interface SessionWindow {
+  start: number
+  end: number
+}
+
 export interface ReplayData {
   available: boolean
   step: number
@@ -239,4 +244,5 @@ export interface ReplayData {
   race_control_messages: RaceControlMessage[]
   weather: WeatherSample[]
   qualifying_segments: QualifyingSegment[]
+  session_window: SessionWindow | null
 }

@@ -4,35 +4,35 @@ import skipForwardIcon from '../../assets/skip_forward.png'
 import { PauseIcon, PlayIcon } from '../icons'
 import { formatClockHours } from '../../lib/format'
 import type { Playback } from '../../hooks/usePlayback'
-import type { QualifyingSegment } from '../../lib/api/types'
 
 const SPEEDS = [1, 2, 5, 10, 20]
+
+export interface PlaybackMarker {
+  time: number
+  label: string
+}
 
 export default function PlaybackControls({
   playback,
   duration,
   raceStart,
-  segments = [],
+  markers = [],
 }: {
   playback: Playback
   duration: number
   raceStart: number | null
-  segments?: QualifyingSegment[]
+  markers?: PlaybackMarker[]
 }) {
   const { currentTime, playing, speed, setSpeed, toggle, seek } = playback
 
-  const markers: { time: number; label: string }[] = []
+  const rendered: PlaybackMarker[] = []
   const seen = new Set<number>()
-  const addMarker = (time: number, label: string) => {
-    const clamped = Math.max(0, Math.min(duration, time))
+  for (const marker of markers) {
+    const clamped = Math.max(0, Math.min(duration, marker.time))
     if (!seen.has(clamped)) {
       seen.add(clamped)
-      markers.push({ time: clamped, label })
+      rendered.push({ time: clamped, label: marker.label })
     }
-  }
-  for (const segment of segments) {
-    addMarker(segment.start, segment.name)
-    addMarker(segment.end, 'End')
   }
 
   const markerTransform = (pct: number): string =>
@@ -99,7 +99,7 @@ export default function PlaybackControls({
             onChange={(event) => seek(Number(event.target.value))}
             className="h-1.5 w-full cursor-pointer accent-f1-red"
           />
-          {markers.map((marker) => {
+          {rendered.map((marker) => {
             const pct = (marker.time / duration) * 100
             return (
               <span
@@ -110,9 +110,9 @@ export default function PlaybackControls({
             )
           })}
         </div>
-        {markers.length > 0 ? (
+        {rendered.length > 0 ? (
           <div className="relative h-4">
-            {markers.map((marker) => {
+            {rendered.map((marker) => {
               const pct = (marker.time / duration) * 100
               return (
                 <button

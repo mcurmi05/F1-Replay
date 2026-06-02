@@ -60,8 +60,27 @@ export default function ReplayViewer({
   const isQualifying = lapMode && data.qualifying_segments.length > 0
   const qStatus = qualifyingStatus(data.qualifying_segments, time)
   const segmentLabel = isQualifying ? qStatus.label : null
-  const clockRelative =
-    isQualifying ? (qStatus.running && qStatus.segment ? time - qStatus.segment.start : null) : relative
+  const sessionWindow = data.session_window
+  let clockRelative: number | null
+  const markers: { time: number; label: string }[] = []
+  if (isQualifying) {
+    clockRelative = qStatus.running && qStatus.segment ? time - qStatus.segment.start : null
+    for (const seg of data.qualifying_segments) {
+      markers.push({ time: seg.start, label: seg.name })
+      markers.push({ time: seg.end, label: 'End' })
+    }
+  } else if (lapMode) {
+    clockRelative =
+      sessionWindow && time >= sessionWindow.start && time <= sessionWindow.end
+        ? time - sessionWindow.start
+        : null
+    if (sessionWindow) {
+      markers.push({ time: sessionWindow.start, label: 'Start' })
+      markers.push({ time: sessionWindow.end, label: 'End' })
+    }
+  } else {
+    clockRelative = relative
+  }
   const board = lapMode ? lapLeaderboard(data, time, qStatus.segment) : leaderboard(data, time)
   const pitLabel = session === 'R' || session === 'Sprint' ? 'Race' : isQualifying ? 'Qualifying' : 'Practice'
   const status = trackStatusInfo(currentTrackStatus(data.track_status, time)?.code ?? null)
@@ -99,7 +118,7 @@ export default function ReplayViewer({
             </div>
           </div>
           <div className="mt-auto">
-            <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} segments={data.qualifying_segments} />
+            <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} markers={markers} />
           </div>
         </div>
         <div>
