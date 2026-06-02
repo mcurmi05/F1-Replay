@@ -1,37 +1,118 @@
 import { useMemo } from 'react'
 
-import { frameIndex, sampleChannel } from '../../lib/replay'
+import { smoothChannel } from '../../lib/replay'
 import { teamColor } from '../../lib/format'
 import { useTelemetry } from '../../hooks/useApi'
 import type { ReplayData } from '../../lib/api/types'
 
-function Gauge({
-  label,
-  value,
-  unit,
-  max,
-  color,
-}: {
-  label: string
-  value: number | null
-  unit: string
-  max: number
-  color: string
-}) {
-  const pct = value === null ? 0 : Math.max(0, Math.min(100, (value / max) * 100))
+const WINDOW_SECONDS = 10
+const BAR_SMOOTH_RADIUS = 2
+const TRACE_SMOOTH_RADIUS = 3
+
+interface Series {
+  times: number[]
+  throttle: (number | null)[]
+  brake: (number | null)[]
+  gear: (number | null)[]
+  speed: (number | null)[]
+  drs: (number | null)[]
+}
+
+function lastAtOrBefore(times: number[], t: number): number {
+  let lo = 0
+  let hi = times.length - 1
+  let ans = -1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (times[mid] <= t) {
+      ans = mid
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  return ans
+}
+
+function buildPoints(
+  times: number[],
+  values: (number | null)[],
+  windowStart: number,
+  windowEnd: number,
+  currentValue: number | null,
+): Array<[number, number]> {
+  const span = windowEnd - windowStart
+  if (times.length === 0 || span <= 0) {
+    return []
+  }
+  const startIdx = Math.max(0, lastAtOrBefore(times, windowStart))
+  const endIdx = lastAtOrBefore(times, windowEnd)
+  const pts: Array<[number, number]> = []
+  for (let i = startIdx; i <= endIdx; i += 1) {
+    const value = smoothChannel(values, i, TRACE_SMOOTH_RADIUS)
+    if (value === null) {
+      continue
+    }
+    const x = ((times[i] - windowStart) / span) * 100
+    const y = 40 - (Math.min(Math.max(value, 0), 100) / 100) * 40
+    pts.push([x, y])
+  }
+  if (currentValue !== null) {
+    const y = 40 - (Math.min(Math.max(currentValue, 0), 100) / 100) * 40
+    pts.push([100, y])
+  }
+  return pts
+}
+
+function smoothPath(pts: Array<[number, number]>): string {
+  if (pts.length === 0) {
+    return ''
+  }
+  if (pts.length < 3) {
+    return `M ${pts.map((p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(' L ')}`
+  }
+  let d = `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const p0 = pts[i - 1] ?? pts[i]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[i + 2] ?? p2
+    const cp1x = p1[0] + (p2[0] - p0[0]) / 6
+    const cp1y = p1[1] + (p2[1] - p0[1]) / 6
+    const cp2x = p2[0] - (p3[0] - p1[0]) / 6
+    const cp2y = p2[1] - (p3[1] - p1[1]) / 6
+    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`
+  }
+  return d
+}
+
+function VerticalBar({ value, color }: { value: number | null; color: string }) {
+  const pct = value === null ? 0 : Math.max(0, Math.min(100, value))
   return (
-    <div>
-      <div className="flex items-center justify-between text-xs text-zinc-500">
-        <span>{label}</span>
-        <span className="font-mono text-zinc-300">
-          {value === null ? '-' : Math.round(value)}
-          {unit}
-        </span>
+    <div className="flex shrink-0 flex-col items-center gap-1.5">
+      <div className="relative h-24 w-4 overflow-hidden rounded-md bg-zinc-800">
+        <div
+          className="absolute bottom-0 left-0 w-full"
+          style={{ height: `${pct}%`, backgroundColor: color }}
+        />
       </div>
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
+      <span className="font-mono text-xs font-semibold text-zinc-300">
+        {value === null ? '-' : Math.round(value)}%
+      </span>
     </div>
+  )
+}
+
+function BrakeIndicator({ braking }: { braking: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold transition ${
+        braking ? 'bg-f1-red/20 text-f1-red' : 'bg-zinc-800 text-zinc-600'
+      }`}
+    >
+      <span className={`h-2 w-2 rounded-full ${braking ? 'bg-f1-red' : 'bg-zinc-600'}`} />
+      BRAKE
+    </span>
   )
 }
 
@@ -53,36 +134,45 @@ export default function TelemetryPanel({
   const { data: telemetry } = useTelemetry(year, event, session, driver)
   const info = replay.drivers.find((d) => d.number === driver)
   const path = replay.positions[driver]
-  const frame = frameIndex(currentTime, replay.step, replay.time.length)
-  const speed = sampleChannel(path?.speed, frame)
-  const throttle = sampleChannel(path?.throttle, frame)
-  const brake = sampleChannel(path?.brake, frame)
-  const gear = sampleChannel(path?.gear, frame)
 
-  const telemetryPoint = telemetry && telemetry.length > frame ? telemetry[frame] : null
-  const drs = telemetryPoint?.drs ?? null
-
-  const trace = useMemo(() => {
-    const values = path?.speed ?? []
-    const length = values.length
-    if (length < 2) {
-      return ''
-    }
-    const stepEvery = Math.max(1, Math.floor(length / 400))
-    const points: string[] = []
-    for (let i = 0; i < length; i += stepEvery) {
-      const value = values[i]
-      if (value === null || value === undefined) {
-        continue
+  const series = useMemo<Series | null>(() => {
+    if (telemetry && telemetry.length > 0) {
+      const pts = telemetry.filter((p) => p.time !== null)
+      return {
+        times: pts.map((p) => p.time as number),
+        throttle: pts.map((p) => p.throttle),
+        brake: pts.map((p) => (p.brake === null ? null : p.brake ? 100 : 0)),
+        gear: pts.map((p) => p.gear),
+        speed: pts.map((p) => p.speed),
+        drs: pts.map((p) => p.drs),
       }
-      const x = (i / (length - 1)) * 100
-      const y = 40 - (Math.min(value, 360) / 360) * 40
-      points.push(`${x.toFixed(2)},${y.toFixed(2)}`)
     }
-    return points.join(' ')
-  }, [path])
+    if (path) {
+      return {
+        times: replay.time,
+        throttle: path.throttle ?? [],
+        brake: (path.brake ?? []).map((b) => (b === null ? null : b * 100)),
+        gear: path.gear ?? [],
+        speed: path.speed ?? [],
+        drs: [],
+      }
+    }
+    return null
+  }, [telemetry, path, replay.time])
 
-  const cursorX = replay.duration > 0 ? (currentTime / replay.duration) * 100 : 0
+  const idx = series ? Math.max(0, lastAtOrBefore(series.times, currentTime)) : -1
+  const speed = series ? series.speed[idx] ?? null : null
+  const throttle = series ? smoothChannel(series.throttle, idx, BAR_SMOOTH_RADIUS) : null
+  const brakeValue = series ? series.brake[idx] ?? null : null
+  const braking = brakeValue !== null && brakeValue > 0
+  const gear = series ? series.gear[idx] ?? null : null
+  const drs = series && series.drs.length > 0 ? series.drs[idx] ?? null : null
+
+  const windowEnd = currentTime
+  const windowStart = currentTime - WINDOW_SECONDS
+  const throttlePath = series
+    ? smoothPath(buildPoints(series.times, series.throttle, windowStart, windowEnd, throttle))
+    : ''
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-surface p-5">
@@ -101,37 +191,39 @@ export default function TelemetryPanel({
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Gauge label="Throttle" value={throttle} unit="%" max={100} color="#43b02a" />
-        <Gauge label="Brake" value={brake === null ? null : brake * 100} unit="%" max={100} color="#da291c" />
-      </div>
-      <p className="mt-3 text-xs text-zinc-500">
-        Gear <span className="font-mono text-zinc-200">{gear === null ? '-' : gear}</span>
+      <div className="mt-3 flex items-center gap-4 text-xs text-zinc-500">
+        <span>
+          Gear <span className="font-mono text-zinc-200">{gear === null ? '-' : Math.round(gear)}</span>
+        </span>
+        <BrakeIndicator braking={braking} />
         {drs !== null && drs > 0 && (
-          <span className="ml-4">
+          <span>
             DRS <span className={`font-mono ${drs === 2 ? 'text-blue-400 font-semibold' : 'text-zinc-400'}`}>{drs === 2 ? 'ACTIVE' : 'Available'}</span>
           </span>
         )}
-      </p>
+      </div>
 
-      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="mt-4 h-20 w-full">
-        <polyline
-          points={trace}
-          fill="none"
-          stroke="#52525b"
-          strokeWidth={0.6}
-          vectorEffect="non-scaling-stroke"
-        />
-        <line
-          x1={cursorX}
-          y1={0}
-          x2={cursorX}
-          y2={40}
-          stroke="#e10600"
-          strokeWidth={0.8}
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
+      <div className="mt-4">
+        <div className="mb-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500">Throttle</div>
+        <div className="flex items-start gap-3">
+          <svg
+            viewBox="0 0 100 40"
+            preserveAspectRatio="none"
+            className="h-24 flex-1 rounded-md bg-zinc-900/40"
+          >
+            <path
+              d={throttlePath}
+              fill="none"
+              stroke="#43b02a"
+              strokeWidth={0.9}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+          <VerticalBar value={throttle} color="#43b02a" />
+        </div>
+      </div>
     </div>
   )
 }

@@ -61,10 +61,10 @@ export default function ReplayViewer({
             <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
           </div>
           <div
-            className="absolute left-3 top-3 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+            className="absolute left-3 top-3 flex items-center gap-3 rounded-xl px-4 py-2.5 text-base font-bold"
             style={{ color: status.color, backgroundColor: status.background }}
           >
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} />
+            <img src={status.flag} alt="" className="h-7 w-7" />
             {status.label}
           </div>
         </div>

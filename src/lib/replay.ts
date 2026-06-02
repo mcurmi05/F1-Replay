@@ -1,3 +1,6 @@
+import greenFlag from '../assets/flags/green_flag.png'
+import yellowFlag from '../assets/flags/yellow_flag.png'
+import redFlag from '../assets/flags/red_flag.png'
 import hardTyre from '../assets/tires/hard.png'
 import intermediateTyre from '../assets/tires/intermediate.png'
 import mediumTyre from '../assets/tires/medium.png'
@@ -48,6 +51,49 @@ export function sampleChannel(
     return a
   }
   return a + (b - a) * frame.frac
+}
+
+export function sampleChannelHold(
+  values: (number | null)[] | undefined,
+  frame: FrameIndex,
+): number | null {
+  if (!values) {
+    return null
+  }
+  const value = values[frame.i0]
+  return value === null || value === undefined ? null : value
+}
+
+export function smoothChannel(
+  values: (number | null)[] | undefined,
+  index: number,
+  radius: number,
+): number | null {
+  if (!values) {
+    return null
+  }
+  let sum = 0
+  let count = 0
+  for (let i = index - radius; i <= index + radius; i += 1) {
+    if (i < 0 || i >= values.length) {
+      continue
+    }
+    const value = values[i]
+    if (value === null || value === undefined) {
+      continue
+    }
+    sum += value
+    count += 1
+  }
+  return count === 0 ? null : sum / count
+}
+
+export function sampleChannelSmooth(
+  values: (number | null)[] | undefined,
+  frame: FrameIndex,
+  radius = 1,
+): number | null {
+  return smoothChannel(values, frame.i0, radius)
 }
 
 export function currentLap(laps: ReplayLap[] | undefined, time: number): ReplayLap | null {
@@ -239,24 +285,25 @@ export interface TrackStatusInfo {
   label: string
   color: string
   background: string
+  flag: string
 }
 
 export function trackStatusInfo(code: string | null): TrackStatusInfo {
   switch (code) {
     case '1':
-      return { label: 'Green flag', color: '#22c55e', background: 'rgba(34,197,94,0.15)' }
+      return { label: 'Green flag', color: '#22c55e', background: 'rgba(34,197,94,0.15)', flag: greenFlag }
     case '2':
-      return { label: 'Yellow flag', color: '#facc15', background: 'rgba(250,204,21,0.15)' }
+      return { label: 'Yellow flag', color: '#facc15', background: 'rgba(250,204,21,0.15)', flag: yellowFlag }
     case '4':
-      return { label: 'Safety car', color: '#facc15', background: 'rgba(250,204,21,0.15)' }
+      return { label: 'Safety car', color: '#facc15', background: 'rgba(250,204,21,0.15)', flag: yellowFlag }
     case '5':
-      return { label: 'Red flag', color: '#ef4444', background: 'rgba(239,68,68,0.18)' }
+      return { label: 'Red flag', color: '#ef4444', background: 'rgba(239,68,68,0.18)', flag: redFlag }
     case '6':
-      return { label: 'Virtual safety car', color: '#facc15', background: 'rgba(250,204,21,0.15)' }
+      return { label: 'Virtual safety car', color: '#facc15', background: 'rgba(250,204,21,0.15)', flag: yellowFlag }
     case '7':
-      return { label: 'VSC ending', color: '#facc15', background: 'rgba(250,204,21,0.15)' }
+      return { label: 'VSC ending', color: '#facc15', background: 'rgba(250,204,21,0.15)', flag: yellowFlag }
     default:
-      return { label: 'Track clear', color: '#22c55e', background: 'rgba(34,197,94,0.15)' }
+      return { label: 'Track clear', color: '#22c55e', background: 'rgba(34,197,94,0.15)', flag: greenFlag }
   }
 }
 

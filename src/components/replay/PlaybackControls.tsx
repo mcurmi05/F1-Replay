@@ -1,4 +1,6 @@
 import raceStartIcon from '../../assets/race_start.png'
+import skipBackwardIcon from '../../assets/skip_backward.png'
+import skipForwardIcon from '../../assets/skip_forward.png'
 import { PauseIcon, PlayIcon } from '../icons'
 import { formatClockHours } from '../../lib/format'
 import type { Playback } from '../../hooks/usePlayback'
@@ -38,10 +40,28 @@ export default function PlaybackControls({
 
       <button
         type="button"
+        onClick={() => seek(Math.max(0, currentTime - 5))}
+        title="Skip back 5 seconds"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-f1-red transition hover:brightness-110"
+      >
+        <img src={skipBackwardIcon} alt="Skip back 5 seconds" className="h-5 w-5" />
+      </button>
+
+      <button
+        type="button"
         onClick={handleToggle}
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-f1-red text-white transition hover:brightness-110"
       >
         {playing ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => seek(Math.min(duration, currentTime + 5))}
+        title="Skip forward 5 seconds"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-f1-red transition hover:brightness-110"
+      >
+        <img src={skipForwardIcon} alt="Skip forward 5 seconds" className="h-5 w-5" />
       </button>
 
       <span className="shrink-0 font-mono text-sm text-zinc-300">

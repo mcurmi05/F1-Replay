@@ -208,14 +208,25 @@ def laps(session, driver=None):
     return rows
 
 
+def _session_start(session):
+    starts = []
+    for number in session.drivers:
+        pos = session.pos_data.get(number)
+        if pos is None or len(pos) == 0:
+            continue
+        starts.append(_seconds_axis(pos)[0])
+    return float(min(starts)) if starts else 0.0
+
+
 def driver_telemetry(session, driver):
     driver_laps = session.laps.pick_drivers(driver)
     telemetry = driver_laps.get_telemetry().add_distance()
+    start = _session_start(session)
     rows = []
     for _, point in telemetry.iterrows():
         brake = point.get("Brake")
         rows.append({
-            "time": _seconds(point.get("Time")),
+            "time": _seconds_rel(point.get("SessionTime"), start),
             "distance": _float(point.get("Distance")),
             "speed": _float(point.get("Speed")),
             "throttle": _float(point.get("Throttle")),
