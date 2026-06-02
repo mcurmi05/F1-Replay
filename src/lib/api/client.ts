@@ -32,7 +32,9 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
-  getCache: (signal?: AbortSignal) => get<{ dir: string | null }>('/cache', signal),
+  years: (signal?: AbortSignal) => get<number[]>('/years', signal),
+  getCache: (signal?: AbortSignal) =>
+    get<{ dir: string | null; deleted?: boolean }>('/cache', signal),
   live: (signal?: AbortSignal) => get<LiveState>('/live', signal),
   setCache: (dir: string, deletePrevious = false) =>
     post<{ dir: string | null; previous: string | null; deleted: boolean }>('/cache', {

@@ -4,6 +4,7 @@ export interface ScheduleEvent {
   location: string | null
   event_name: string | null
   event_date: string | null
+  sessions: string[]
 }
 
 export interface SessionSummary {

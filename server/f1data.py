@@ -7,17 +7,40 @@ import pandas as pd
 
 _load_lock = threading.Lock()
 _cache_dir = None
+_cache_deleted = False
+
+CACHE_FOLDER_NAME = "f1replaycache"
 
 
 def set_cache(directory):
-    global _cache_dir
-    os.makedirs(directory, exist_ok=True)
-    fastf1.Cache.enable_cache(directory)
-    _cache_dir = directory
+    global _cache_dir, _cache_deleted
+    if os.path.basename(os.path.normpath(directory)) == CACHE_FOLDER_NAME:
+        target = directory
+    else:
+        target = os.path.join(directory, CACHE_FOLDER_NAME)
+    os.makedirs(target, exist_ok=True)
+    fastf1.Cache.enable_cache(target)
+    _cache_dir = target
+    _cache_deleted = False
 
 
 def get_cache():
     return _cache_dir
+
+
+def cache_valid():
+    global _cache_dir, _cache_deleted
+    if _cache_dir is None:
+        return False
+    if not os.path.isdir(_cache_dir):
+        _cache_dir = None
+        _cache_deleted = True
+        return False
+    return True
+
+
+def cache_was_deleted():
+    return _cache_deleted
 
 
 _env_cache = os.environ.get("FASTF1_CACHE_DIR")
@@ -61,12 +84,18 @@ def get_schedule(year):
     schedule = fastf1.get_event_schedule(year, include_testing=False)
     events = []
     for _, row in schedule.iterrows():
+        sessions = []
+        for i in range(1, 6):
+            name = _text(row.get(f"Session{i}"))
+            if name:
+                sessions.append(name)
         events.append({
             "round": _int(row.get("RoundNumber")),
             "country": _text(row.get("Country")),
             "location": _text(row.get("Location")),
             "event_name": _text(row.get("EventName")),
             "event_date": _iso(row.get("EventDate")),
+            "sessions": sessions,
         })
     return events
 

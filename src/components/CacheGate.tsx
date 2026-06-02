@@ -8,12 +8,32 @@ export default function CacheGate({ children }: { children: ReactNode }) {
   const [manualPath, setManualPath] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleted, setDeleted] = useState(false)
 
   useEffect(() => {
-    api
-      .getCache()
-      .then((result) => setDir(result.dir))
-      .catch(() => setDir(null))
+    let active = true
+    async function check() {
+      try {
+        const result = await api.getCache()
+        if (!active) {
+          return
+        }
+        setDir(result.dir)
+        if (result.deleted) {
+          setDeleted(true)
+        }
+      } catch {
+        if (active) {
+          setDir(null)
+        }
+      }
+    }
+    check()
+    const id = setInterval(check, 5000)
+    return () => {
+      active = false
+      clearInterval(id)
+    }
   }, [])
 
   async function apply(folder: string) {
@@ -22,6 +42,7 @@ export default function CacheGate({ children }: { children: ReactNode }) {
     try {
       const result = await api.setCache(folder)
       setDir(result.dir)
+      setDeleted(false)
     } catch {
       setError('Could not use that folder.')
     } finally {
@@ -57,10 +78,16 @@ export default function CacheGate({ children }: { children: ReactNode }) {
             <span className="h-1.5 w-1.5 rounded-full bg-f1-red" />
             F1 Replay
           </span>
-          <h1 className="mt-5 text-2xl font-bold text-white">Choose a downloads folder</h1>
+          <h1 className="mt-5 text-2xl font-bold text-white">Choose a cache location</h1>
+          {deleted ? (
+            <p className="mt-4 rounded-lg border border-f1-red/40 bg-f1-red/10 px-4 py-3 text-sm text-f1-red">
+              The cache folder was deleted. Choose a location to continue.
+            </p>
+          ) : null}
           <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-            Sessions are downloaded and cached here. Pick the same folder next time to reuse what
-            you have already downloaded.
+            Pick a directory and a folder named <span className="font-mono text-zinc-300">f1replaycache</span> will be
+            created inside it to store downloaded sessions. Choose the same directory next time to
+            reuse what you have already downloaded.
           </p>
           {hasDialog ? (
             <button

@@ -164,6 +164,8 @@ class LiveManager:
 
     def state(self):
         with self._lock:
+            if not f1data.cache_valid():
+                return _empty_snapshot(None)
             current = _current_session()
             if current is not None and current["live_window"]:
                 key = current["key"]

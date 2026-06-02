@@ -1,19 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { ArrowRightIcon, ChevronDownIcon } from '../components/icons'
-import { useSchedule } from '../hooks/useApi'
-
-const YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018]
+import { useSchedule, useYears } from '../hooks/useApi'
 
 const SESSION_TYPES = [
-  { label: 'Practice 1', value: 'FP1' },
-  { label: 'Practice 2', value: 'FP2' },
-  { label: 'Practice 3', value: 'FP3' },
-  { label: 'Qualifying', value: 'Q' },
-  { label: 'Sprint Qualifying', value: 'SQ' },
-  { label: 'Sprint', value: 'Sprint' },
-  { label: 'Race', value: 'R' },
+  { label: 'Practice 1', value: 'FP1', names: ['Practice 1'] },
+  { label: 'Practice 2', value: 'FP2', names: ['Practice 2'] },
+  { label: 'Practice 3', value: 'FP3', names: ['Practice 3'] },
+  { label: 'Qualifying', value: 'Q', names: ['Qualifying'] },
+  { label: 'Sprint Qualifying', value: 'SQ', names: ['Sprint Qualifying', 'Sprint Shootout'] },
+  { label: 'Sprint', value: 'Sprint', names: ['Sprint'] },
+  { label: 'Race', value: 'R', names: ['Race'] },
 ]
 
 interface Option {
@@ -72,21 +70,32 @@ function SelectField({
 
 export default function Home() {
   const navigate = useNavigate()
-  const [year, setYear] = useState(String(YEARS[0]))
+  const yearsQuery = useYears()
+  const [year, setYear] = useState('')
+
+  useEffect(() => {
+    if (!year && yearsQuery.data && yearsQuery.data.length > 0) {
+      setYear(String(yearsQuery.data[0]))
+    }
+  }, [yearsQuery.data, year])
   const [round, setRound] = useState('')
   const [session, setSession] = useState('R')
 
   const schedule = useSchedule(Number(year))
-  const races = (schedule.data ?? []).filter((event) => event.round !== null)
+  const allRaces = (schedule.data ?? []).filter((event) => event.round !== null)
+  const pastRaces = allRaces.filter((event) => !isUpcoming(event.event_date))
 
-  const eventOptions = races.map((event) => ({
+  const eventOptions = pastRaces.map((event) => ({
     label: event.event_name ?? `Round ${event.round}`,
     value: String(event.round),
   }))
 
-  const selectedEvent = races.find((event) => String(event.round) === round)
-  const selectedUpcoming = isUpcoming(selectedEvent?.event_date ?? null)
-  const canView = year !== '' && round !== '' && session !== '' && !selectedUpcoming
+  const selectedEvent = allRaces.find((event) => String(event.round) === round)
+  const sessionOptions = SESSION_TYPES.filter((type) =>
+    !selectedEvent || selectedEvent.sessions.some((name) => type.names.includes(name)),
+  )
+
+  const canView = year !== '' && round !== '' && session !== ''
 
   function openSession() {
     if (!canView) {
@@ -124,7 +133,7 @@ export default function Home() {
               label="Year"
               value={year}
               placeholder="Select year"
-              options={YEARS.map((value) => ({ label: String(value), value: String(value) }))}
+              options={(yearsQuery.data ?? []).map((value) => ({ label: String(value), value: String(value) }))}
               onChange={(next) => {
                 setYear(next)
                 setRound('')
@@ -136,13 +145,16 @@ export default function Home() {
               placeholder={schedule.loading ? 'Loading...' : 'Select Grand Prix'}
               options={eventOptions}
               disabled={schedule.loading || eventOptions.length === 0}
-              onChange={setRound}
+              onChange={(next) => {
+                setRound(next)
+                setSession('R')
+              }}
             />
             <SelectField
               label="Session"
               value={session}
               placeholder="Select session"
-              options={SESSION_TYPES}
+              options={sessionOptions}
               onChange={setSession}
             />
           </div>
@@ -150,9 +162,6 @@ export default function Home() {
             <p className="mt-4 text-sm text-f1-red">
               Could not load the schedule. Is the data server running?
             </p>
-          ) : null}
-          {selectedUpcoming ? (
-            <p className="mt-4 text-sm text-zinc-500">This session hasn't taken place yet.</p>
           ) : null}
           <div className="mt-5 flex justify-end">
             <button
@@ -174,7 +183,7 @@ export default function Home() {
         </h2>
         {schedule.loading ? <p className="text-sm text-zinc-500">Loading schedule...</p> : null}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {races.map((event) => {
+          {allRaces.map((event) => {
             const upcoming = isUpcoming(event.event_date)
             const details = (
               <>

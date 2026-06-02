@@ -105,13 +105,14 @@ export default function CacheSettings() {
           >
             {pending ? (
               <>
-                <h2 className="text-lg font-bold text-white">Delete the previous folder?</h2>
+                <h2 className="text-lg font-bold text-white">Delete the previous cache?</h2>
                 <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-                  Your downloads will move to:
+                  A new <span className="font-mono text-zinc-300">f1replaycache</span> folder will be
+                  created in:
                 </p>
                 <p className="mt-1 break-all font-mono text-xs text-zinc-300">{pending}</p>
                 <p className="mt-4 text-sm leading-relaxed text-zinc-400">
-                  Do you want to permanently delete the folder you used before?
+                  Do you want to permanently delete the previous cache folder?
                 </p>
                 <p className="mt-1 break-all font-mono text-xs text-zinc-300">{dir}</p>
                 {error ? <p className="mt-3 text-sm text-f1-red">{error}</p> : null}
@@ -136,8 +137,11 @@ export default function CacheSettings() {
               </>
             ) : (
               <>
-                <h2 className="text-lg font-bold text-white">Cache folder</h2>
-                <p className="mt-3 text-sm text-zinc-400">Sessions are downloaded and cached here.</p>
+                <h2 className="text-lg font-bold text-white">Cache location</h2>
+                <p className="mt-3 text-sm text-zinc-400">
+                  A folder named <span className="font-mono text-zinc-300">f1replaycache</span> is
+                  created inside the directory you choose and holds the downloaded data.
+                </p>
                 <p className="mt-2 break-all font-mono text-xs text-zinc-300">
                   {dir ?? 'No folder selected yet.'}
                 </p>

@@ -53,6 +53,8 @@ def _delete_previous_cache(previous, new_dir):
         )
     if os.path.dirname(previous_abs) == previous_abs:
         raise HTTPException(status_code=400, detail="Refusing to delete a filesystem root")
+    if os.path.basename(previous_abs) != f1data.CACHE_FOLDER_NAME:
+        return False
     if os.path.isdir(previous_abs):
         shutil.rmtree(previous_abs, ignore_errors=True)
         return True
@@ -60,7 +62,7 @@ def _delete_previous_cache(previous, new_dir):
 
 
 def _require_cache():
-    if f1data.get_cache() is None:
+    if not f1data.cache_valid():
         raise HTTPException(status_code=409, detail="No cache folder selected")
 
 
@@ -74,7 +76,8 @@ def _load(year, event, session_type):
 
 @api.get("/cache")
 def cache_status():
-    return {"dir": f1data.get_cache()}
+    f1data.cache_valid()
+    return {"dir": f1data.get_cache(), "deleted": f1data.cache_was_deleted()}
 
 
 @api.post("/cache")
@@ -85,6 +88,13 @@ def set_cache_dir(request: CacheRequest):
     if request.delete_previous:
         deleted = _delete_previous_cache(previous, f1data.get_cache())
     return {"dir": f1data.get_cache(), "previous": previous, "deleted": deleted}
+
+
+@api.get("/years")
+def years():
+    from datetime import datetime
+    current = datetime.now().year
+    return list(range(current, 2017, -1))
 
 
 @api.get("/live")

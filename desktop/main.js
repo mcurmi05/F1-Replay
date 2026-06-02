@@ -10,7 +10,7 @@ let serverProcess = null
 
 ipcMain.handle('choose-folder', async () => {
   const result = await dialog.showOpenDialog({
-    title: 'Choose a folder for F1-Replay downloads',
+    title: 'Choose a directory for the F1-Replay cache',
     properties: ['openDirectory', 'createDirectory'],
   })
   if (result.canceled || result.filePaths.length === 0) {
