@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import StatusCard from '../StatusCard'
 import OvertakeFeed from './OvertakeFeed'
 import PlaybackControls from './PlaybackControls'
+import RaceControlFeed from './RaceControlFeed'
 import ReplayClock from './ReplayClock'
 import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
@@ -71,7 +72,10 @@ export default function ReplayViewer({
         </div>
       </div>
       <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} />
-      {selected ? <TelemetryPanel replay={data} driver={selected} currentTime={time} /> : null}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <RaceControlFeed messages={data.race_control_messages} currentTime={time} />
+        {selected ? <TelemetryPanel replay={data} driver={selected} currentTime={time} /> : null}
+      </div>
       <OvertakeFeed events={events} currentTime={time} />
     </div>
   )

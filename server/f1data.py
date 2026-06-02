@@ -304,6 +304,47 @@ def _timing_streams(session):
         raise ReplayTimingError(f"FastF1 timing API failed: {exc}") from exc
 
 
+def _race_control_messages(session, first_sample_time_offset):
+    try:
+        import fastf1._api as ff1_api
+
+        msgs = ff1_api.race_control_messages(session.api_path)
+        if not msgs or len(msgs.get("Time", [])) == 0:
+            return []
+
+        times = msgs.get("Time", [])
+        if not times or len(times) == 0:
+            return []
+
+        first_msg_ts = None
+        if hasattr(times[0], "timestamp"):
+            try:
+                first_msg_ts = times[0].timestamp()
+            except (TypeError, AttributeError):
+                pass
+
+        result = []
+        for i, t in enumerate(msgs["Time"]):
+            msg_time = None
+            if hasattr(t, "timestamp") and first_msg_ts is not None:
+                try:
+                    msg_time = round(t.timestamp() - first_msg_ts + first_sample_time_offset, 1)
+                except (TypeError, AttributeError):
+                    pass
+
+            msg = {
+                "time": msg_time,
+                "category": _text(msgs["Category"][i]),
+                "message": _text(msgs["Message"][i]),
+                "status": _text(msgs["Status"][i]),
+                "flag": _text(msgs["Flag"][i]),
+            }
+            result.append(msg)
+        return result
+    except Exception:
+        return []
+
+
 def build_replay(session, step=0.5):
     results_by_number = {
         str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
@@ -441,6 +482,8 @@ def build_replay(session, step=0.5):
             })
         laps_by_driver[number] = entries
 
+    race_control = _race_control_messages(session, start)
+
     return {
         "available": True,
         "step": step,
@@ -455,4 +498,5 @@ def build_replay(session, step=0.5):
         "drivers": drivers,
         "positions": positions,
         "laps": laps_by_driver,
+        "race_control_messages": race_control,
     }

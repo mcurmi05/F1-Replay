@@ -145,6 +145,14 @@ export interface TrackStatusSegment {
   message: string | null
 }
 
+export interface RaceControlMessage {
+  time: number | null
+  category: string | null
+  message: string | null
+  status: string | null
+  flag: string | null
+}
+
 export interface ReplayData {
   available: boolean
   step: number
@@ -172,4 +180,5 @@ export interface ReplayData {
     }
   >
   laps: Record<string, ReplayLap[]>
+  race_control_messages: RaceControlMessage[]
 }
