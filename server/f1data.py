@@ -116,12 +116,12 @@ def get_schedule(year):
         for i in range(1, 6):
             name = _text(row.get(f"Session{i}"))
             if name:
-                sessions.append(name)
-        session_dates = [
-            _iso(row.get(f"Session{i}DateUtc"))
-            for i in range(1, 6)
-            if _iso(row.get(f"Session{i}DateUtc")) is not None
-        ]
+                sessions.append({
+                    "name": name,
+                    "date_utc": _iso(row.get(f"Session{i}DateUtc")),
+                    "date_local": _iso(row.get(f"Session{i}Date")),
+                })
+        session_dates = [s["date_utc"] for s in sessions if s["date_utc"]]
         events.append({
             "round": _int(row.get("RoundNumber")),
             "country": _text(row.get("Country")),

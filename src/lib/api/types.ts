@@ -1,3 +1,9 @@
+export interface SessionInfo {
+  name: string
+  date_utc: string | null
+  date_local: string | null
+}
+
 export interface ScheduleEvent {
   round: number | null
   country: string | null
@@ -6,7 +12,7 @@ export interface ScheduleEvent {
   event_date: string | null
   date_start: string | null
   date_end: string | null
-  sessions: string[]
+  sessions: SessionInfo[]
 }
 
 export interface SessionSummary {

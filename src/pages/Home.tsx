@@ -44,12 +44,28 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `${fmt(start)} - ${fmt(end)}`
 }
 
-function sessionsForEvent(sessions: string[]) {
-  const sessionMap = new Map(SESSION_TYPES.map((type) => [type.value, type]))
-  const result = sessions
-    .map((name) => SESSION_TYPES.find((type) => type.names.includes(name)))
-    .filter((type) => type !== undefined)
-  return [...new Set(result)]
+function sessionsForEvent(sessions: ScheduleEvent['sessions']) {
+  return sessions
+    .map((info) => {
+      const type = SESSION_TYPES.find((t) => t.names.includes(info.name))
+      if (!type) return null
+      return { ...type, date_local: info.date_local }
+    })
+    .filter((t): t is NonNullable<typeof t> => t !== null)
+}
+
+function formatSessionTime(dateLocal: string | null): string {
+  if (!dateLocal) return ''
+  const match = dateLocal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!match) return ''
+  const [, year, month, day, hour, minute] = match
+  const d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+  const dayName = d.toLocaleDateString('en-GB', { weekday: 'short' })
+  const monthName = d.toLocaleDateString('en-GB', { month: 'short' })
+  const h = parseInt(hour)
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 || 12
+  return `${dayName} ${parseInt(day)} ${monthName} · ${h12}:${minute}${ampm}`
 }
 
 function SelectField({
@@ -276,10 +292,18 @@ export default function Home() {
                   key={type.value}
                   type="button"
                   onClick={() => navigate(`/replay/${year}/${pickerEvent.round}/${type.value}`)}
-                  className="flex items-center justify-between rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-f1-red hover:bg-zinc-800"
+                  className="flex items-center justify-between rounded-lg border border-zinc-700 px-4 py-2.5 text-sm transition hover:border-f1-red hover:bg-zinc-800"
                 >
-                  {type.label}
-                  <ArrowRightIcon className="h-4 w-4 text-zinc-500" />
+                  <span className="flex items-center gap-2 font-medium text-zinc-200">
+                    {type.label}
+                    {formatSessionTime(type.date_local) && (
+                      <>
+                        <span className="text-zinc-600">·</span>
+                        <span className="text-zinc-500">{formatSessionTime(type.date_local)}</span>
+                      </>
+                    )}
+                  </span>
+                  <ArrowRightIcon className="h-4 w-4 shrink-0 text-zinc-500" />
                 </button>
               ))}
             </div>
