@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { teamColor } from '../../lib/format'
+import { formatLapTime, teamColor } from '../../lib/format'
 import { tyreIcon } from '../../lib/replay'
 
 export interface TimingTowerRow {
@@ -13,6 +13,8 @@ export interface TimingTowerRow {
   pitted: boolean
   interval: string | null
   gap_leader: string | null
+  best_lap: number | null
+  best_lap_compound: string | null
 }
 
 export default function TimingTower({
@@ -20,11 +22,13 @@ export default function TimingTower({
   selected = null,
   onSelect,
   header,
+  mode = 'race',
 }: {
   rows: TimingTowerRow[]
   selected?: string | null
   onSelect?: (driver: string) => void
   header?: ReactNode
+  mode?: 'race' | 'lap'
 }) {
   const listRef = useRef<HTMLUListElement>(null)
   const tops = useRef<Map<string, number>>(new Map())
@@ -139,9 +143,19 @@ export default function TimingTower({
         <span className="w-5 text-right">P</span>
         <span className="w-1 shrink-0" />
         <span>Driver</span>
-        <span className="ml-auto w-16 text-right">Interval</span>
-        <span className="w-16 text-right">Leader</span>
-        <span className="w-12" />
+        {mode === 'lap' ? (
+          <>
+            <span className="ml-auto w-20 text-right">Best Lap</span>
+            <span className="w-8 text-center">Best</span>
+            <span className="w-8 text-center">Tyre</span>
+          </>
+        ) : (
+          <>
+            <span className="ml-auto w-16 text-right">Interval</span>
+            <span className="w-16 text-right">Leader</span>
+            <span className="w-12" />
+          </>
+        )}
       </div>
       <ul ref={listRef} className="relative space-y-0.5">
         {rows.map((row, idx) => {
@@ -177,24 +191,48 @@ export default function TimingTower({
                     {move.count}
                   </span>
                 ) : null}
-                <span className="ml-auto w-16 text-right font-mono text-xs text-zinc-300">
-                  {idx === 0 ? '' : row.interval ?? '-'}
-                </span>
-                <span className="w-16 text-right font-mono text-xs text-zinc-500">
-                  {idx === 0 ? 'LEADER' : row.gap_leader ?? '-'}
-                </span>
-                <span className="flex w-12 items-center justify-end gap-1.5">
-                  {row.pitted ? (
-                    <span className="rounded bg-amber-500/20 px-1 text-[10px] font-bold uppercase text-amber-400">
-                      pit
+                {mode === 'lap' ? (
+                  <>
+                    <span className="ml-auto w-20 text-right font-mono text-xs text-zinc-200">
+                      {row.best_lap !== null ? formatLapTime(row.best_lap) : '-'}
                     </span>
-                  ) : null}
-                  {icon ? (
-                    <img src={icon} alt={row.compound ?? ''} className="h-5 w-5" />
-                  ) : (
-                    <span className="h-5 w-5" />
-                  )}
-                </span>
+                    <span className="flex w-8 items-center justify-center">
+                      {tyreIcon(row.best_lap_compound) ? (
+                        <img src={tyreIcon(row.best_lap_compound)} alt={row.best_lap_compound ?? ''} className="h-5 w-5" />
+                      ) : (
+                        <span className="h-5 w-5" />
+                      )}
+                    </span>
+                    <span className="flex w-8 items-center justify-center">
+                      {icon ? (
+                        <img src={icon} alt={row.compound ?? ''} className="h-5 w-5" />
+                      ) : (
+                        <span className="h-5 w-5" />
+                      )}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="ml-auto w-16 text-right font-mono text-xs text-zinc-300">
+                      {idx === 0 ? '' : row.interval ?? '-'}
+                    </span>
+                    <span className="w-16 text-right font-mono text-xs text-zinc-500">
+                      {idx === 0 ? 'LEADER' : row.gap_leader ?? '-'}
+                    </span>
+                    <span className="flex w-12 items-center justify-end gap-1.5">
+                      {row.pitted ? (
+                        <span className="rounded bg-amber-500/20 px-1 text-[10px] font-bold uppercase text-amber-400">
+                          pit
+                        </span>
+                      ) : null}
+                      {icon ? (
+                        <img src={icon} alt={row.compound ?? ''} className="h-5 w-5" />
+                      ) : (
+                        <span className="h-5 w-5" />
+                      )}
+                    </span>
+                  </>
+                )}
               </button>
             </li>
           )

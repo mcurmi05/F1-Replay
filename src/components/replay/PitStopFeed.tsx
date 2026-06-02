@@ -56,7 +56,15 @@ function formatTime(seconds: number): string {
   return `${mins}:${String(secs).padStart(2, '0')}`
 }
 
-export default function PitStopFeed({ replay, currentTime }: { replay: ReplayData; currentTime: number }) {
+export default function PitStopFeed({
+  replay,
+  currentTime,
+  label = 'Race',
+}: {
+  replay: ReplayData
+  currentTime: number
+  label?: string
+}) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const allPits = getPitStops(replay)
   const raceStarted = replay.race_start !== null && currentTime >= replay.race_start
@@ -70,10 +78,10 @@ export default function PitStopFeed({ replay, currentTime }: { replay: ReplayDat
 
   return (
     <div className="flex flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Race Pit Stops</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{label} Pit Stops</p>
       <div ref={scrollRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex h-60 flex-col gap-2 overflow-y-auto">
         {!raceStarted ? (
-          <p className="text-xs text-zinc-500">Race hasn't started yet</p>
+          <p className="text-xs text-zinc-500">{label} hasn't started yet</p>
         ) : pits.length === 0 ? (
           <p className="text-xs text-zinc-500">No pit stops yet</p>
         ) : (

@@ -175,6 +175,7 @@ export interface ReplayLap {
   pit_in: number | null
   pit_out: number | null
   start: number | null
+  lap_time: number | null
 }
 
 export interface TrackStatusSegment {
@@ -200,6 +201,12 @@ export interface WeatherSample {
   wind_speed: number | null
   wind_direction: number | null
   rainfall: boolean
+}
+
+export interface QualifyingSegment {
+  name: string
+  start: number
+  end: number
 }
 
 export interface ReplayData {
@@ -231,4 +238,5 @@ export interface ReplayData {
   laps: Record<string, ReplayLap[]>
   race_control_messages: RaceControlMessage[]
   weather: WeatherSample[]
+  qualifying_segments: QualifyingSegment[]
 }

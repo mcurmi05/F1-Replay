@@ -16,7 +16,9 @@ import {
   currentLapNumber,
   currentTrackStatus,
   currentWeather,
+  lapLeaderboard,
   leaderboard,
+  qualifyingStatus,
   trackStatusInfo,
 } from '../../lib/replay'
 import type { SessionSummary } from '../../lib/api/types'
@@ -54,7 +56,14 @@ export default function ReplayViewer({
   const time = playback.currentTime
   const relative = data.race_start === null ? null : time - data.race_start
   const lap = currentLapNumber(data, time)
-  const board = leaderboard(data, time)
+  const lapMode = session !== 'R' && session !== 'Sprint'
+  const isQualifying = lapMode && data.qualifying_segments.length > 0
+  const qStatus = qualifyingStatus(data.qualifying_segments, time)
+  const segmentLabel = isQualifying ? qStatus.label : null
+  const clockRelative =
+    isQualifying ? (qStatus.running && qStatus.segment ? time - qStatus.segment.start : null) : relative
+  const board = lapMode ? lapLeaderboard(data, time, qStatus.segment) : leaderboard(data, time)
+  const pitLabel = session === 'R' || session === 'Sprint' ? 'Race' : isQualifying ? 'Qualifying' : 'Practice'
   const status = trackStatusInfo(currentTrackStatus(data.track_status, time)?.code ?? null)
   const weather = currentWeather(data.weather, time)
 
@@ -82,7 +91,7 @@ export default function ReplayViewer({
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <RaceControlFeed messages={data.race_control_messages} currentTime={time} />
-                <PitStopFeed replay={data} currentTime={time} />
+                <PitStopFeed replay={data} currentTime={time} label={pitLabel} />
               </div>
               {selected ? (
                 <TelemetryPanel year={year} event={event} session={session} replay={data} driver={selected} currentTime={time} />
@@ -90,7 +99,7 @@ export default function ReplayViewer({
             </div>
           </div>
           <div className="mt-auto">
-            <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} />
+            <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} segments={data.qualifying_segments} />
           </div>
         </div>
         <div>
@@ -98,7 +107,8 @@ export default function ReplayViewer({
             rows={board}
             selected={selected}
             onSelect={setSelected}
-            header={<ReplayClock relative={relative} lap={lap} totalLaps={data.total_laps} />}
+            mode={lapMode ? 'lap' : 'race'}
+            header={<ReplayClock relative={clockRelative} lap={lap} totalLaps={data.total_laps} label={segmentLabel} hideHours={isQualifying} />}
           />
         </div>
       </div>

@@ -382,6 +382,44 @@ def _weather_series(session, start):
     return series
 
 
+def _qualifying_segments(session, start):
+    quali_like = getattr(session, "_QUALI_LIKE_SESSIONS", ())
+    if session.name not in quali_like:
+        return []
+    status = session.session_status
+    if status is None or len(status) == 0:
+        return []
+    try:
+        ranges = []
+        pending = None
+        for _, row in status.iterrows():
+            state = row.get("Status")
+            if state == "Started":
+                if pending is None:
+                    pending = row.get("Time")
+            elif state == "Finished":
+                if pending is not None:
+                    ranges.append((pending, row.get("Time")))
+                    pending = None
+        if pending is not None:
+            ranges.append((pending, status["Time"].iloc[-1]))
+    except Exception:
+        return []
+
+    if not ranges:
+        return []
+
+    prefix = "SQ" if "Sprint" in (session.name or "") else "Q"
+    segments = []
+    for i, (seg_start, seg_end) in enumerate(ranges[:3]):
+        segments.append({
+            "name": f"{prefix}{i + 1}",
+            "start": round(float(pd.Timedelta(seg_start).total_seconds()) - start, 2),
+            "end": round(float(pd.Timedelta(seg_end).total_seconds()) - start, 2),
+        })
+    return segments
+
+
 def build_replay(session, step=0.5):
     results_by_number = {
         str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
@@ -415,6 +453,7 @@ def build_replay(session, step=0.5):
             "positions": {},
             "laps": {},
             "weather": [],
+            "qualifying_segments": [],
         }
 
     start = float(min(starts))
@@ -517,11 +556,13 @@ def build_replay(session, step=0.5):
                 "pit_in": _seconds_rel(pit_in if pd.notna(pit_in) else None, start),
                 "pit_out": _seconds_rel(pit_out if pd.notna(pit_out) else None, start),
                 "start": _seconds_rel(lap.get("LapStartTime"), start),
+                "lap_time": _seconds(lap.get("LapTime")),
             })
         laps_by_driver[number] = entries
 
     race_control = _race_control_messages(session, start)
     weather = _weather_series(session, start)
+    qualifying_segments = _qualifying_segments(session, start)
 
     return {
         "available": True,
@@ -539,4 +580,5 @@ def build_replay(session, step=0.5):
         "laps": laps_by_driver,
         "race_control_messages": race_control,
         "weather": weather,
+        "qualifying_segments": qualifying_segments,
     }

@@ -6,7 +6,13 @@ import intermediateTyre from '../assets/tires/intermediate.png'
 import mediumTyre from '../assets/tires/medium.png'
 import softTyre from '../assets/tires/soft.png'
 import wetTyre from '../assets/tires/wet.png'
-import type { ReplayData, ReplayLap, TrackStatusSegment, WeatherSample } from './api/types'
+import type {
+  QualifyingSegment,
+  ReplayData,
+  ReplayLap,
+  TrackStatusSegment,
+  WeatherSample,
+} from './api/types'
 
 const TYRE_ICON: Record<string, string> = {
   SOFT: softTyre,
@@ -124,6 +130,8 @@ export interface TowerRow {
   pitted: boolean
   gap_leader: string | null
   interval: string | null
+  best_lap: number | null
+  best_lap_compound: string | null
 }
 
 function formatGap(seconds: number): string {
@@ -203,8 +211,96 @@ export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
         : false,
       gap_leader,
       interval,
+      best_lap: null,
+      best_lap_compound: null,
     }
   })
+}
+
+export interface QualifyingStatus {
+  segment: QualifyingSegment | null
+  running: boolean
+  label: string | null
+}
+
+export function qualifyingStatus(
+  segments: QualifyingSegment[] | undefined,
+  time: number,
+): QualifyingStatus {
+  if (!segments || segments.length === 0) {
+    return { segment: null, running: false, label: null }
+  }
+  if (time < segments[0].start) {
+    return { segment: null, running: false, label: "Qualifying hasn't started yet" }
+  }
+  for (const segment of segments) {
+    if (time >= segment.start && time <= segment.end) {
+      return { segment, running: true, label: segment.name }
+    }
+  }
+  let last = segments[0]
+  for (const segment of segments) {
+    if (time > segment.end) {
+      last = segment
+    }
+  }
+  return { segment: last, running: false, label: `${last.name} ended` }
+}
+
+export function lapLeaderboard(
+  replay: ReplayData,
+  time: number,
+  window?: { start: number; end: number } | null,
+): TowerRow[] {
+  const rows = replay.drivers.map((driver) => {
+    const laps = replay.laps[driver.number] ?? []
+    let bestLap: number | null = null
+    let bestCompound: string | null = null
+    for (const lap of laps) {
+      if (lap.lap_time === null || lap.start === null) {
+        continue
+      }
+      if (lap.start + lap.lap_time > time) {
+        continue
+      }
+      if (window && (lap.start < window.start || lap.start >= window.end)) {
+        continue
+      }
+      if (bestLap === null || lap.lap_time < bestLap) {
+        bestLap = lap.lap_time
+        bestCompound = lap.compound
+      }
+    }
+    const current = currentLap(laps, time)
+    return {
+      number: driver.number,
+      abbreviation: driver.abbreviation,
+      team_colour: driver.team_colour,
+      position: null,
+      compound: current ? current.compound : null,
+      tyre_age: current ? current.tyre_age : null,
+      pitted: current
+        ? (current.pit_in !== null &&
+            time >= current.pit_in &&
+            (current.pit_out === null || time <= current.pit_out))
+        : false,
+      gap_leader: null,
+      interval: null,
+      best_lap: bestLap,
+      best_lap_compound: bestCompound,
+    }
+  })
+
+  rows.sort((a, b) => {
+    if (a.best_lap === null && b.best_lap === null) return 0
+    if (a.best_lap === null) return 1
+    if (b.best_lap === null) return -1
+    return a.best_lap - b.best_lap
+  })
+  rows.forEach((row, idx) => {
+    row.position = idx + 1
+  })
+  return rows
 }
 
 export function currentLapNumber(replay: ReplayData, time: number): number {

@@ -4,6 +4,7 @@ import skipForwardIcon from '../../assets/skip_forward.png'
 import { PauseIcon, PlayIcon } from '../icons'
 import { formatClockHours } from '../../lib/format'
 import type { Playback } from '../../hooks/usePlayback'
+import type { QualifyingSegment } from '../../lib/api/types'
 
 const SPEEDS = [1, 2, 5, 10, 20]
 
@@ -11,12 +12,31 @@ export default function PlaybackControls({
   playback,
   duration,
   raceStart,
+  segments = [],
 }: {
   playback: Playback
   duration: number
   raceStart: number | null
+  segments?: QualifyingSegment[]
 }) {
   const { currentTime, playing, speed, setSpeed, toggle, seek } = playback
+
+  const markers: { time: number; label: string }[] = []
+  const seen = new Set<number>()
+  const addMarker = (time: number, label: string) => {
+    const clamped = Math.max(0, Math.min(duration, time))
+    if (!seen.has(clamped)) {
+      seen.add(clamped)
+      markers.push({ time: clamped, label })
+    }
+  }
+  for (const segment of segments) {
+    addMarker(segment.start, segment.name)
+    addMarker(segment.end, 'End')
+  }
+
+  const markerTransform = (pct: number): string =>
+    pct <= 1 ? 'translateX(0)' : pct >= 99 ? 'translateX(-100%)' : 'translateX(-50%)'
 
   function handleToggle() {
     if (!playing && currentTime >= duration) {
@@ -68,15 +88,47 @@ export default function PlaybackControls({
         {formatClockHours(currentTime)} / {formatClockHours(duration)}
       </span>
 
-      <input
-        type="range"
-        min={0}
-        max={duration}
-        step={0.1}
-        value={currentTime}
-        onChange={(event) => seek(Number(event.target.value))}
-        className="h-1.5 min-w-40 flex-1 cursor-pointer accent-f1-red"
-      />
+      <div className="flex min-w-40 flex-1 flex-col gap-1">
+        <div className="relative flex items-center">
+          <input
+            type="range"
+            min={0}
+            max={duration}
+            step={0.1}
+            value={currentTime}
+            onChange={(event) => seek(Number(event.target.value))}
+            className="h-1.5 w-full cursor-pointer accent-f1-red"
+          />
+          {markers.map((marker) => {
+            const pct = (marker.time / duration) * 100
+            return (
+              <span
+                key={marker.time}
+                className="pointer-events-none absolute top-1/2 h-3 w-0.5 rounded bg-zinc-200"
+                style={{ left: `${pct}%`, transform: `${markerTransform(pct)} translateY(-50%)` }}
+              />
+            )
+          })}
+        </div>
+        {markers.length > 0 ? (
+          <div className="relative h-4">
+            {markers.map((marker) => {
+              const pct = (marker.time / duration) * 100
+              return (
+                <button
+                  key={marker.time}
+                  type="button"
+                  onClick={() => seek(marker.time)}
+                  style={{ left: `${pct}%`, transform: markerTransform(pct) }}
+                  className="absolute text-[10px] font-semibold uppercase tracking-wider text-zinc-500 transition hover:text-white"
+                >
+                  {marker.label}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
+      </div>
 
       <div className="flex shrink-0 items-center gap-1">
         {SPEEDS.map((value) => (
