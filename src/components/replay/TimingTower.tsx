@@ -1,16 +1,60 @@
-import { compoundInfo } from '../../lib/replay'
+import { useLayoutEffect, useRef } from 'react'
+
 import { teamColor } from '../../lib/format'
-import type { TowerRow } from '../../lib/replay'
+import { tyreIcon } from '../../lib/replay'
+
+export interface TimingTowerRow {
+  number: string
+  abbreviation: string | null
+  team_colour: string | null
+  position: number | null
+  compound: string | null
+  pitted: boolean
+  interval: string | null
+  gap_leader: string | null
+}
 
 export default function TimingTower({
   rows,
-  selected,
+  selected = null,
   onSelect,
 }: {
-  rows: TowerRow[]
-  selected: string | null
-  onSelect: (driver: string) => void
+  rows: TimingTowerRow[]
+  selected?: string | null
+  onSelect?: (driver: string) => void
 }) {
+  const listRef = useRef<HTMLUListElement>(null)
+  const tops = useRef<Map<string, number>>(new Map())
+  const order = useRef<string>('')
+
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list) {
+      return
+    }
+    const signature = rows.map((row) => row.number).join(',')
+    if (signature === order.current) {
+      return
+    }
+    order.current = signature
+
+    for (const child of Array.from(list.children) as HTMLElement[]) {
+      const id = child.dataset.driver
+      if (!id) {
+        continue
+      }
+      const next = child.offsetTop
+      const previous = tops.current.get(id)
+      tops.current.set(id, next)
+      if (previous !== undefined && previous !== next) {
+        child.animate(
+          [{ transform: `translateY(${previous - next}px)` }, { transform: 'translateY(0)' }],
+          { duration: 400, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+        )
+      }
+    }
+  })
+
   return (
     <div className="rounded-2xl border border-zinc-800 bg-surface p-2">
       <div className="flex items-center gap-2 px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
@@ -21,15 +65,15 @@ export default function TimingTower({
         <span className="w-16 text-right">Leader</span>
         <span className="w-12" />
       </div>
-      <ul className="space-y-0.5">
+      <ul ref={listRef} className="relative space-y-0.5">
         {rows.map((row, idx) => {
-          const tyre = compoundInfo(row.compound)
+          const icon = tyreIcon(row.compound)
           const isSelected = selected === row.number
           return (
-            <li key={row.number}>
+            <li key={row.number} data-driver={row.number}>
               <button
                 type="button"
-                onClick={() => onSelect(row.number)}
+                onClick={() => onSelect?.(row.number)}
                 className={[
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition',
                   isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50',
@@ -53,12 +97,11 @@ export default function TimingTower({
                       pit
                     </span>
                   ) : null}
-                  <span
-                    className="flex h-4 w-4 items-center justify-center rounded-full border text-[10px] font-bold"
-                    style={{ color: tyre.color, borderColor: tyre.color }}
-                  >
-                    {tyre.letter}
-                  </span>
+                  {icon ? (
+                    <img src={icon} alt={row.compound ?? ''} className="h-5 w-5" />
+                  ) : (
+                    <span className="h-5 w-5" />
+                  )}
                 </span>
               </button>
             </li>

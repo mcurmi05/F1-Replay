@@ -1,4 +1,21 @@
+import hardTyre from '../assets/tires/hard.png'
+import intermediateTyre from '../assets/tires/intermediate.png'
+import mediumTyre from '../assets/tires/medium.png'
+import softTyre from '../assets/tires/soft.png'
+import wetTyre from '../assets/tires/wet.png'
 import type { ReplayData, ReplayLap, TrackStatusSegment } from './api/types'
+
+const TYRE_ICON: Record<string, string> = {
+  SOFT: softTyre,
+  MEDIUM: mediumTyre,
+  HARD: hardTyre,
+  INTERMEDIATE: intermediateTyre,
+  WET: wetTyre,
+}
+
+export function tyreIcon(compound: string | null): string | undefined {
+  return compound ? TYRE_ICON[compound] : undefined
+}
 
 export interface FrameIndex {
   i0: number

@@ -1,4 +1,5 @@
-import { PauseIcon, PlayIcon, SkipToStartIcon } from '../icons'
+import raceStartIcon from '../../assets/race_start.png'
+import { PauseIcon, PlayIcon } from '../icons'
 import { formatClock } from '../../lib/format'
 import type { Playback } from '../../hooks/usePlayback'
 
@@ -29,9 +30,9 @@ export default function PlaybackControls({
           type="button"
           onClick={() => seek(raceStart)}
           title="Jump to race start"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 text-zinc-300 transition hover:bg-zinc-800"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-white transition hover:brightness-90"
         >
-          <SkipToStartIcon className="h-4 w-4" />
+          <img src={raceStartIcon} alt="Jump to race start" className="h-5 w-5" />
         </button>
       ) : null}
 

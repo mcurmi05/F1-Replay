@@ -327,7 +327,7 @@ def build_replay(session, step=0.5):
         stream = streams.get(str(number))
         if stream is not None:
             gtimes, gposition, gleader, ginterval = stream
-            entry["position"] = _grid_gap(grid, gtimes, gposition, ndigits=0)
+            entry["position"] = _grid_gap(grid, gtimes, gposition, ndigits=0, max_hole=float("inf"))
             entry["gap_leader"] = _grid_gap(grid, gtimes, gleader)
             entry["interval"] = _grid_gap(grid, gtimes, ginterval)
         positions[number] = entry

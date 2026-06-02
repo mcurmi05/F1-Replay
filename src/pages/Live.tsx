@@ -1,6 +1,6 @@
+import TimingTower from '../components/replay/TimingTower'
+import type { TimingTowerRow } from '../components/replay/TimingTower'
 import { useLive } from '../hooks/useApi'
-import { compoundInfo } from '../lib/replay'
-import { teamColor } from '../lib/format'
 import type { LiveRow, LiveState } from '../lib/api/types'
 
 function trackStatusStyle(message: string): string {
@@ -136,66 +136,17 @@ function Header({ state }: { state: LiveState }) {
   )
 }
 
-function TowerRow({ row }: { row: LiveRow }) {
-  const tyre = compoundInfo(row.compound)
-  return (
-    <div className="grid grid-cols-[2rem_minmax(0,1fr)_5rem_5rem_5rem_3.5rem] items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-zinc-800/40 sm:grid-cols-[2rem_minmax(0,1fr)_6rem_6rem_6rem_4rem]">
-      <span className="text-right font-mono text-zinc-400">{row.position ?? '-'}</span>
-      <span className="flex min-w-0 items-center gap-2">
-        <span
-          className="h-5 w-1 shrink-0 rounded-full"
-          style={{ backgroundColor: teamColor(row.team_colour) }}
-        />
-        <span className="truncate font-semibold text-white">{row.abbreviation ?? row.driver_number}</span>
-        {row.status ? (
-          <span
-            className={[
-              'rounded px-1.5 text-[10px] font-bold uppercase',
-              row.retired ? 'bg-zinc-700 text-zinc-300' : 'bg-amber-500/20 text-amber-400',
-            ].join(' ')}
-          >
-            {row.status}
-          </span>
-        ) : null}
-      </span>
-      <span className="text-right font-mono text-xs text-zinc-300">{row.gap ?? '-'}</span>
-      <span className="hidden text-right font-mono text-xs text-zinc-500 sm:block">
-        {row.interval ?? '-'}
-      </span>
-      <span className="text-right font-mono text-xs text-zinc-400">
-        {row.last_lap ?? row.best_lap ?? '-'}
-      </span>
-      <span className="flex items-center justify-end gap-1">
-        <span
-          className="flex h-4 w-4 items-center justify-center rounded-full border text-[10px] font-bold"
-          style={{ color: tyre.color, borderColor: tyre.color }}
-        >
-          {tyre.letter}
-        </span>
-        <span className="w-5 text-right font-mono text-xs text-zinc-500">{row.tyre_age ?? '-'}</span>
-      </span>
-    </div>
-  )
-}
-
-function Tower({ rows }: { rows: LiveRow[] }) {
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-surface p-3">
-      <div className="grid grid-cols-[2rem_minmax(0,1fr)_5rem_5rem_5rem_3.5rem] gap-2 px-2 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 sm:grid-cols-[2rem_minmax(0,1fr)_6rem_6rem_6rem_4rem]">
-        <span className="text-right">P</span>
-        <span>Driver</span>
-        <span className="text-right">Gap</span>
-        <span className="hidden text-right sm:block">Int</span>
-        <span className="text-right">Lap</span>
-        <span className="text-right">Tyre</span>
-      </div>
-      <div className="space-y-0.5">
-        {rows.map((row) => (
-          <TowerRow key={row.driver_number} row={row} />
-        ))}
-      </div>
-    </div>
-  )
+function toTowerRows(rows: LiveRow[]): TimingTowerRow[] {
+  return rows.map((row) => ({
+    number: row.driver_number,
+    abbreviation: row.abbreviation,
+    team_colour: row.team_colour,
+    position: row.position,
+    compound: row.compound,
+    pitted: row.in_pit,
+    interval: row.interval,
+    gap_leader: row.gap,
+  }))
 }
 
 function EmptyState({ state }: { state: LiveState }) {
@@ -256,7 +207,7 @@ export default function Live() {
     <div className="space-y-6">
       <Header state={data} />
       {data.rows.length > 0 ? (
-        <Tower rows={data.rows} />
+        <TimingTower rows={toTowerRows(data.rows)} />
       ) : (
         <div className="flex items-center justify-center gap-3 rounded-2xl border border-zinc-800 bg-surface py-16 text-zinc-400">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
