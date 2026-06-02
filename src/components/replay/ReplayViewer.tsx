@@ -9,7 +9,13 @@ import TimingTower from './TimingTower'
 import TrackMap from './TrackMap'
 import { useReplay } from '../../hooks/useApi'
 import { usePlayback } from '../../hooks/usePlayback'
-import { currentLapNumber, leaderboard, overtakeEvents } from '../../lib/replay'
+import {
+  currentLapNumber,
+  currentTrackStatus,
+  leaderboard,
+  overtakeEvents,
+  trackStatusInfo,
+} from '../../lib/replay'
 
 export default function ReplayViewer({
   year,
@@ -42,15 +48,25 @@ export default function ReplayViewer({
   const relative = data.race_start === null ? null : time - data.race_start
   const lap = currentLapNumber(data, time)
   const board = leaderboard(data, time)
+  const status = trackStatusInfo(currentTrackStatus(data.track_status, time)?.code ?? null)
 
   return (
     <div className="space-y-4">
       <ReplayClock relative={relative} lap={lap} totalLaps={data.total_laps} />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
-        <div className="aspect-[16/10] w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-3">
-          <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1fr_300px]">
+        <div className="relative w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
+          <div className="absolute inset-0 p-3">
+            <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
+          </div>
+          <div
+            className="absolute left-3 top-3 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+            style={{ color: status.color, backgroundColor: status.background }}
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} />
+            {status.label}
+          </div>
         </div>
-        <div className="max-h-[460px] overflow-y-auto">
+        <div>
           <TimingTower rows={board} selected={selected} onSelect={setSelected} />
         </div>
       </div>

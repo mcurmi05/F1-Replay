@@ -101,7 +101,7 @@ export default function Home() {
     }
   }, [yearsQuery.data, year])
   const [round, setRound] = useState('')
-  const [session, setSession] = useState('R')
+  const [session, setSession] = useState('')
   const [pickerEvent, setPickerEvent] = useState<ScheduleEvent | null>(null)
 
   const schedule = useSchedule(Number(year))
@@ -168,7 +168,7 @@ export default function Home() {
               disabled={schedule.loading || eventOptions.length === 0}
               onChange={(next) => {
                 setRound(next)
-                setSession('R')
+                setSession('')
               }}
             />
             <SelectField
@@ -176,6 +176,7 @@ export default function Home() {
               value={session}
               placeholder="Select session"
               options={sessionOptions}
+              disabled={!round}
               onChange={setSession}
             />
           </div>

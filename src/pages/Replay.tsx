@@ -23,10 +23,16 @@ function SessionView({
   const { summary, results, laps } = data
   const [revealed, setRevealed] = useState(false)
   const ordered = [...results].sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
-  const fastest = laps
-    .map((lap) => lap.lap_time)
-    .filter((value): value is number => value !== null)
-    .reduce((min, value) => (value < min ? value : min), Number.POSITIVE_INFINITY)
+  const fastestLap = laps
+    .filter((lap): lap is typeof laps[0] & { lap_time: number } => lap.lap_time !== null)
+    .reduce<(typeof laps)[0] | null>(
+      (best, lap) => (best === null || lap.lap_time < best.lap_time ? lap : best),
+      null,
+    )
+  const fastest = fastestLap?.lap_time ?? Number.POSITIVE_INFINITY
+  const fastestDriver = fastestLap
+    ? results.find((r) => r.driver_number === fastestLap.driver_number)
+    : null
 
   return (
     <div className="space-y-6">
@@ -40,13 +46,7 @@ function SessionView({
           <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
           <span>{summary.location}</span>
           <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
-          <span>{laps.length} laps recorded</span>
-          {revealed && Number.isFinite(fastest) ? (
-            <>
-              <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
-              <span>Fastest lap {formatLapTime(fastest)}</span>
-            </>
-          ) : null}
+          <span>{laps.length} total laps recorded</span>
         </div>
       </div>
 
@@ -100,6 +100,18 @@ function SessionView({
                 ))}
               </tbody>
             </table>
+            {Number.isFinite(fastest) ? (
+              <div className="border-t border-zinc-800 px-5 py-3 text-sm text-zinc-400">
+                Fastest lap{' '}
+                <span className="font-medium text-white">{formatLapTime(fastest)}</span>
+                {fastestDriver?.abbreviation ? (
+                  <>
+                    {' · '}
+                    <span className="font-medium text-white">{fastestDriver.abbreviation}</span>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="rounded-2xl border border-zinc-800 bg-surface p-8 text-center text-sm text-zinc-500">

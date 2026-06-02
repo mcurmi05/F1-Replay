@@ -225,6 +225,51 @@ def _grid_values(grid, times, values, ndigits=0):
     return out
 
 
+def _parse_gap(value):
+    if not isinstance(value, str):
+        return float("nan")
+    try:
+        return float(value)
+    except ValueError:
+        return float("nan")
+
+
+def _grid_gap(grid, times, values, ndigits=3, max_hole=30.0):
+    mask = ~np.isnan(values)
+    if mask.sum() < 1:
+        return [None] * len(grid)
+    order = np.argsort(times[mask])
+    t = times[mask][order]
+    v = values[mask][order]
+    idx = np.searchsorted(t, grid, side="right") - 1
+    out = []
+    for gi, point in zip(idx, grid):
+        if gi < 0 or point - t[gi] > max_hole:
+            out.append(None)
+        else:
+            out.append(round(float(v[gi]), ndigits))
+    return out
+
+
+def _timing_streams(session):
+    streams = {}
+    try:
+        import fastf1.api as ff1_api
+
+        _, stream = ff1_api.timing_data(session.api_path)
+    except Exception:
+        return streams
+    if stream is None or len(stream) == 0:
+        return streams
+    for number, group in stream.groupby("Driver"):
+        times = group["Time"].dt.total_seconds().to_numpy()
+        position = group["Position"].to_numpy(dtype=float)
+        leader = group["GapToLeader"].map(_parse_gap).to_numpy(dtype=float)
+        interval = group["IntervalToPositionAhead"].map(_parse_gap).to_numpy(dtype=float)
+        streams[str(number)] = (times, position, leader, interval)
+    return streams
+
+
 def build_replay(session, step=0.5):
     results_by_number = {
         str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
@@ -248,6 +293,7 @@ def build_replay(session, step=0.5):
             "step": step,
             "duration": 0.0,
             "race_start": None,
+            "track_status": [],
             "total_laps": None,
             "time": [],
             "track": {"x": [], "y": []},
@@ -261,6 +307,8 @@ def build_replay(session, step=0.5):
     start = float(min(starts))
     end = float(max(ends))
     grid = np.arange(start, end, step)
+
+    streams = _timing_streams(session)
 
     positions = {}
     drivers = []
@@ -276,6 +324,12 @@ def build_replay(session, step=0.5):
             entry["throttle"] = _grid_values(grid, car_times, car["Throttle"].to_numpy())
             entry["brake"] = _grid_values(grid, car_times, car["Brake"].astype(float).to_numpy())
             entry["gear"] = _grid_values(grid, car_times, car["nGear"].to_numpy())
+        stream = streams.get(str(number))
+        if stream is not None:
+            gtimes, gposition, gleader, ginterval = stream
+            entry["position"] = _grid_gap(grid, gtimes, gposition, ndigits=0)
+            entry["gap_leader"] = _grid_gap(grid, gtimes, gleader)
+            entry["interval"] = _grid_gap(grid, gtimes, ginterval)
         positions[number] = entry
 
         row = results_by_number.get(number)
@@ -322,6 +376,19 @@ def build_replay(session, step=0.5):
         if len(started):
             race_start = round(float(started.iloc[0]["Time"].total_seconds()) - start, 2)
 
+    track_status = []
+    ts = session.track_status
+    if ts is not None and len(ts):
+        for _, row in ts.iterrows():
+            code = _text(row.get("Status"))
+            if code is None:
+                continue
+            track_status.append({
+                "start": round(float(pd.Timedelta(row.get("Time")).total_seconds()) - start, 2),
+                "code": code,
+                "message": _text(row.get("Message")),
+            })
+
     laps_by_driver = {}
     for number in samples:
         entries = []
@@ -334,7 +401,8 @@ def build_replay(session, step=0.5):
                 "compound": _text(lap.get("Compound")),
                 "tyre_age": _int(lap.get("TyreLife")),
                 "stint": _int(lap.get("Stint")),
-                "pitted": bool(pd.notna(pit_in) or pd.notna(pit_out)),
+                "pit_in": _seconds_rel(pit_in if pd.notna(pit_in) else None, start),
+                "pit_out": _seconds_rel(pit_out if pd.notna(pit_out) else None, start),
                 "start": _seconds_rel(lap.get("LapStartTime"), start),
             })
         laps_by_driver[number] = entries
@@ -344,6 +412,7 @@ def build_replay(session, step=0.5):
         "step": step,
         "duration": end - start,
         "race_start": race_start,
+        "track_status": track_status,
         "total_laps": _int(getattr(session, "total_laps", None)),
         "time": [round(float(t - start), 2) for t in grid],
         "track": track,

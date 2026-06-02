@@ -134,8 +134,15 @@ export interface ReplayLap {
   compound: string | null
   tyre_age: number | null
   stint: number | null
-  pitted: boolean
+  pit_in: number | null
+  pit_out: number | null
   start: number | null
+}
+
+export interface TrackStatusSegment {
+  start: number
+  code: string
+  message: string | null
 }
 
 export interface ReplayData {
@@ -143,6 +150,7 @@ export interface ReplayData {
   step: number
   duration: number
   race_start: number | null
+  track_status: TrackStatusSegment[]
   total_laps: number | null
   time: number[]
   track: { x: number[]; y: number[] }
@@ -158,6 +166,9 @@ export interface ReplayData {
       throttle?: (number | null)[]
       brake?: (number | null)[]
       gear?: (number | null)[]
+      position?: (number | null)[]
+      gap_leader?: (number | null)[]
+      interval?: (number | null)[]
     }
   >
   laps: Record<string, ReplayLap[]>

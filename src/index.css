@@ -6,7 +6,7 @@
   --color-surface-2: #1f1f2b;
 }
 
-button {
+button:not(:disabled) {
   cursor: pointer;
 }
 
