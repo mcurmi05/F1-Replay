@@ -282,7 +282,7 @@ def _grid_gap(grid, times, values, ndigits=3, max_hole=30.0):
 def _timing_streams(session):
     streams = {}
     try:
-        import fastf1.api as ff1_api
+        import fastf1._api as ff1_api
 
         _, stream = ff1_api.timing_data(session.api_path)
     except Exception:
