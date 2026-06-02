@@ -59,14 +59,8 @@ export default function TelemetryPanel({
   const brake = sampleChannel(path?.brake, frame)
   const gear = sampleChannel(path?.gear, frame)
 
-  const telemetryPoint = telemetry ? telemetry[frame] : null
-  const mguk = telemetryPoint?.mguk ?? null
-  const mguh = telemetryPoint?.mguh ?? null
-  const airTemp = telemetryPoint?.air_temp ?? null
-  const roadTemp = telemetryPoint?.road_temp ?? null
-  const brakeTemp = telemetryPoint?.brake_temp ?? null
-  const windSpeed = telemetryPoint?.wind_speed ?? null
-  const windDirection = telemetryPoint?.wind_direction ?? null
+  const telemetryPoint = telemetry && telemetry.length > frame ? telemetry[frame] : null
+  const drs = telemetryPoint?.drs ?? null
 
   const trace = useMemo(() => {
     const values = path?.speed ?? []
@@ -113,42 +107,12 @@ export default function TelemetryPanel({
       </div>
       <p className="mt-3 text-xs text-zinc-500">
         Gear <span className="font-mono text-zinc-200">{gear === null ? '-' : gear}</span>
+        {drs !== null && drs > 0 && (
+          <span className="ml-4">
+            DRS <span className={`font-mono ${drs === 2 ? 'text-blue-400 font-semibold' : 'text-zinc-400'}`}>{drs === 2 ? 'ACTIVE' : 'Available'}</span>
+          </span>
+        )}
       </p>
-
-      {(mguk !== null || mguh !== null) && (
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {mguk !== null && <Gauge label="MGU-K" value={mguk} unit="%" max={100} color="#0088ff" />}
-          {mguh !== null && <Gauge label="MGU-H" value={mguh} unit="%" max={100} color="#00ddff" />}
-        </div>
-      )}
-
-      {(airTemp !== null || roadTemp !== null || brakeTemp !== null) && (
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          {airTemp !== null && <Gauge label="Air Temp" value={airTemp} unit="°C" max={50} color="#ffa500" />}
-          {roadTemp !== null && <Gauge label="Road Temp" value={roadTemp} unit="°C" max={150} color="#ff6b6b" />}
-          {brakeTemp !== null && <Gauge label="Brake Temp" value={brakeTemp} unit="°C" max={1000} color="#ff0000" />}
-        </div>
-      )}
-
-      {(windSpeed !== null || windDirection !== null) && (
-        <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-900/40 p-2.5">
-          <div className="text-xs text-zinc-500">Wind</div>
-          <div className="mt-1 flex gap-4">
-            {windSpeed !== null && (
-              <div className="font-mono text-sm">
-                <span className="text-zinc-400">Speed: </span>
-                <span className="text-zinc-200">{Math.round(windSpeed)} m/s</span>
-              </div>
-            )}
-            {windDirection !== null && (
-              <div className="font-mono text-sm">
-                <span className="text-zinc-400">Direction: </span>
-                <span className="text-zinc-200">{Math.round(windDirection)}°</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="mt-4 h-20 w-full">
         <polyline

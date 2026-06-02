@@ -212,10 +212,9 @@ def driver_telemetry(session, driver):
     driver_laps = session.laps.pick_drivers(driver)
     telemetry = driver_laps.get_telemetry().add_distance()
     rows = []
-    year = session.event.year if session.event else None
     for _, point in telemetry.iterrows():
         brake = point.get("Brake")
-        row = {
+        rows.append({
             "time": _seconds(point.get("Time")),
             "distance": _float(point.get("Distance")),
             "speed": _float(point.get("Speed")),
@@ -226,18 +225,7 @@ def driver_telemetry(session, driver):
             "drs": _int(point.get("DRS")),
             "x": _float(point.get("X")),
             "y": _float(point.get("Y")),
-        }
-        if year and year >= 2014:
-            row["mguk"] = _float(point.get("MGUKDeployment"))
-            row["mguh"] = _float(point.get("MGUHDeployment"))
-        if year and year >= 2018:
-            row["air_temp"] = _float(point.get("AirTemp"))
-            row["road_temp"] = _float(point.get("RoadTemp"))
-            row["brake_temp"] = _float(point.get("BrakeTemp"))
-        if year and year >= 2017:
-            row["wind_speed"] = _float(point.get("WindSpeed"))
-            row["wind_direction"] = _float(point.get("WindDirection"))
-        rows.append(row)
+        })
     return rows
 
 
