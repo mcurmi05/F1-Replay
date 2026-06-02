@@ -60,6 +60,13 @@ export interface TelemetryPoint {
   drs: number | null
   x: number | null
   y: number | null
+  mguk?: number | null
+  mguh?: number | null
+  air_temp?: number | null
+  road_temp?: number | null
+  brake_temp?: number | null
+  wind_speed?: number | null
+  wind_direction?: number | null
 }
 
 export interface LiveRow {

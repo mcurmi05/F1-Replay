@@ -77,7 +77,7 @@ export default function ReplayViewer({
         <RaceControlFeed messages={data.race_control_messages} currentTime={time} />
         <PitStopFeed replay={data} currentTime={time} />
         <div className={selected ? '' : 'hidden'}>
-          {selected ? <TelemetryPanel replay={data} driver={selected} currentTime={time} /> : null}
+          {selected ? <TelemetryPanel year={year} event={event} session={session} replay={data} driver={selected} currentTime={time} /> : null}
         </div>
       </div>
       <OvertakeFeed events={events} currentTime={time} />

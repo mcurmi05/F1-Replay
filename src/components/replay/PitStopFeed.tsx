@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+import { teamColor } from '../../lib/format'
 import type { ReplayData } from '../../lib/api/types'
 
 interface PitStop {
@@ -55,14 +57,21 @@ function formatTime(seconds: number): string {
 }
 
 export default function PitStopFeed({ replay, currentTime }: { replay: ReplayData; currentTime: number }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
   const allPits = getPitStops(replay)
   const raceStarted = replay.race_start !== null && currentTime >= replay.race_start
   const pits = allPits.filter((pit) => pit.time <= currentTime)
 
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [pits.length])
+
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-surface p-3">
+    <div className="flex flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Race Pit Stops</p>
-      <div className="mt-2 flex max-h-60 flex-col gap-2 overflow-y-auto">
+      <div ref={scrollRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex h-60 flex-col gap-2 overflow-y-auto">
         {!raceStarted ? (
           <p className="text-xs text-zinc-500">Race hasn't started yet</p>
         ) : pits.length === 0 ? (
@@ -73,18 +82,19 @@ export default function PitStopFeed({ replay, currentTime }: { replay: ReplayDat
               key={idx}
               className="rounded border border-zinc-700 bg-zinc-900/60 px-2 py-1.5"
             >
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-block h-4 w-6 rounded text-center text-xs font-bold text-white"
-                  style={{ backgroundColor: `#${pit.team_colour}` }}
-                >
-                  {pit.abbreviation}
-                </span>
-                <span className="text-xs font-semibold text-white">L{pit.lap}</span>
-                <span className="text-xs text-zinc-500">{formatTime(pit.time)}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-4 w-1 shrink-0 rounded-full"
+                    style={{ backgroundColor: teamColor(pit.team_colour) }}
+                  />
+                  <span className="font-semibold text-white">{pit.abbreviation}</span>
+                  <span className="text-xs text-zinc-500">(Lap {pit.lap})</span>
+                </div>
+                <span className="text-xs text-zinc-400">{formatTime(pit.time)}</span>
               </div>
-              <p className="mt-0.5 text-xs font-mono text-zinc-400">
-                {formatDuration(pit.duration)}
+              <p className="mt-1 text-xs font-mono text-zinc-400">
+                Duration: {formatDuration(pit.duration)}
               </p>
             </div>
           ))
