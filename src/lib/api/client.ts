@@ -43,6 +43,11 @@ export const api = {
     }),
   schedule: (year: number, signal?: AbortSignal) =>
     get<ScheduleEvent[]>(`/schedule/${year}`, signal),
+  sessionCached: (year: number, event: string, sessionType: string, signal?: AbortSignal) =>
+    get<{ cached: boolean }>(
+      `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/cached`,
+      signal,
+    ),
   session: (year: number, event: string, sessionType: string, signal?: AbortSignal) =>
     get<SessionData>(
       `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}`,

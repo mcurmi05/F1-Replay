@@ -108,6 +108,12 @@ def schedule(year: int):
     return f1data.get_schedule(year)
 
 
+@api.get("/session/{year}/{event}/{session_type}/cached")
+def session_cached(year: int, event: str, session_type: str):
+    _require_cache()
+    return {"cached": f1data.is_session_cached(year, event, session_type)}
+
+
 @api.get("/session/{year}/{event}/{session_type}")
 def session(year: int, event: str, session_type: str):
     loaded = _load(year, event, session_type)

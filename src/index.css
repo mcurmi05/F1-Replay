@@ -6,6 +6,24 @@
   --color-surface-2: #1f1f2b;
 }
 
+button {
+  cursor: pointer;
+}
+
+@keyframes session-download {
+  0%   { width: 0% }
+  10%  { width: 28% }
+  30%  { width: 55% }
+  55%  { width: 72% }
+  75%  { width: 81% }
+  90%  { width: 86% }
+  100% { width: 89% }
+}
+
+.animate-session-download {
+  animation: session-download 25s cubic-bezier(0.1, 0.4, 0.2, 1) forwards;
+}
+
 html,
 body,
 #root {

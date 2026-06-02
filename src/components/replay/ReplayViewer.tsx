@@ -26,7 +26,7 @@ export default function ReplayViewer({
   const events = useMemo(() => (data ? overtakeEvents(data) : []), [data])
 
   if (loading) {
-    return <StatusCard text="Downloading session..." spinner />
+    return <StatusCard text="Loading replay data..." />
   }
   if (error) {
     return <StatusCard text={`Could not load replay: ${error.message}`} />

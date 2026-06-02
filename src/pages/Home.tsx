@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 import { ArrowRightIcon, ChevronDownIcon } from '../components/icons'
 import { useSchedule, useYears } from '../hooks/useApi'
+import type { ScheduleEvent } from '../lib/api/types'
 
 const SESSION_TYPES = [
   { label: 'Practice 1', value: 'FP1', names: ['Practice 1'] },
@@ -24,6 +25,27 @@ function isUpcoming(eventDate: string | null): boolean {
     return false
   }
   return new Date(eventDate).getTime() > Date.now()
+}
+
+function formatDateRange(start: string | null, end: string | null): string {
+  if (!start && !end) {
+    return ''
+  }
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+  if (!start || !end) {
+    return fmt((start ?? end)!)
+  }
+  const a = new Date(start)
+  const b = new Date(end)
+  if (a.getMonth() === b.getMonth()) {
+    return `${a.getDate()} - ${fmt(end)}`
+  }
+  return `${fmt(start)} - ${fmt(end)}`
+}
+
+function sessionsForEvent(sessions: string[]) {
+  return SESSION_TYPES.filter((type) => sessions.some((name) => type.names.includes(name)))
 }
 
 function SelectField({
@@ -80,6 +102,7 @@ export default function Home() {
   }, [yearsQuery.data, year])
   const [round, setRound] = useState('')
   const [session, setSession] = useState('R')
+  const [pickerEvent, setPickerEvent] = useState<ScheduleEvent | null>(null)
 
   const schedule = useSchedule(Number(year))
   const allRaces = (schedule.data ?? []).filter((event) => event.round !== null)
@@ -91,9 +114,7 @@ export default function Home() {
   }))
 
   const selectedEvent = allRaces.find((event) => String(event.round) === round)
-  const sessionOptions = SESSION_TYPES.filter((type) =>
-    !selectedEvent || selectedEvent.sessions.some((name) => type.names.includes(name)),
-  )
+  const sessionOptions = selectedEvent ? sessionsForEvent(selectedEvent.sessions) : SESSION_TYPES
 
   const canView = year !== '' && round !== '' && session !== ''
 
@@ -187,7 +208,12 @@ export default function Home() {
             const upcoming = isUpcoming(event.event_date)
             const details = (
               <>
-                <p className="text-xs text-zinc-500">Round {event.round}</p>
+                <p className="text-xs text-zinc-500">
+                  Round {event.round}
+                  {formatDateRange(event.date_start, event.date_end)
+                    ? ` · (${formatDateRange(event.date_start, event.date_end)})`
+                    : ''}
+                </p>
                 <h3 className="mt-2 text-lg font-semibold text-white">{event.event_name}</h3>
                 <div className="mt-1 flex items-center gap-2 text-sm text-zinc-400">
                   <span>{event.location}</span>
@@ -210,21 +236,58 @@ export default function Home() {
               )
             }
             return (
-              <Link
+              <button
                 key={event.round}
-                to={`/replay/${year}/${event.round}/R`}
-                className="group rounded-xl border border-zinc-800 bg-surface p-5 transition hover:border-zinc-700 hover:bg-surface-2"
+                type="button"
+                onClick={() => setPickerEvent(event)}
+                className="group rounded-xl border border-zinc-800 bg-surface p-5 text-left transition hover:border-zinc-700 hover:bg-surface-2"
               >
                 {details}
                 <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-500 transition group-hover:text-f1-red">
-                  Open race
+                  Open event
                   <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </span>
-              </Link>
+              </button>
             )
           })}
         </div>
       </section>
+
+      {pickerEvent ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
+          onClick={() => setPickerEvent(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-surface p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-xs text-zinc-500">Round {pickerEvent.round}</p>
+            <h2 className="mt-1 text-lg font-bold text-white">{pickerEvent.event_name}</h2>
+            <p className="mt-3 text-sm text-zinc-400">Select a session to load.</p>
+            <div className="mt-4 grid gap-2">
+              {sessionsForEvent(pickerEvent.sessions).map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => navigate(`/replay/${year}/${pickerEvent.round}/${type.value}`)}
+                  className="flex items-center justify-between rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-f1-red hover:bg-zinc-800"
+                >
+                  {type.label}
+                  <ArrowRightIcon className="h-4 w-4 text-zinc-500" />
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPickerEvent(null)}
+              className="mt-4 w-full rounded-lg px-5 py-2 text-sm font-medium text-zinc-500 transition hover:text-zinc-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

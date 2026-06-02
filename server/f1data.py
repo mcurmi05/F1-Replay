@@ -89,15 +89,37 @@ def get_schedule(year):
             name = _text(row.get(f"Session{i}"))
             if name:
                 sessions.append(name)
+        session_dates = [
+            _iso(row.get(f"Session{i}DateUtc"))
+            for i in range(1, 6)
+            if _iso(row.get(f"Session{i}DateUtc")) is not None
+        ]
         events.append({
             "round": _int(row.get("RoundNumber")),
             "country": _text(row.get("Country")),
             "location": _text(row.get("Location")),
             "event_name": _text(row.get("EventName")),
             "event_date": _iso(row.get("EventDate")),
+            "date_start": session_dates[0] if session_dates else None,
+            "date_end": session_dates[-1] if session_dates else None,
             "sessions": sessions,
         })
     return events
+
+
+def is_session_cached(year, event, session_type):
+    try:
+        gp = int(event) if str(event).isdigit() else event
+        session = fastf1.get_session(year, gp, session_type)
+        rel = session.api_path.lstrip("/")
+        if rel.startswith("static/"):
+            rel = rel[len("static/"):]
+        cache_subdir = os.path.join(_cache_dir, rel)
+        if not os.path.isdir(cache_subdir):
+            return False
+        return any(f.endswith(".ff1pkl") for f in os.listdir(cache_subdir))
+    except Exception:
+        return False
 
 
 def load_session(year, event, session_type):

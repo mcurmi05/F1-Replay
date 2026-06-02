@@ -4,6 +4,8 @@ export interface ScheduleEvent {
   location: string | null
   event_name: string | null
   event_date: string | null
+  date_start: string | null
+  date_end: string | null
   sessions: string[]
 }
 
