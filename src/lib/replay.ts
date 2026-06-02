@@ -6,7 +6,7 @@ import intermediateTyre from '../assets/tires/intermediate.png'
 import mediumTyre from '../assets/tires/medium.png'
 import softTyre from '../assets/tires/soft.png'
 import wetTyre from '../assets/tires/wet.png'
-import type { ReplayData, ReplayLap, TrackStatusSegment } from './api/types'
+import type { ReplayData, ReplayLap, TrackStatusSegment, WeatherSample } from './api/types'
 
 const TYRE_ICON: Record<string, string> = {
   SOFT: softTyre,
@@ -237,6 +237,24 @@ export function currentTrackStatus(
     }
   }
   return result ?? segments[0]
+}
+
+export function currentWeather(
+  samples: WeatherSample[] | undefined,
+  time: number,
+): WeatherSample | null {
+  if (!samples || samples.length === 0) {
+    return null
+  }
+  let result: WeatherSample | null = null
+  for (const sample of samples) {
+    if (sample.time <= time) {
+      result = sample
+    } else {
+      break
+    }
+  }
+  return result ?? samples[0]
 }
 
 export interface TrackStatusInfo {

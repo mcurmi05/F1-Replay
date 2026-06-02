@@ -356,6 +356,32 @@ def _race_control_messages(session, first_sample_time_offset):
         return []
 
 
+def _weather_series(session, start):
+    try:
+        weather = session.weather_data
+    except Exception:
+        return []
+    if weather is None or len(weather) == 0:
+        return []
+    series = []
+    for _, row in weather.iterrows():
+        sample_time = row.get("Time")
+        if sample_time is None or pd.isna(sample_time):
+            continue
+        rainfall = row.get("Rainfall")
+        series.append({
+            "time": round(float(pd.Timedelta(sample_time).total_seconds()) - start, 2),
+            "air_temp": _float(row.get("AirTemp")),
+            "track_temp": _float(row.get("TrackTemp")),
+            "humidity": _float(row.get("Humidity")),
+            "pressure": _float(row.get("Pressure")),
+            "wind_speed": _float(row.get("WindSpeed")),
+            "wind_direction": _int(row.get("WindDirection")),
+            "rainfall": bool(rainfall) if pd.notna(rainfall) else False,
+        })
+    return series
+
+
 def build_replay(session, step=0.5):
     results_by_number = {
         str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
@@ -388,6 +414,7 @@ def build_replay(session, step=0.5):
             "drivers": [],
             "positions": {},
             "laps": {},
+            "weather": [],
         }
 
     start = float(min(starts))
@@ -494,6 +521,7 @@ def build_replay(session, step=0.5):
         laps_by_driver[number] = entries
 
     race_control = _race_control_messages(session, start)
+    weather = _weather_series(session, start)
 
     return {
         "available": True,
@@ -510,4 +538,5 @@ def build_replay(session, step=0.5):
         "positions": positions,
         "laps": laps_by_driver,
         "race_control_messages": race_control,
+        "weather": weather,
     }

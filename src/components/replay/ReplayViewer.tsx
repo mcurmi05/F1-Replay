@@ -9,11 +9,13 @@ import ReplayTitle from './ReplayTitle'
 import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
 import TrackMap from './TrackMap'
+import WeatherPanel from './WeatherPanel'
 import { useReplay } from '../../hooks/useApi'
 import { usePlayback } from '../../hooks/usePlayback'
 import {
   currentLapNumber,
   currentTrackStatus,
+  currentWeather,
   leaderboard,
   trackStatusInfo,
 } from '../../lib/replay'
@@ -54,6 +56,7 @@ export default function ReplayViewer({
   const lap = currentLapNumber(data, time)
   const board = leaderboard(data, time)
   const status = trackStatusInfo(currentTrackStatus(data.track_status, time)?.code ?? null)
+  const weather = currentWeather(data.weather, time)
 
   return (
     <div className="space-y-4">
@@ -65,12 +68,15 @@ export default function ReplayViewer({
               <div className="absolute inset-0 overflow-hidden p-3" style={{ overflowAnchor: 'none' }}>
                 <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
               </div>
-              <div
-                className="absolute left-3 top-3 flex items-center gap-3 rounded-xl px-4 py-2.5 text-base font-bold"
-                style={{ color: status.color, backgroundColor: status.background }}
-              >
-                <img src={status.flag} alt="" className="h-7 w-7" />
-                {status.label}
+              <div className="absolute right-3 top-3 z-10 flex w-32 flex-col gap-2">
+                <div
+                  className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
+                  style={{ color: status.color, backgroundColor: status.background }}
+                >
+                  <img src={status.flag} alt="" className="h-5 w-5" />
+                  {status.label}
+                </div>
+                <WeatherPanel weather={weather} />
               </div>
             </div>
             <div className="flex flex-col gap-4">

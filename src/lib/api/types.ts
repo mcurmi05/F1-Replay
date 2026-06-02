@@ -191,6 +191,17 @@ export interface RaceControlMessage {
   flag: string | null
 }
 
+export interface WeatherSample {
+  time: number
+  air_temp: number | null
+  track_temp: number | null
+  humidity: number | null
+  pressure: number | null
+  wind_speed: number | null
+  wind_direction: number | null
+  rainfall: boolean
+}
+
 export interface ReplayData {
   available: boolean
   step: number
@@ -219,4 +230,5 @@ export interface ReplayData {
   >
   laps: Record<string, ReplayLap[]>
   race_control_messages: RaceControlMessage[]
+  weather: WeatherSample[]
 }

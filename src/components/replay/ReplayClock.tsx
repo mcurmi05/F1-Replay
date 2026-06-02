@@ -16,10 +16,11 @@ export default function ReplayClock({
   lap: number
   totalLaps: number | null
 }) {
+  const lapDisplay = relative !== null && relative < 0 ? '-' : lap
   return (
     <div className="flex items-center justify-between gap-3 px-2 py-2">
       <span className="text-sm font-medium text-zinc-400">
-        {totalLaps ? `Lap ${lap} / ${totalLaps}` : `Lap ${lap}`}
+        {totalLaps ? `Lap ${lapDisplay} / ${totalLaps}` : `Lap ${lapDisplay}`}
       </span>
       <span className="font-mono text-2xl font-bold tabular-nums text-white">
         {relative === null ? '--:--' : formatRaceTime(relative)}

@@ -44,7 +44,7 @@ export default function PlaybackControls({
         title="Skip back 5 seconds"
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-f1-red transition hover:brightness-110"
       >
-        <img src={skipBackwardIcon} alt="Skip back 5 seconds" className="h-5 w-5" />
+        <img src={skipBackwardIcon} alt="Skip back 5 seconds" className="h-5 w-5" style={{ transform: 'translateX(-2px)' }} />
       </button>
 
       <button
@@ -61,7 +61,7 @@ export default function PlaybackControls({
         title="Skip forward 5 seconds"
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-f1-red transition hover:brightness-110"
       >
-        <img src={skipForwardIcon} alt="Skip forward 5 seconds" className="h-5 w-5" />
+        <img src={skipForwardIcon} alt="Skip forward 5 seconds" className="h-5 w-5" style={{ transform: 'translateX(2px)' }} />
       </button>
 
       <span className="shrink-0 font-mono text-sm text-zinc-300">

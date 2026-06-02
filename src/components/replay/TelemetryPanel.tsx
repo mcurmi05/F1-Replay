@@ -5,6 +5,9 @@ import { useTelemetry } from '../../hooks/useApi'
 import type { ReplayData } from '../../lib/api/types'
 
 const WINDOW_SECONDS = 10
+const THROTTLE_GREEN = '#43b02a'
+const BRAKE_RED = '#da291c'
+const LIFT_ORANGE = '#f97316'
 
 interface Series {
   times: number[]
@@ -12,6 +15,7 @@ interface Series {
   brake: (number | null)[]
   gear: (number | null)[]
   speed: (number | null)[]
+  rpm: (number | null)[]
   drs: (number | null)[]
 }
 
@@ -31,34 +35,63 @@ function lastAtOrBefore(times: number[], t: number): number {
   return ans
 }
 
-function buildTrace(
+interface TraceSegment {
+  color: string
+  points: string
+}
+
+function channelColor(throttle: number | null, brake: number | null): string {
+  if (brake !== null && brake > 0) {
+    return BRAKE_RED
+  }
+  if (throttle === null || throttle <= 0) {
+    return LIFT_ORANGE
+  }
+  return THROTTLE_GREEN
+}
+
+function buildSegments(
   times: number[],
-  values: (number | null)[],
+  throttle: (number | null)[],
+  brake: (number | null)[],
   windowStart: number,
   windowEnd: number,
-  currentValue: number | null,
-): string {
+  currentThrottle: number | null,
+  currentBrake: number | null,
+): TraceSegment[] {
   const span = windowEnd - windowStart
   if (times.length === 0 || span <= 0) {
-    return ''
+    return []
   }
   const startIdx = Math.max(0, lastAtOrBefore(times, windowStart))
   const endIdx = lastAtOrBefore(times, windowEnd)
-  const points: string[] = []
+  const pts: { x: number; y: number; color: string }[] = []
   for (let i = startIdx; i <= endIdx; i += 1) {
-    const value = values[i]
+    const value = throttle[i]
     if (value === null || value === undefined) {
       continue
     }
     const x = ((times[i] - windowStart) / span) * 100
     const y = 40 - (Math.min(Math.max(value, 0), 100) / 100) * 40
-    points.push(`${x.toFixed(2)},${y.toFixed(2)}`)
+    pts.push({ x, y, color: channelColor(value, brake[i] ?? null) })
   }
-  if (currentValue !== null) {
-    const y = 40 - (Math.min(Math.max(currentValue, 0), 100) / 100) * 40
-    points.push(`100.00,${y.toFixed(2)}`)
+  if (currentThrottle !== null) {
+    const y = 40 - (Math.min(Math.max(currentThrottle, 0), 100) / 100) * 40
+    pts.push({ x: 100, y, color: channelColor(currentThrottle, currentBrake) })
   }
-  return points.join(' ')
+
+  const segments: TraceSegment[] = []
+  let prev: { x: number; y: number } | null = null
+  for (const point of pts) {
+    let last = segments[segments.length - 1]
+    if (!last || last.color !== point.color) {
+      last = { color: point.color, points: prev ? `${prev.x.toFixed(2)},${prev.y.toFixed(2)} ` : '' }
+      segments.push(last)
+    }
+    last.points += `${point.x.toFixed(2)},${point.y.toFixed(2)} `
+    prev = point
+  }
+  return segments
 }
 
 function VerticalBar({ value, color }: { value: number | null; color: string }) {
@@ -91,6 +124,19 @@ function BrakeIndicator({ braking }: { braking: boolean }) {
   )
 }
 
+function LiftingIndicator({ lifting }: { lifting: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold transition ${
+        lifting ? 'bg-orange-500/20 text-orange-400' : 'bg-zinc-800 text-zinc-600'
+      }`}
+    >
+      <span className={`h-2 w-2 rounded-full ${lifting ? 'bg-orange-400' : 'bg-zinc-600'}`} />
+      LIFTING
+    </span>
+  )
+}
+
 export default function TelemetryPanel({
   year,
   event,
@@ -119,6 +165,7 @@ export default function TelemetryPanel({
         brake: pts.map((p) => (p.brake === null ? null : p.brake ? 100 : 0)),
         gear: pts.map((p) => p.gear),
         speed: pts.map((p) => p.speed),
+        rpm: pts.map((p) => p.rpm),
         drs: pts.map((p) => p.drs),
       }
     }
@@ -129,6 +176,7 @@ export default function TelemetryPanel({
         brake: (path.brake ?? []).map((b) => (b === null ? null : b * 100)),
         gear: path.gear ?? [],
         speed: path.speed ?? [],
+        rpm: [],
         drs: [],
       }
     }
@@ -140,14 +188,16 @@ export default function TelemetryPanel({
   const throttle = series ? series.throttle[idx] ?? null : null
   const brakeValue = series ? series.brake[idx] ?? null : null
   const braking = brakeValue !== null && brakeValue > 0
+  const lifting = !braking && throttle !== null && throttle <= 0
   const gear = series ? series.gear[idx] ?? null : null
+  const rpm = series && series.rpm.length > 0 ? series.rpm[idx] ?? null : null
   const drs = series && series.drs.length > 0 ? series.drs[idx] ?? null : null
 
   const windowEnd = currentTime
   const windowStart = currentTime - WINDOW_SECONDS
-  const throttleTrace = series
-    ? buildTrace(series.times, series.throttle, windowStart, windowEnd, throttle)
-    : ''
+  const throttleSegments = series
+    ? buildSegments(series.times, series.throttle, series.brake, windowStart, windowEnd, throttle, brakeValue)
+    : []
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-surface p-5">
@@ -170,7 +220,11 @@ export default function TelemetryPanel({
         <span>
           Gear <span className="font-mono text-zinc-200">{gear === null ? '-' : Math.round(gear)}</span>
         </span>
+        <span>
+          RPM <span className="font-mono text-zinc-200">{rpm === null ? '-' : Math.round(rpm)}</span>
+        </span>
         <BrakeIndicator braking={braking} />
+        <LiftingIndicator lifting={lifting} />
         {drs !== null && drs > 0 && (
           <span>
             DRS <span className={`font-mono ${drs === 2 ? 'text-blue-400 font-semibold' : 'text-zinc-400'}`}>{drs === 2 ? 'ACTIVE' : 'Available'}</span>
@@ -186,17 +240,20 @@ export default function TelemetryPanel({
             preserveAspectRatio="none"
             className="h-24 flex-1 rounded-md bg-zinc-900/40"
           >
-            <polyline
-              points={throttleTrace}
-              fill="none"
-              stroke="#43b02a"
-              strokeWidth={0.9}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
+            {throttleSegments.map((segment, index) => (
+              <polyline
+                key={index}
+                points={segment.points}
+                fill="none"
+                stroke={segment.color}
+                strokeWidth={0.9}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
           </svg>
-          <VerticalBar value={throttle} color="#43b02a" />
+          <VerticalBar value={throttle} color={THROTTLE_GREEN} />
         </div>
       </div>
     </div>
