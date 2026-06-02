@@ -1,8 +1,11 @@
-import LiveTimingTable from '../components/live/LiveTimingTable'
+import { useState, useMemo } from 'react'
+import TimingTower from '../components/replay/TimingTower'
+import type { TimingTowerRow } from '../components/replay/TimingTower'
+import TrackMap from '../components/replay/TrackMap'
 import LiveRaceControl from '../components/live/LiveRaceControl'
 import LiveTeamRadio from '../components/live/LiveTeamRadio'
 import { useLive } from '../hooks/useApi'
-import type { LiveRow, LiveState } from '../lib/api/types'
+import type { LiveRow, LiveState, ReplayData } from '../lib/api/types'
 
 function trackStatusStyle(message: string): string {
   const text = message.toLowerCase()
@@ -150,6 +153,79 @@ function Header({ state }: { state: LiveState }) {
 }
 
 
+function toTowerRows(rows: LiveRow[]): TimingTowerRow[] {
+  return rows.map((row) => ({
+    number: row.driver_number,
+    abbreviation: row.abbreviation,
+    team_colour: row.team_colour,
+    position: row.position,
+    compound: row.compound,
+    pitted: row.in_pit,
+    interval: row.interval,
+    gap_leader: row.gap,
+  }))
+}
+
+function liveToReplayData(data: LiveState): ReplayData | null {
+  if (!data.rows.length) return null
+
+  // Calculate bounds from current car positions and track
+  const positions = data.rows.filter((r) => r.x !== null && r.y !== null)
+  if (!positions.length) return null
+
+  const carX = positions.map((r) => r.x as number)
+  const carY = positions.map((r) => r.y as number)
+  const allX = carX.concat(data.track?.x || [])
+  const allY = carY.concat(data.track?.y || [])
+
+  if (!allX.length || !allY.length) return null
+
+  const min_x = Math.min(...allX)
+  const max_x = Math.max(...allX)
+  const min_y = Math.min(...allY)
+  const max_y = Math.max(...allY)
+
+  // Add margin
+  const margin_x = (max_x - min_x) * 0.15 || 100
+  const margin_y = (max_y - min_y) * 0.15 || 100
+
+  return {
+    available: true,
+    step: 1,
+    duration: 0,
+    race_start: null,
+    track_status: [],
+    total_laps: data.session?.total_laps ?? null,
+    time: [0],
+    track: data.track,
+    corners: [],
+    bounds: {
+      min_x: min_x - margin_x,
+      max_x: max_x + margin_x,
+      min_y: min_y - margin_y,
+      max_y: max_y + margin_y,
+    },
+    drivers: data.rows.map((r) => ({
+      number: r.driver_number,
+      abbreviation: r.abbreviation,
+      full_name: r.full_name,
+      team_name: r.team_name,
+      team_colour: r.team_colour,
+    })),
+    positions: Object.fromEntries(
+      data.rows.map((r) => [
+        r.driver_number,
+        {
+          x: r.x !== null ? [r.x] : [],
+          y: r.y !== null ? [r.y] : [],
+        },
+      ]),
+    ),
+    laps: {},
+    race_control_messages: data.race_control_messages,
+  }
+}
+
 function EmptyState({ state }: { state: LiveState }) {
   const next = state.next_session
   return (
@@ -178,6 +254,9 @@ function EmptyState({ state }: { state: LiveState }) {
 
 export default function Live() {
   const { data, error, loading } = useLive()
+  const [selected, setSelected] = useState<string | null>(null)
+  const board = useMemo(() => (data ? toTowerRows(data.rows) : []), [data])
+  const replayData = useMemo(() => (data ? liveToReplayData(data) : null), [data])
 
   if (loading && !data) {
     return (
@@ -205,22 +284,36 @@ export default function Live() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Header state={data} />
-      {data.rows.length > 0 ? (
-        <>
-          <LiveTimingTable rows={data.rows} />
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <LiveRaceControl messages={data.race_control_messages} />
-            <LiveTeamRadio clips={data.team_radio} drivers={data.rows} />
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1fr_300px] min-h-[500px]">
+        <div className="relative w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
+          <div className="absolute inset-0 p-3">
+            {replayData ? (
+              <TrackMap replay={replayData} currentTime={0} selected={selected} onSelect={setSelected} />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <div className="h-12 w-12 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
+                <p className="mt-4 text-sm text-zinc-400">Loading track map...</p>
+              </div>
+            )}
           </div>
-        </>
-      ) : (
-        <div className="flex items-center justify-center gap-3 rounded-2xl border border-zinc-800 bg-surface py-16 text-zinc-400">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
-          Connecting to the live timing feed...
         </div>
-      )}
+        <div>
+          {data.rows.length > 0 ? (
+            <TimingTower rows={board} selected={selected} onSelect={setSelected} />
+          ) : (
+            <div className="flex items-center justify-center gap-3 rounded-2xl border border-zinc-800 bg-surface py-16 text-zinc-400">
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
+              Connecting...
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <LiveRaceControl messages={data.race_control_messages} />
+        <LiveTeamRadio clips={data.team_radio} drivers={data.rows} />
+      </div>
     </div>
   )
 }

@@ -1,27 +1,24 @@
 import type { LiveRow } from '../../lib/api/types'
+import { tyreIcon } from '../../lib/replay'
 
-const COMPOUND_COLORS: Record<string, string> = {
-  SOFT: 'bg-red-600',
-  MEDIUM: 'bg-yellow-400',
-  HARD: 'bg-white text-black',
-  INTERMEDIATE: 'bg-green-500',
-  WET: 'bg-blue-600',
-}
-
-function CompoundBadge({ compound }: { compound: string | null }) {
+function TyreIcon({ compound }: { compound: string | null }) {
   if (!compound) return null
-  const bgColor = COMPOUND_COLORS[compound] || 'bg-zinc-600'
+  const icon = tyreIcon(compound)
+  if (!icon) return null
   return (
-    <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${bgColor}`}>
-      {compound.slice(0, 1)}
-    </span>
+    <img
+      src={icon}
+      alt={compound}
+      title={compound}
+      className="h-6 w-6"
+    />
   )
 }
 
 function SectorCell({ value, pb }: { value: string | null; pb: boolean }) {
   return (
     <span className={pb ? 'font-semibold text-purple-400' : 'text-zinc-400'}>
-      {value || '—'}
+      {value || '-'}
     </span>
   )
 }
@@ -29,7 +26,7 @@ function SectorCell({ value, pb }: { value: string | null; pb: boolean }) {
 function SpeedCell({ value, pb }: { value: string | null; pb: boolean }) {
   return (
     <span className={pb ? 'font-semibold text-purple-400' : 'text-zinc-400'}>
-      {value || '—'}
+      {value || '-'}
     </span>
   )
 }
@@ -67,8 +64,8 @@ export default function LiveTimingTable({ rows }: { rows: LiveRow[] }) {
             >
               <td className="px-2 py-1.5 font-mono font-semibold text-white">{row.position ?? '-'}</td>
               <td className="px-2 py-1.5 font-semibold text-white">{row.abbreviation ?? '-'}</td>
-              <td className="px-2 py-1.5 text-right font-mono text-zinc-400">{row.gap || '—'}</td>
-              <td className="px-2 py-1.5 text-right font-mono text-zinc-400">{row.interval || '—'}</td>
+              <td className="px-2 py-1.5 text-right font-mono text-zinc-400">{row.gap || '-'}</td>
+              <td className="px-2 py-1.5 text-right font-mono text-zinc-400">{row.interval || '-'}</td>
               <td className="px-2 py-1.5 text-right font-mono">
                 <SectorCell value={row.sector_1} pb={row.sector_1_pb} />
               </td>
@@ -79,27 +76,27 @@ export default function LiveTimingTable({ rows }: { rows: LiveRow[] }) {
                 <SectorCell value={row.sector_3} pb={row.sector_3_pb} />
               </td>
               <td className="px-2 py-1.5 text-right font-mono text-zinc-400">
-                {row.speed_i1 || '—'}
+                {row.speed_i1 || '-'}
               </td>
               <td className="px-2 py-1.5 text-right font-mono text-zinc-400">
-                {row.speed_i2 || '—'}
+                {row.speed_i2 || '-'}
               </td>
               <td className="px-2 py-1.5 text-right font-mono text-zinc-400">
-                {row.speed_fl || '—'}
+                {row.speed_fl || '-'}
               </td>
               <td className="px-2 py-1.5 text-right font-mono text-zinc-400">
-                {row.speed_st || '—'}
+                {row.speed_st || '-'}
               </td>
-              <td className="px-2 py-1.5 text-right font-mono text-zinc-400">{row.last_lap || '—'}</td>
-              <td className="px-2 py-1.5 text-right font-mono text-zinc-400">{row.best_lap || '—'}</td>
+              <td className="px-2 py-1.5 text-right font-mono text-zinc-400">{row.last_lap || '-'}</td>
+              <td className="px-2 py-1.5 text-right font-mono text-zinc-400">{row.best_lap || '-'}</td>
               <td className="px-2 py-1.5 text-center">
-                <CompoundBadge compound={row.compound} />
+                <TyreIcon compound={row.compound} />
               </td>
               <td className="px-2 py-1.5 text-right font-mono text-zinc-400">
-                {row.tyre_age ?? '—'}
+                {row.tyre_age ?? '-'}
               </td>
               <td className="px-2 py-1.5 text-right font-mono text-zinc-400">
-                {row.pit_stops ?? '—'}
+                {row.pit_stops ?? '-'}
               </td>
               <td className="px-2 py-1.5 text-center">
                 {row.in_pit ? (

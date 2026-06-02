@@ -12,7 +12,7 @@ import f1data
 
 logger = logging.getLogger("f1live")
 
-SKIP_TOPICS = {"Position.z", "CarData.z"}
+SKIP_TOPICS = set()
 
 SESSION_TYPES = {
     "Practice 1": "FP1",
@@ -397,11 +397,70 @@ def _team_radio_live(topics):
     return result
 
 
+def _position_data_live(topics):
+    pos = topics.get("Position.z", {})
+    if not isinstance(pos, dict):
+        return {}
+
+    drivers = pos.get("Entries", {})
+    if not isinstance(drivers, dict):
+        return {}
+
+    result = {}
+    for number_str, entry in drivers.items():
+        if not isinstance(entry, dict):
+            continue
+        x = entry.get("X")
+        y = entry.get("Y")
+        z = entry.get("Z")
+        if x is not None and y is not None:
+            try:
+                result[str(number_str)] = {
+                    "x": float(x),
+                    "y": float(y),
+                    "z": float(z) if z is not None else None,
+                }
+            except (TypeError, ValueError):
+                pass
+    return result
+
+
+def _car_data_live(topics):
+    car = topics.get("CarData.z", {})
+    if not isinstance(car, dict):
+        return {}
+
+    drivers = car.get("Entries", {})
+    if not isinstance(drivers, dict):
+        return {}
+
+    result = {}
+    for number_str, entry in drivers.items():
+        if not isinstance(entry, dict):
+            continue
+        try:
+            result[str(number_str)] = {
+                "speed": _to_float(entry.get("Speed")),
+                "throttle": _to_float(entry.get("Throttle")),
+                "brake": _to_float(entry.get("Brake")),
+                "gear": _to_int(entry.get("Gear")),
+                "rpm": _to_int(entry.get("RPM")),
+                "drs": _to_int(entry.get("DRS")),
+            }
+        except (TypeError, ValueError):
+            pass
+    return result
+
+
 def _live_snapshot(current, topics):
     session = current["session"]
     drivers = _drivers_from_topics(topics)
     timing = topics.get("TimingData", {}).get("Lines", {})
     app_data = topics.get("TimingAppData", {}).get("Lines", {})
+
+    position_data = _position_data_live(topics)
+    car_data = _car_data_live(topics)
+    track = _get_track_geometry(session.get("year"), session.get("round"), session.get("session_type"))
 
     rows = []
     for number, line in timing.items():
@@ -411,6 +470,8 @@ def _live_snapshot(current, topics):
         app_line = app_data.get(number, {}) if isinstance(app_data.get(number), dict) else {}
         stint, stint_number = _stint_index(app_line)
         stint = stint or {}
+        pos = position_data.get(str(number), {})
+        car = car_data.get(str(number), {})
 
         position = line.get("Position")
         try:
@@ -462,6 +523,15 @@ def _live_snapshot(current, topics):
             "speed_st": speeds["st"],
             "pit_stops": _to_int(line.get("NumberOfPitStops")),
             "tyre_fresh": bool(stint.get("New")) if stint.get("New") is not None else None,
+            "x": pos.get("x"),
+            "y": pos.get("y"),
+            "z": pos.get("z"),
+            "speed": car.get("speed"),
+            "throttle": car.get("throttle"),
+            "brake": car.get("brake"),
+            "gear": car.get("gear"),
+            "rpm": car.get("rpm"),
+            "drs": car.get("drs"),
             "in_pit": in_pit,
             "retired": retired,
             "status": status,
@@ -501,6 +571,7 @@ def _live_snapshot(current, topics):
         "rows": rows,
         "race_control_messages": _race_control_live(topics),
         "team_radio": _team_radio_live(topics),
+        "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -516,6 +587,7 @@ def _empty_snapshot(current, session_meta=None):
         "rows": [],
         "race_control_messages": [],
         "team_radio": [],
+        "track": {"x": [], "y": []},
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -523,6 +595,7 @@ def _empty_snapshot(current, session_meta=None):
 
 def _connecting_snapshot(current):
     session = current["session"]
+    track = _get_track_geometry(session.get("year"), session.get("round"), session.get("session_type"))
     return {
         "available": False,
         "live": True,
@@ -532,6 +605,7 @@ def _connecting_snapshot(current):
         "rows": [],
         "race_control_messages": [],
         "team_radio": [],
+        "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -546,6 +620,43 @@ def _load_results_only(year, event, session_type):
     return session
 
 
+def _get_track_geometry(year, round_num, session_type):
+    """Load track geometry from a session's fastest lap telemetry."""
+    if not year or not round_num:
+        return {"x": [], "y": []}
+
+    try:
+        import threading as _threading
+        import numpy as np
+
+        with _threading.Lock():
+            session = fastf1.get_session(year, round_num, session_type)
+            session.load(laps=True, telemetry=True, weather=False, messages=False)
+
+        fastest_lap = session.laps.pick_fastest()
+        if fastest_lap.empty or len(fastest_lap) == 0:
+            return {"x": [], "y": []}
+
+        lap_tel = fastest_lap.get_telemetry()
+        if lap_tel is None or len(lap_tel) == 0:
+            return {"x": [], "y": []}
+
+        tx = lap_tel["X"].to_numpy()
+        ty = lap_tel["Y"].to_numpy()
+        mask = ~(np.isnan(tx) | np.isnan(ty))
+
+        if not np.any(mask):
+            return {"x": [], "y": []}
+
+        return {
+            "x": [int(round(float(v))) for v in tx[mask]],
+            "y": [int(round(float(v))) for v in ty[mask]],
+        }
+    except Exception as e:
+        logger.warning(f"Could not load track geometry for {year}/{round_num}/{session_type}: {e}")
+        return {"x": [], "y": []}
+
+
 def _historical_snapshot(current):
     session_meta = current["session"]
     try:
@@ -558,6 +669,7 @@ def _historical_snapshot(current):
 
     rows = _historical_rows(loaded)
     rows = _historical_rows_with_new_fields(rows)
+    track = _get_track_geometry(session_meta.get("year"), session_meta.get("round"), session_meta.get("session_type"))
     return {
         "available": bool(rows),
         "live": False,
@@ -567,6 +679,7 @@ def _historical_snapshot(current):
         "rows": rows,
         "race_control_messages": [],
         "team_radio": [],
+        "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -638,6 +751,15 @@ def _historical_rows_with_new_fields(rows):
         row["speed_st"] = None
         row["pit_stops"] = None
         row["tyre_fresh"] = None
+        row["x"] = None
+        row["y"] = None
+        row["z"] = None
+        row["speed"] = None
+        row["throttle"] = None
+        row["brake"] = None
+        row["gear"] = None
+        row["rpm"] = None
+        row["drs"] = None
     return rows
 
 
@@ -732,7 +854,46 @@ def _to_float(value):
 
 
 _manager = LiveManager()
+_test_mode = os.environ.get("F1_LIVE_TEST_DATA", "").lower() in {"1", "true", "yes"}
 
 
 def live_state():
+    if _test_mode:
+        return _live_state_test()
     return _manager.state()
+
+
+def _live_state_test():
+    import ast
+
+    test_file = os.environ.get("F1_LIVE_TEST_FILE", "/tmp/test_live_data.txt")
+    if not os.path.exists(test_file):
+        return _empty_snapshot(None)
+
+    topics = {}
+    try:
+        with open(test_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = ast.literal_eval(line)
+                    if isinstance(record, list) and len(record) >= 2:
+                        topic, payload = record[0], record[1]
+                        if isinstance(payload, str):
+                            try:
+                                payload = json.loads(payload)
+                            except json.JSONDecodeError:
+                                pass
+                        topics[topic] = payload
+                except (ValueError, SyntaxError):
+                    pass
+    except Exception:
+        return _empty_snapshot(None)
+
+    current = _current_session()
+    if current is None:
+        return _empty_snapshot(None)
+
+    return _live_snapshot(current, topics)

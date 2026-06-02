@@ -88,6 +88,15 @@ export interface LiveRow {
   speed_st: string | null
   pit_stops: number | null
   tyre_fresh: boolean | null
+  x: number | null
+  y: number | null
+  z: number | null
+  speed: number | null
+  throttle: number | null
+  brake: number | null
+  gear: number | null
+  rpm: number | null
+  drs: number | null
   in_pit: boolean
   retired: boolean
   status: string | null
@@ -138,6 +147,7 @@ export interface LiveState {
   rows: LiveRow[]
   race_control_messages: RaceControlMessage[]
   team_radio: TeamRadioClip[]
+  track: { x: number[]; y: number[] }
   next_session: LiveNextSession | null
   updated_at: string
 }
