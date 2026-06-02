@@ -23,9 +23,10 @@ function SessionView({
   const { summary, results, laps } = data
   const [revealed, setRevealed] = useState(false)
   const ordered = [...results].sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
+  type TimedLap = (typeof laps)[0] & { lap_time: number }
   const fastestLap = laps
-    .filter((lap): lap is typeof laps[0] & { lap_time: number } => lap.lap_time !== null)
-    .reduce<(typeof laps)[0] | null>(
+    .filter((lap): lap is TimedLap => lap.lap_time !== null)
+    .reduce<TimedLap | null>(
       (best, lap) => (best === null || lap.lap_time < best.lap_time ? lap : best),
       null,
     )
