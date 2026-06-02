@@ -1,4 +1,10 @@
-import type { ReplayData, ScheduleEvent, SessionData, TelemetryPoint } from './types'
+import type {
+  LiveState,
+  ReplayData,
+  ScheduleEvent,
+  SessionData,
+  TelemetryPoint,
+} from './types'
 
 const BASE_URL = '/api'
 
@@ -27,7 +33,12 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 export const api = {
   getCache: (signal?: AbortSignal) => get<{ dir: string | null }>('/cache', signal),
-  setCache: (dir: string) => post<{ dir: string | null }>('/cache', { dir }),
+  live: (signal?: AbortSignal) => get<LiveState>('/live', signal),
+  setCache: (dir: string, deletePrevious = false) =>
+    post<{ dir: string | null; previous: string | null; deleted: boolean }>('/cache', {
+      dir,
+      delete_previous: deletePrevious,
+    }),
   schedule: (year: number, signal?: AbortSignal) =>
     get<ScheduleEvent[]>(`/schedule/${year}`, signal),
   session: (year: number, event: string, sessionType: string, signal?: AbortSignal) =>

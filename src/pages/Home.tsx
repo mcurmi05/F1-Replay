@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRightIcon, ChevronDownIcon } from '../components/icons'
 import { useSchedule } from '../hooks/useApi'
 
-const YEARS = [2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018]
+const YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018]
 
 const SESSION_TYPES = [
   { label: 'Practice 1', value: 'FP1' },
@@ -19,6 +19,13 @@ const SESSION_TYPES = [
 interface Option {
   label: string
   value: string
+}
+
+function isUpcoming(eventDate: string | null): boolean {
+  if (!eventDate) {
+    return false
+  }
+  return new Date(eventDate).getTime() > Date.now()
 }
 
 function SelectField({
@@ -77,7 +84,9 @@ export default function Home() {
     value: String(event.round),
   }))
 
-  const canView = year !== '' && round !== '' && session !== ''
+  const selectedEvent = races.find((event) => String(event.round) === round)
+  const selectedUpcoming = isUpcoming(selectedEvent?.event_date ?? null)
+  const canView = year !== '' && round !== '' && session !== '' && !selectedUpcoming
 
   function openSession() {
     if (!canView) {
@@ -142,6 +151,9 @@ export default function Home() {
               Could not load the schedule. Is the data server running?
             </p>
           ) : null}
+          {selectedUpcoming ? (
+            <p className="mt-4 text-sm text-zinc-500">This session hasn't taken place yet.</p>
+          ) : null}
           <div className="mt-5 flex justify-end">
             <button
               type="button"
@@ -162,25 +174,46 @@ export default function Home() {
         </h2>
         {schedule.loading ? <p className="text-sm text-zinc-500">Loading schedule...</p> : null}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {races.map((event) => (
-            <Link
-              key={event.round}
-              to={`/replay/${year}/${event.round}/R`}
-              className="group rounded-xl border border-zinc-800 bg-surface p-5 transition hover:border-zinc-700 hover:bg-surface-2"
-            >
-              <p className="text-xs text-zinc-500">Round {event.round}</p>
-              <h3 className="mt-2 text-lg font-semibold text-white">{event.event_name}</h3>
-              <div className="mt-1 flex items-center gap-2 text-sm text-zinc-400">
-                <span>{event.location}</span>
-                <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
-                <span>{event.country}</span>
-              </div>
-              <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-500 transition group-hover:text-f1-red">
-                Open race
-                <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </Link>
-          ))}
+          {races.map((event) => {
+            const upcoming = isUpcoming(event.event_date)
+            const details = (
+              <>
+                <p className="text-xs text-zinc-500">Round {event.round}</p>
+                <h3 className="mt-2 text-lg font-semibold text-white">{event.event_name}</h3>
+                <div className="mt-1 flex items-center gap-2 text-sm text-zinc-400">
+                  <span>{event.location}</span>
+                  <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
+                  <span>{event.country}</span>
+                </div>
+              </>
+            )
+            if (upcoming) {
+              return (
+                <div
+                  key={event.round}
+                  className="rounded-xl border border-zinc-800/60 bg-surface p-5 opacity-60"
+                >
+                  {details}
+                  <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-600">
+                    Upcoming
+                  </span>
+                </div>
+              )
+            }
+            return (
+              <Link
+                key={event.round}
+                to={`/replay/${year}/${event.round}/R`}
+                className="group rounded-xl border border-zinc-800 bg-surface p-5 transition hover:border-zinc-700 hover:bg-surface-2"
+              >
+                {details}
+                <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-500 transition group-hover:text-f1-red">
+                  Open race
+                  <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </Link>
+            )
+          })}
         </div>
       </section>
     </div>

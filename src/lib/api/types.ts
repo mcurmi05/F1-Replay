@@ -59,6 +59,64 @@ export interface TelemetryPoint {
   y: number | null
 }
 
+export interface LiveRow {
+  position: number | null
+  driver_number: string
+  abbreviation: string | null
+  full_name: string | null
+  team_name: string | null
+  team_colour: string | null
+  gap: string | null
+  interval: string | null
+  last_lap: string | null
+  best_lap: string | null
+  compound: string | null
+  tyre_age: number | null
+  stint: number | null
+  in_pit: boolean
+  retired: boolean
+  status: string | null
+}
+
+export interface LiveSession {
+  event_name: string | null
+  location: string | null
+  country: string | null
+  session_name: string | null
+  session_type: string | null
+  status: string | null
+  track_status: { code: string | null; message: string }
+  current_lap: number | null
+  total_laps: number | null
+  time_remaining: string | null
+  started_at: string | null
+}
+
+export interface LiveWeather {
+  air_temp: number | null
+  track_temp: number | null
+  humidity: number | null
+  rainfall: boolean
+  wind_speed: number | null
+}
+
+export interface LiveNextSession {
+  event_name: string | null
+  session_name: string | null
+  start_utc: string
+}
+
+export interface LiveState {
+  available: boolean
+  live: boolean
+  source: 'live' | 'historical' | 'none'
+  session: LiveSession | null
+  weather: LiveWeather | null
+  rows: LiveRow[]
+  next_session: LiveNextSession | null
+  updated_at: string
+}
+
 export interface ReplayDriver {
   number: string
   abbreviation: string | null

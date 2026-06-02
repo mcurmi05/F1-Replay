@@ -34,6 +34,23 @@ export function ChevronDownIcon({ className }: IconProps) {
   )
 }
 
+export function FolderIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3l1.5 2H16a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 16 14.5H4A1.5 1.5 0 0 1 2.5 13z" />
+    </svg>
+  )
+}
+
 export function PlayIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

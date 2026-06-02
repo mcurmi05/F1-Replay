@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { api } from '../lib/api/client'
 import type {
+  LiveState,
   ReplayData,
   ScheduleEvent,
   SessionData,
@@ -53,6 +54,51 @@ function useQuery<T>(
       })
     return () => controller.abort()
   }, [key, enabled])
+
+  return state
+}
+
+export function useLive(intervalMs = 4000) {
+  const [state, setState] = useState<QueryState<LiveState>>({
+    data: undefined,
+    error: undefined,
+    loading: true,
+  })
+
+  useEffect(() => {
+    let active = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    async function tick() {
+      const controller = new AbortController()
+      try {
+        const data = await api.live(controller.signal)
+        if (active) {
+          setState({ data, error: undefined, loading: false })
+        }
+      } catch (error: unknown) {
+        if (active) {
+          setState((previous) => ({
+            data: previous.data,
+            error: error instanceof Error ? error : new Error(String(error)),
+            loading: false,
+          }))
+        }
+      }
+      if (active) {
+        const delay = document.hidden ? intervalMs * 4 : intervalMs
+        timer = setTimeout(tick, delay)
+      }
+    }
+
+    tick()
+    return () => {
+      active = false
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
+  }, [intervalMs])
 
   return state
 }

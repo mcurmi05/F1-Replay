@@ -1,5 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
+import CacheSettings from './CacheSettings'
+
 const navItems: { to: string; label: string; live?: boolean }[] = [
   { to: '/home', label: 'Home' },
   { to: '/live', label: 'Live', live: true },
@@ -39,6 +41,8 @@ export default function Layout() {
                 {item.label}
               </NavLink>
             ))}
+            <span className="mx-1 h-5 w-px bg-zinc-800" />
+            <CacheSettings />
           </nav>
         </div>
       </header>

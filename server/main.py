@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from fastf1.exceptions import RateLimitExceededError
 from pydantic import BaseModel
 
 import f1data
+import live
 
 app = FastAPI(title="F1 Replay API")
 
@@ -26,6 +28,35 @@ api = APIRouter(prefix="/api")
 
 class CacheRequest(BaseModel):
     dir: str
+    delete_previous: bool = False
+
+
+def _is_within(child, parent):
+    try:
+        common = os.path.commonpath([os.path.abspath(child), os.path.abspath(parent)])
+    except ValueError:
+        return False
+    return common == os.path.abspath(parent)
+
+
+def _delete_previous_cache(previous, new_dir):
+    if not previous:
+        return False
+    previous_abs = os.path.abspath(previous)
+    new_abs = os.path.abspath(new_dir)
+    if previous_abs == new_abs:
+        return False
+    if _is_within(new_abs, previous_abs):
+        raise HTTPException(
+            status_code=400,
+            detail="New folder is inside the previous one, refusing to delete",
+        )
+    if os.path.dirname(previous_abs) == previous_abs:
+        raise HTTPException(status_code=400, detail="Refusing to delete a filesystem root")
+    if os.path.isdir(previous_abs):
+        shutil.rmtree(previous_abs, ignore_errors=True)
+        return True
+    return False
 
 
 def _require_cache():
@@ -48,8 +79,17 @@ def cache_status():
 
 @api.post("/cache")
 def set_cache_dir(request: CacheRequest):
+    previous = f1data.get_cache()
     f1data.set_cache(request.dir)
-    return {"dir": f1data.get_cache()}
+    deleted = False
+    if request.delete_previous:
+        deleted = _delete_previous_cache(previous, f1data.get_cache())
+    return {"dir": f1data.get_cache(), "previous": previous, "deleted": deleted}
+
+
+@api.get("/live")
+def live_status():
+    return live.live_state()
 
 
 @api.get("/schedule/{year}")
