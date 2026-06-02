@@ -1,6 +1,6 @@
 import raceStartIcon from '../../assets/race_start.png'
 import { PauseIcon, PlayIcon } from '../icons'
-import { formatClock } from '../../lib/format'
+import { formatClockHours } from '../../lib/format'
 import type { Playback } from '../../hooks/usePlayback'
 
 const SPEEDS = [1, 2, 5, 10, 20]
@@ -45,7 +45,7 @@ export default function PlaybackControls({
       </button>
 
       <span className="shrink-0 font-mono text-sm text-zinc-300">
-        {formatClock(currentTime)} / {formatClock(duration)}
+        {formatClockHours(currentTime)} / {formatClockHours(duration)}
       </span>
 
       <input

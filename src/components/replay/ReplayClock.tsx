@@ -1,4 +1,11 @@
-import { formatSigned } from '../../lib/format'
+function formatRaceTime(seconds: number): string {
+  const sign = seconds < 0 ? '-' : ''
+  const abs = Math.abs(seconds)
+  const hours = Math.floor(abs / 3600)
+  const minutes = Math.floor((abs % 3600) / 60)
+  const secs = Math.floor(abs % 60)
+  return `${sign}${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
 
 export default function ReplayClock({
   relative,
@@ -15,7 +22,7 @@ export default function ReplayClock({
         {totalLaps ? `Lap ${lap} / ${totalLaps}` : `Lap ${lap}`}
       </div>
       <div className="font-mono text-3xl font-bold tabular-nums text-white">
-        {relative === null ? '--:--' : formatSigned(relative)}
+        {relative === null ? '--:--' : formatRaceTime(relative)}
       </div>
       <div className="w-28" />
     </div>

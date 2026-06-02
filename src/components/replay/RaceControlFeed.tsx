@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react'
 import type { RaceControlMessage } from '../../lib/api/types'
 
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${String(secs).padStart(2, '0')}`
+}
+
 export default function RaceControlFeed({
   messages,
   currentTime,
@@ -46,7 +52,7 @@ export default function RaceControlFeed({
             >
               <p className="font-semibold text-white">{msg.message}</p>
               {msg.time !== null && (
-                <p className="text-zinc-400">{msg.time.toFixed(1)}s</p>
+                <p className="text-zinc-400">{formatTime(msg.time)}</p>
               )}
             </div>
           ))

@@ -52,7 +52,7 @@ export default function TrackMap({
   const selY = selectedPath ? lerp(selectedPath.y, i0, i1, frac) : null
 
   return (
-    <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" className="h-full w-full">
+    <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" className="h-full w-full pointer-events-none" style={{ overflowAnchor: 'none' }}>
       <polyline
         points={trackPoints}
         fill="none"
@@ -82,7 +82,7 @@ export default function TrackMap({
             fill={teamColor(driver.team_colour)}
             stroke={isSelected ? '#ffffff' : 'rgba(0,0,0,0.45)'}
             strokeWidth={isSelected ? radius * 0.45 : radius * 0.18}
-            className="cursor-pointer"
+            className="cursor-pointer pointer-events-auto"
             onClick={() => onSelect(driver.number)}
           />
         )
@@ -96,7 +96,7 @@ export default function TrackMap({
           stroke="#000000"
           strokeWidth={radius * 0.12}
           style={{ paintOrder: 'stroke' }}
-          className="font-semibold"
+          className="font-semibold pointer-events-none"
         >
           {selectedDriver.abbreviation ?? selectedDriver.number}
         </text>

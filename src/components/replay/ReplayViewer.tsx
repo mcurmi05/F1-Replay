@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import StatusCard from '../StatusCard'
 import OvertakeFeed from './OvertakeFeed'
+import PitStopFeed from './PitStopFeed'
 import PlaybackControls from './PlaybackControls'
 import RaceControlFeed from './RaceControlFeed'
 import ReplayClock from './ReplayClock'
@@ -54,9 +55,9 @@ export default function ReplayViewer({
   return (
     <div className="space-y-4">
       <ReplayClock relative={relative} lap={lap} totalLaps={data.total_laps} />
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1fr_300px]">
-        <div className="relative w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
-          <div className="absolute inset-0 p-3">
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1fr_300px]" style={{ overflowAnchor: 'none' }}>
+        <div className="relative w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface" style={{ contain: 'layout', overflowAnchor: 'none' }}>
+          <div className="absolute inset-0 overflow-hidden p-3" style={{ overflowAnchor: 'none' }}>
             <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
           </div>
           <div
@@ -72,9 +73,12 @@ export default function ReplayViewer({
         </div>
       </div>
       <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <RaceControlFeed messages={data.race_control_messages} currentTime={time} />
-        {selected ? <TelemetryPanel replay={data} driver={selected} currentTime={time} /> : null}
+        <PitStopFeed replay={data} currentTime={time} />
+        <div className={selected ? '' : 'hidden'}>
+          {selected ? <TelemetryPanel replay={data} driver={selected} currentTime={time} /> : null}
+        </div>
       </div>
       <OvertakeFeed events={events} currentTime={time} />
     </div>
