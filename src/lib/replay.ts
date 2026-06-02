@@ -221,48 +221,6 @@ export function currentLapNumber(replay: ReplayData, time: number): number {
   return highest
 }
 
-export interface OvertakeEvent {
-  time: number
-  lap: number | null
-  number: string
-  abbreviation: string | null
-  from: number
-  to: number
-}
-
-export function overtakeEvents(replay: ReplayData): OvertakeEvent[] {
-  const events: OvertakeEvent[] = []
-  for (const driver of replay.drivers) {
-    const laps = replay.laps[driver.number]
-    if (!laps) {
-      continue
-    }
-    let previous: number | null = null
-    for (const lap of laps) {
-      if (
-        lap.position !== null &&
-        previous !== null &&
-        lap.position < previous &&
-        lap.start !== null
-      ) {
-        events.push({
-          time: lap.start,
-          lap: lap.lap,
-          number: driver.number,
-          abbreviation: driver.abbreviation,
-          from: previous,
-          to: lap.position,
-        })
-      }
-      if (lap.position !== null) {
-        previous = lap.position
-      }
-    }
-  }
-  events.sort((a, b) => a.time - b.time)
-  return events
-}
-
 export function currentTrackStatus(
   segments: TrackStatusSegment[] | undefined,
   time: number,

@@ -220,7 +220,7 @@ def _session_start(session):
 
 def driver_telemetry(session, driver):
     driver_laps = session.laps.pick_drivers(driver)
-    telemetry = driver_laps.get_telemetry().add_distance()
+    telemetry = driver_laps.get_car_data().add_distance()
     start = _session_start(session)
     rows = []
     for _, point in telemetry.iterrows():

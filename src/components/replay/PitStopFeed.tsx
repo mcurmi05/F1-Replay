@@ -94,7 +94,7 @@ export default function PitStopFeed({ replay, currentTime }: { replay: ReplayDat
                 <span className="text-xs text-zinc-400">{formatTime(pit.time)}</span>
               </div>
               <p className="mt-1 text-xs font-mono text-zinc-400">
-                Duration: {formatDuration(pit.duration)}
+                Duration: {formatDuration(Math.min(Math.max(currentTime - pit.time, 0), pit.duration))}
               </p>
             </div>
           ))

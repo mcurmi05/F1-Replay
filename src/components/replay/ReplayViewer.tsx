@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import StatusCard from '../StatusCard'
-import OvertakeFeed from './OvertakeFeed'
 import PitStopFeed from './PitStopFeed'
 import PlaybackControls from './PlaybackControls'
 import RaceControlFeed from './RaceControlFeed'
@@ -15,7 +14,6 @@ import {
   currentLapNumber,
   currentTrackStatus,
   leaderboard,
-  overtakeEvents,
   trackStatusInfo,
 } from '../../lib/replay'
 
@@ -31,7 +29,6 @@ export default function ReplayViewer({
   const { data, error, loading } = useReplay(year, event, session)
   const playback = usePlayback(data?.duration ?? 0)
   const [selected, setSelected] = useState<string | null>(null)
-  const events = useMemo(() => (data ? overtakeEvents(data) : []), [data])
 
   if (loading) {
     return <StatusCard text="Loading replay data..." />
@@ -80,7 +77,6 @@ export default function ReplayViewer({
           {selected ? <TelemetryPanel year={year} event={event} session={session} replay={data} driver={selected} currentTime={time} /> : null}
         </div>
       </div>
-      <OvertakeFeed events={events} currentTime={time} />
     </div>
   )
 }

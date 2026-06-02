@@ -1,13 +1,10 @@
 import { useMemo } from 'react'
 
-import { smoothChannel } from '../../lib/replay'
 import { teamColor } from '../../lib/format'
 import { useTelemetry } from '../../hooks/useApi'
 import type { ReplayData } from '../../lib/api/types'
 
 const WINDOW_SECONDS = 10
-const BAR_SMOOTH_RADIUS = 2
-const TRACE_SMOOTH_RADIUS = 3
 
 interface Series {
   times: number[]
@@ -34,56 +31,34 @@ function lastAtOrBefore(times: number[], t: number): number {
   return ans
 }
 
-function buildPoints(
+function buildTrace(
   times: number[],
   values: (number | null)[],
   windowStart: number,
   windowEnd: number,
   currentValue: number | null,
-): Array<[number, number]> {
+): string {
   const span = windowEnd - windowStart
   if (times.length === 0 || span <= 0) {
-    return []
+    return ''
   }
   const startIdx = Math.max(0, lastAtOrBefore(times, windowStart))
   const endIdx = lastAtOrBefore(times, windowEnd)
-  const pts: Array<[number, number]> = []
+  const points: string[] = []
   for (let i = startIdx; i <= endIdx; i += 1) {
-    const value = smoothChannel(values, i, TRACE_SMOOTH_RADIUS)
-    if (value === null) {
+    const value = values[i]
+    if (value === null || value === undefined) {
       continue
     }
     const x = ((times[i] - windowStart) / span) * 100
     const y = 40 - (Math.min(Math.max(value, 0), 100) / 100) * 40
-    pts.push([x, y])
+    points.push(`${x.toFixed(2)},${y.toFixed(2)}`)
   }
   if (currentValue !== null) {
     const y = 40 - (Math.min(Math.max(currentValue, 0), 100) / 100) * 40
-    pts.push([100, y])
+    points.push(`100.00,${y.toFixed(2)}`)
   }
-  return pts
-}
-
-function smoothPath(pts: Array<[number, number]>): string {
-  if (pts.length === 0) {
-    return ''
-  }
-  if (pts.length < 3) {
-    return `M ${pts.map((p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(' L ')}`
-  }
-  let d = `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`
-  for (let i = 0; i < pts.length - 1; i += 1) {
-    const p0 = pts[i - 1] ?? pts[i]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[i + 2] ?? p2
-    const cp1x = p1[0] + (p2[0] - p0[0]) / 6
-    const cp1y = p1[1] + (p2[1] - p0[1]) / 6
-    const cp2x = p2[0] - (p3[0] - p1[0]) / 6
-    const cp2y = p2[1] - (p3[1] - p1[1]) / 6
-    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`
-  }
-  return d
+  return points.join(' ')
 }
 
 function VerticalBar({ value, color }: { value: number | null; color: string }) {
@@ -162,7 +137,7 @@ export default function TelemetryPanel({
 
   const idx = series ? Math.max(0, lastAtOrBefore(series.times, currentTime)) : -1
   const speed = series ? series.speed[idx] ?? null : null
-  const throttle = series ? smoothChannel(series.throttle, idx, BAR_SMOOTH_RADIUS) : null
+  const throttle = series ? series.throttle[idx] ?? null : null
   const brakeValue = series ? series.brake[idx] ?? null : null
   const braking = brakeValue !== null && brakeValue > 0
   const gear = series ? series.gear[idx] ?? null : null
@@ -170,8 +145,8 @@ export default function TelemetryPanel({
 
   const windowEnd = currentTime
   const windowStart = currentTime - WINDOW_SECONDS
-  const throttlePath = series
-    ? smoothPath(buildPoints(series.times, series.throttle, windowStart, windowEnd, throttle))
+  const throttleTrace = series
+    ? buildTrace(series.times, series.throttle, windowStart, windowEnd, throttle)
     : ''
 
   return (
@@ -211,8 +186,8 @@ export default function TelemetryPanel({
             preserveAspectRatio="none"
             className="h-24 flex-1 rounded-md bg-zinc-900/40"
           >
-            <path
-              d={throttlePath}
+            <polyline
+              points={throttleTrace}
               fill="none"
               stroke="#43b02a"
               strokeWidth={0.9}
