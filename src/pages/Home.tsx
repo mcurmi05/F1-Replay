@@ -45,7 +45,11 @@ function formatDateRange(start: string | null, end: string | null): string {
 }
 
 function sessionsForEvent(sessions: string[]) {
-  return SESSION_TYPES.filter((type) => sessions.some((name) => type.names.includes(name)))
+  const sessionMap = new Map(SESSION_TYPES.map((type) => [type.value, type]))
+  const result = sessions
+    .map((name) => SESSION_TYPES.find((type) => type.names.includes(name)))
+    .filter((type) => type !== undefined)
+  return [...new Set(result)]
 }
 
 function SelectField({
