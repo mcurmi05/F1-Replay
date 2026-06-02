@@ -17,14 +17,13 @@ export default function ReplayClock({
   totalLaps: number | null
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-surface px-6 py-3">
-      <div className="w-28 text-sm font-medium text-zinc-400">
+    <div className="flex items-center justify-between gap-3 px-2 py-2">
+      <span className="text-sm font-medium text-zinc-400">
         {totalLaps ? `Lap ${lap} / ${totalLaps}` : `Lap ${lap}`}
-      </div>
-      <div className="font-mono text-3xl font-bold tabular-nums text-white">
+      </span>
+      <span className="font-mono text-2xl font-bold tabular-nums text-white">
         {relative === null ? '--:--' : formatRaceTime(relative)}
-      </div>
-      <div className="w-28" />
+      </span>
     </div>
   )
 }

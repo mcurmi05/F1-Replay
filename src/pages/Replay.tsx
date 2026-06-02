@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
-import { ArrowRightIcon } from '../components/icons'
 import StatusCard from '../components/StatusCard'
 import ReplayViewer from '../components/replay/ReplayViewer'
 import { useSession } from '../hooks/useApi'
 import { api } from '../lib/api/client'
-import { formatLapTime, teamColor } from '../lib/format'
 import type { SessionData } from '../lib/api/types'
 
 function SessionView({
@@ -20,107 +18,16 @@ function SessionView({
   event: string
   session: string
 }) {
-  const { summary, results, laps } = data
-  const [revealed, setRevealed] = useState(false)
-  const ordered = [...results].sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
-  type TimedLap = (typeof laps)[0] & { lap_time: number }
-  const fastestLap = laps
-    .filter((lap): lap is TimedLap => lap.lap_time !== null)
-    .reduce<TimedLap | null>(
-      (best, lap) => (best === null || lap.lap_time < best.lap_time ? lap : best),
-      null,
-    )
-  const fastest = fastestLap?.lap_time ?? Number.POSITIVE_INFINITY
-  const fastestDriver = fastestLap
-    ? results.find((r) => r.driver_number === fastestLap.driver_number)
-    : null
+  const { summary, laps } = data
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-zinc-800 bg-surface p-6">
-        <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-400">
-          REPLAY
-        </span>
-        <h1 className="mt-4 text-3xl font-bold text-white">{summary.event_name}</h1>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-zinc-400">
-          <span>{summary.session_name}</span>
-          <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
-          <span>{summary.location}</span>
-          <span className="inline-block h-1 w-1 rounded-full bg-zinc-600" />
-          <span>{laps.length} total laps recorded</span>
-        </div>
-      </div>
-
-      <ReplayViewer year={year} event={event} session={session} />
-
-      <div>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Results</h2>
-          <button
-            type="button"
-            onClick={() => setRevealed((value) => !value)}
-            className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:bg-zinc-800"
-          >
-            {revealed ? 'Hide results' : 'Reveal results'}
-          </button>
-        </div>
-        {revealed ? (
-          <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
-                <tr>
-                  <th className="px-5 py-3 font-medium">Pos</th>
-                  <th className="px-5 py-3 font-medium">Driver</th>
-                  <th className="px-5 py-3 font-medium">Team</th>
-                  <th className="px-5 py-3 text-right font-medium">Points</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordered.map((row) => (
-                  <tr
-                    key={row.driver_number ?? row.abbreviation}
-                    className="border-b border-zinc-800/60 last:border-0"
-                  >
-                    <td className="px-5 py-3 font-mono text-zinc-400">{row.position ?? '-'}</td>
-                    <td className="px-5 py-3">
-                      <span className="inline-flex items-center gap-2.5">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: teamColor(row.team_colour) }}
-                        />
-                        <span className="font-medium text-white">
-                          {row.abbreviation ?? row.full_name}
-                        </span>
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-zinc-400">{row.team_name}</td>
-                    <td className="px-5 py-3 text-right text-zinc-300">{row.points ?? 0}</td>
-                    <td className="px-5 py-3 text-zinc-400">{row.status ?? '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {Number.isFinite(fastest) ? (
-              <div className="border-t border-zinc-800 px-5 py-3 text-sm text-zinc-400">
-                Fastest lap{' '}
-                <span className="font-medium text-white">{formatLapTime(fastest)}</span>
-                {fastestDriver?.abbreviation ? (
-                  <>
-                    {' · '}
-                    <span className="font-medium text-white">{fastestDriver.abbreviation}</span>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-zinc-800 bg-surface p-8 text-center text-sm text-zinc-500">
-            Results hidden for spoiler-free viewing. Reveal when you are ready.
-          </div>
-        )}
-      </div>
-    </div>
+    <ReplayViewer
+      year={year}
+      event={event}
+      session={session}
+      summary={summary}
+      lapCount={laps.length}
+    />
   )
 }
 
@@ -151,14 +58,6 @@ export default function Replay() {
 
   return (
     <div className="space-y-6">
-      <Link
-        to="/home"
-        className="inline-flex items-center gap-1.5 text-sm text-zinc-500 transition hover:text-zinc-300"
-      >
-        <ArrowRightIcon className="h-4 w-4 rotate-180" />
-        Back to home
-      </Link>
-
       {loading ? (
         <div className="rounded-2xl border border-zinc-800 bg-surface p-8">
           <p className="text-base font-semibold text-white">

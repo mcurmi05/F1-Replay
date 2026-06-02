@@ -11,7 +11,7 @@ export default function Layout() {
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-10 border-b border-zinc-800/80 bg-[#0a0a0f]/80 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6">
+        <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between px-4">
           <NavLink to="/home" className="flex items-center gap-2.5">
             <span className="h-5 w-1.5 rounded-full bg-f1-red" />
             <span className="text-lg font-semibold tracking-tight text-white">
@@ -46,7 +46,7 @@ export default function Layout() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-10">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-10 pt-4">
         <Outlet />
       </main>
     </div>

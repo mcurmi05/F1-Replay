@@ -5,6 +5,7 @@ import PitStopFeed from './PitStopFeed'
 import PlaybackControls from './PlaybackControls'
 import RaceControlFeed from './RaceControlFeed'
 import ReplayClock from './ReplayClock'
+import ReplayTitle from './ReplayTitle'
 import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
 import TrackMap from './TrackMap'
@@ -16,31 +17,36 @@ import {
   leaderboard,
   trackStatusInfo,
 } from '../../lib/replay'
+import type { SessionSummary } from '../../lib/api/types'
 
 export default function ReplayViewer({
   year,
   event,
   session,
+  summary,
+  lapCount,
 }: {
   year: number
   event: string
   session: string
+  summary: SessionSummary
+  lapCount: number
 }) {
   const { data, error, loading } = useReplay(year, event, session)
   const playback = usePlayback(data?.duration ?? 0)
   const [selected, setSelected] = useState<string | null>(null)
 
-  if (loading) {
-    return <StatusCard text="Loading replay data..." />
-  }
-  if (error) {
-    return <StatusCard text={`Could not load replay: ${error.message}`} />
-  }
-  if (!data) {
-    return null
-  }
-  if (!data.available) {
-    return <StatusCard text="This session has no position data, so a track replay is not available." />
+  if (loading || error || !data || !data.available) {
+    return (
+      <div className="space-y-4">
+        <ReplayTitle summary={summary} lapCount={lapCount} />
+        {loading ? <StatusCard text="Loading replay data..." /> : null}
+        {error ? <StatusCard text={`Could not load replay: ${error.message}`} /> : null}
+        {!loading && !error && (!data || !data.available) ? (
+          <StatusCard text="This session has no position data, so a track replay is not available." />
+        ) : null}
+      </div>
+    )
   }
 
   const time = playback.currentTime
@@ -51,30 +57,43 @@ export default function ReplayViewer({
 
   return (
     <div className="space-y-4">
-      <ReplayClock relative={relative} lap={lap} totalLaps={data.total_laps} />
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1fr_300px]" style={{ overflowAnchor: 'none' }}>
-        <div className="relative w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface" style={{ contain: 'layout', overflowAnchor: 'none' }}>
-          <div className="absolute inset-0 overflow-hidden p-3" style={{ overflowAnchor: 'none' }}>
-            <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]" style={{ overflowAnchor: 'none' }}>
+        <div className="flex flex-col gap-4">
+          <ReplayTitle summary={summary} lapCount={lapCount} />
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2" style={{ overflowAnchor: 'none' }}>
+            <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface" style={{ contain: 'layout', overflowAnchor: 'none' }}>
+              <div className="absolute inset-0 overflow-hidden p-3" style={{ overflowAnchor: 'none' }}>
+                <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
+              </div>
+              <div
+                className="absolute left-3 top-3 flex items-center gap-3 rounded-xl px-4 py-2.5 text-base font-bold"
+                style={{ color: status.color, backgroundColor: status.background }}
+              >
+                <img src={status.flag} alt="" className="h-7 w-7" />
+                {status.label}
+              </div>
+            </div>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <RaceControlFeed messages={data.race_control_messages} currentTime={time} />
+                <PitStopFeed replay={data} currentTime={time} />
+              </div>
+              {selected ? (
+                <TelemetryPanel year={year} event={event} session={session} replay={data} driver={selected} currentTime={time} />
+              ) : null}
+            </div>
           </div>
-          <div
-            className="absolute left-3 top-3 flex items-center gap-3 rounded-xl px-4 py-2.5 text-base font-bold"
-            style={{ color: status.color, backgroundColor: status.background }}
-          >
-            <img src={status.flag} alt="" className="h-7 w-7" />
-            {status.label}
+          <div className="mt-auto">
+            <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} />
           </div>
         </div>
         <div>
-          <TimingTower rows={board} selected={selected} onSelect={setSelected} />
-        </div>
-      </div>
-      <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <RaceControlFeed messages={data.race_control_messages} currentTime={time} />
-        <PitStopFeed replay={data} currentTime={time} />
-        <div className={selected ? '' : 'hidden'}>
-          {selected ? <TelemetryPanel year={year} event={event} session={session} replay={data} driver={selected} currentTime={time} /> : null}
+          <TimingTower
+            rows={board}
+            selected={selected}
+            onSelect={setSelected}
+            header={<ReplayClock relative={relative} lap={lap} totalLaps={data.total_laps} />}
+          />
         </div>
       </div>
     </div>

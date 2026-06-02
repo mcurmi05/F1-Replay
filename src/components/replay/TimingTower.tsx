@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 
 import { teamColor } from '../../lib/format'
 import { tyreIcon } from '../../lib/replay'
@@ -18,10 +19,12 @@ export default function TimingTower({
   rows,
   selected = null,
   onSelect,
+  header,
 }: {
   rows: TimingTowerRow[]
   selected?: string | null
   onSelect?: (driver: string) => void
+  header?: ReactNode
 }) {
   const listRef = useRef<HTMLUListElement>(null)
   const tops = useRef<Map<string, number>>(new Map())
@@ -131,6 +134,7 @@ export default function TimingTower({
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-surface p-2">
+      {header ? <div className="mb-1 border-b border-zinc-800 pb-1.5">{header}</div> : null}
       <div className="flex items-center gap-2 px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
         <span className="w-5 text-right">P</span>
         <span className="w-1 shrink-0" />
