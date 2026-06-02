@@ -93,51 +93,6 @@ function lapsBehind(n: number): string {
   return `+${n} LAP${n > 1 ? 'S' : ''}`
 }
 
-// Time gap from a follower at (fx, fy) to a car ahead: search the ahead car's
-// trajectory backward from the current frame for its most recent pass through
-// the follower's current track position. The gap is the elapsed time since.
-function timeGap(
-  aheadX: (number | null)[] | undefined,
-  aheadY: (number | null)[] | undefined,
-  fx: number,
-  fy: number,
-  curIndex: number,
-  time: number[],
-): number | null {
-  if (!aheadX || !aheadY) {
-    return null
-  }
-  const limit = Math.max(0, curIndex - 2400)
-  let bestJ = -1
-  let bestD = Number.POSITIVE_INFINITY
-  let rising = 0
-  for (let j = curIndex; j >= limit; j--) {
-    const ax = aheadX[j]
-    const ay = aheadY[j]
-    if (ax === null || ax === undefined || ay === null || ay === undefined) {
-      continue
-    }
-    const dx = ax - fx
-    const dy = ay - fy
-    const d = dx * dx + dy * dy
-    if (d < bestD) {
-      bestD = d
-      bestJ = j
-      rising = 0
-    } else if (bestJ >= 0) {
-      rising += 1
-      if (rising > 10) {
-        break
-      }
-    }
-  }
-  if (bestJ < 0) {
-    return null
-  }
-  const gap = time[curIndex] - time[bestJ]
-  return gap >= 0 ? gap : null
-}
-
 export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
   const frame = frameIndex(time, replay.step, replay.time.length)
   const entries = replay.drivers.map((driver) => {
@@ -179,20 +134,12 @@ export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
         gap_leader = formatGap(streamLeader)
       } else if (lappedFromLeader >= 1) {
         gap_leader = lapsBehind(lappedFromLeader)
-      } else if (leader && entry.x !== null && entry.y !== null) {
-        const pos = replay.positions[leader.driver.number]
-        const g = timeGap(pos?.x, pos?.y, entry.x, entry.y, frame.i0, replay.time)
-        gap_leader = g !== null ? formatGap(g) : null
       }
 
       if (streamInterval !== null) {
         interval = formatGap(streamInterval)
       } else if (lappedFromAhead >= 1) {
         interval = lapsBehind(lappedFromAhead)
-      } else if (entry.x !== null && entry.y !== null) {
-        const pos = replay.positions[ahead.driver.number]
-        const g = timeGap(pos?.x, pos?.y, entry.x, entry.y, frame.i0, replay.time)
-        interval = g !== null ? formatGap(g) : null
       }
     }
 

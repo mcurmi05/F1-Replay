@@ -279,23 +279,29 @@ def _grid_gap(grid, times, values, ndigits=3, max_hole=30.0):
     return out
 
 
+class ReplayTimingError(Exception):
+    pass
+
+
 def _timing_streams(session):
-    streams = {}
     try:
         import fastf1._api as ff1_api
 
         _, stream = ff1_api.timing_data(session.api_path)
-    except Exception:
+        if stream is None or len(stream) == 0:
+            raise ReplayTimingError("FastF1 returned no timing data for this session")
+        streams = {}
+        for number, group in stream.groupby("Driver"):
+            times = group["Time"].dt.total_seconds().to_numpy()
+            position = group["Position"].to_numpy(dtype=float)
+            leader = group["GapToLeader"].map(_parse_gap).to_numpy(dtype=float)
+            interval = group["IntervalToPositionAhead"].map(_parse_gap).to_numpy(dtype=float)
+            streams[str(number)] = (times, position, leader, interval)
         return streams
-    if stream is None or len(stream) == 0:
-        return streams
-    for number, group in stream.groupby("Driver"):
-        times = group["Time"].dt.total_seconds().to_numpy()
-        position = group["Position"].to_numpy(dtype=float)
-        leader = group["GapToLeader"].map(_parse_gap).to_numpy(dtype=float)
-        interval = group["IntervalToPositionAhead"].map(_parse_gap).to_numpy(dtype=float)
-        streams[str(number)] = (times, position, leader, interval)
-    return streams
+    except ReplayTimingError:
+        raise
+    except Exception as exc:
+        raise ReplayTimingError(f"FastF1 timing API failed: {exc}") from exc
 
 
 def build_replay(session, step=0.5):

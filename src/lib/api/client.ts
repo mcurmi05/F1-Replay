@@ -8,13 +8,25 @@ import type {
 
 const BASE_URL = '/api'
 
+async function errorMessage(response: Response): Promise<string> {
+  try {
+    const body = await response.json()
+    if (body && typeof body.detail === 'string' && body.detail) {
+      return body.detail
+    }
+  } catch {
+    /* response had no JSON body */
+  }
+  return `Request failed (${response.status})`
+}
+
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: { Accept: 'application/json' },
     signal,
   })
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`)
+    throw new Error(await errorMessage(response))
   }
   return (await response.json()) as T
 }
@@ -26,7 +38,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`)
+    throw new Error(await errorMessage(response))
   }
   return (await response.json()) as T
 }

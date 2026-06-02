@@ -138,7 +138,10 @@ def telemetry(year: int, event: str, session_type: str, driver: str):
 @api.get("/session/{year}/{event}/{session_type}/replay")
 def replay(year: int, event: str, session_type: str, step: float = 0.5):
     loaded = _load(year, event, session_type)
-    return f1data.build_replay(loaded, step=step)
+    try:
+        return f1data.build_replay(loaded, step=step)
+    except f1data.ReplayTimingError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 app.include_router(api)
