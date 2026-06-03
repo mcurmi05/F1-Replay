@@ -46,7 +46,7 @@ export default function PlaybackControls({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-800 bg-surface p-4">
+    <div className="flex h-full flex-wrap items-center gap-4 rounded-2xl border border-zinc-800 bg-surface p-4">
       {raceStart !== null ? (
         <button
           type="button"

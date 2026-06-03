@@ -349,6 +349,10 @@ def _race_control_messages(session, first_sample_time_offset):
                 "message": _text(msgs["Message"][i]),
                 "status": _text(msgs["Status"][i]),
                 "flag": _text(msgs["Flag"][i]),
+                "scope": _text(msgs.get("Scope", [None] * len(times))[i]),
+                "sector": _int(msgs.get("Sector", [None] * len(times))[i]),
+                "racing_number": _text(msgs.get("RacingNumber", [None] * len(times))[i]),
+                "lap": _int(msgs.get("Lap", [None] * len(times))[i]),
             }
             result.append(msg)
         return result

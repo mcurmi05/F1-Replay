@@ -8,6 +8,7 @@ import softTyre from '../assets/tires/soft.png'
 import wetTyre from '../assets/tires/wet.png'
 import type {
   QualifyingSegment,
+  RaceControlMessage,
   ReplayData,
   ReplayLap,
   TrackStatusSegment,
@@ -333,6 +334,81 @@ export function currentTrackStatus(
     }
   }
   return result ?? segments[0]
+}
+
+const FLAG_SEVERITY: Record<string, number> = {
+  '1': 0,
+  '7': 1,
+  '2': 2,
+  '6': 3,
+  '4': 4,
+  '5': 5,
+}
+
+export function currentRaceControlFlag(
+  messages: RaceControlMessage[] | undefined,
+  time: number,
+): string | null {
+  if (!messages || messages.length === 0) {
+    return null
+  }
+  const ordered = [...messages]
+    .filter((m) => m.time !== null && (m.flag !== null || m.category === 'Flag'))
+    .sort((a, b) => (a.time ?? 0) - (b.time ?? 0))
+
+  let trackYellow = false
+  let red = false
+  let sawFlag = false
+  const yellowSectors = new Set<number>()
+
+  for (const msg of ordered) {
+    if (msg.time === null || msg.time > time) {
+      break
+    }
+    const flag = (msg.flag ?? '').trim().toUpperCase()
+    const scope = (msg.scope ?? '').trim().toUpperCase()
+    if (!flag) {
+      continue
+    }
+    sawFlag = true
+    if (flag === 'YELLOW' || flag === 'DOUBLE YELLOW') {
+      if (scope === 'SECTOR' && msg.sector !== null) {
+        yellowSectors.add(msg.sector)
+      } else {
+        trackYellow = true
+      }
+    } else if (flag === 'CLEAR' || flag === 'GREEN') {
+      if (scope === 'SECTOR' && msg.sector !== null) {
+        yellowSectors.delete(msg.sector)
+      } else {
+        trackYellow = false
+        yellowSectors.clear()
+        red = false
+      }
+    } else if (flag === 'RED') {
+      red = true
+    }
+  }
+
+  if (!sawFlag) {
+    return null
+  }
+  if (red) {
+    return '5'
+  }
+  if (trackYellow || yellowSectors.size > 0) {
+    return '2'
+  }
+  return '1'
+}
+
+export function mergeFlagCodes(a: string | null, b: string | null): string | null {
+  const sevA = a !== null ? FLAG_SEVERITY[a] ?? 0 : -1
+  const sevB = b !== null ? FLAG_SEVERITY[b] ?? 0 : -1
+  if (sevA < 0 && sevB < 0) {
+    return null
+  }
+  return sevA >= sevB ? a : b
 }
 
 export function currentWeather(

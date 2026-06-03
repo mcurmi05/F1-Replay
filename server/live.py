@@ -370,6 +370,10 @@ def _race_control_live(topics):
             "message": _clean(msg.get("Message")),
             "status": _clean(msg.get("Status")),
             "flag": _clean(msg.get("Flag")),
+            "scope": _clean(msg.get("Scope")),
+            "sector": msg.get("Sector"),
+            "racing_number": _clean(msg.get("RacingNumber")),
+            "lap": msg.get("Lap"),
         })
     result.sort(key=lambda m: m["time"] or "")
     return result

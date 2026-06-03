@@ -137,7 +137,7 @@ export default function TimingTower({
   })
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-surface p-2">
+    <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent h-full overflow-y-auto rounded-2xl border border-zinc-800 bg-surface p-2">
       {header ? <div className="mb-1 border-b border-zinc-800 pb-1.5">{header}</div> : null}
       <div className="flex items-center gap-2 px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
         <span className="w-5 text-right">P</span>

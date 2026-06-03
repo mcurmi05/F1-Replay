@@ -8,7 +8,7 @@ export default function ReplayTitle({
   lapCount: number
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-surface p-6">
+    <div className="h-full rounded-2xl border border-zinc-800 bg-surface p-6">
       <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-400">
         REPLAY
       </span>

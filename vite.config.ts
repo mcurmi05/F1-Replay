@@ -4,6 +4,9 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    'process.env.DRAGGABLE_DEBUG': 'false',
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:8000',

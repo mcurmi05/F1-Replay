@@ -190,6 +190,10 @@ export interface RaceControlMessage {
   message: string | null
   status: string | null
   flag: string | null
+  scope: string | null
+  sector: number | null
+  racing_number: string | null
+  lap: number | null
 }
 
 export interface WeatherSample {

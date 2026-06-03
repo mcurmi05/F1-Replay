@@ -200,7 +200,7 @@ export default function TelemetryPanel({
     : []
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-surface p-5">
+    <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent h-full overflow-y-auto rounded-2xl border border-zinc-800 bg-surface p-5">
       <div className="flex items-center gap-2.5">
         <span
           className="h-4 w-1.5 rounded-full"

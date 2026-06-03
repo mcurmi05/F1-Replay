@@ -77,9 +77,9 @@ export default function PitStopFeed({
   }, [pits.length])
 
   return (
-    <div className="flex flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
+    <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{label} Pit Stops</p>
-      <div ref={scrollRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex h-60 flex-col gap-2 overflow-y-auto">
+      <div ref={scrollRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {!raceStarted ? (
           <p className="text-xs text-zinc-500">{label} hasn't started yet</p>
         ) : pits.length === 0 ? (

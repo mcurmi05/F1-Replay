@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 import CacheSettings from './CacheSettings'
+import { ReplayLayoutControls, ReplayLayoutProvider } from '../hooks/useReplayLayout'
 
 const navItems: { to: string; label: string; live?: boolean }[] = [
   { to: '/home', label: 'Home' },
@@ -9,6 +10,7 @@ const navItems: { to: string; label: string; live?: boolean }[] = [
 
 export default function Layout() {
   return (
+    <ReplayLayoutProvider>
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-10 border-b border-zinc-800/80 bg-[#0a0a0f]/80 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between px-4">
@@ -41,6 +43,7 @@ export default function Layout() {
                 {item.label}
               </NavLink>
             ))}
+            <ReplayLayoutControls />
             <span className="mx-1 h-5 w-px bg-zinc-800" />
             <CacheSettings />
           </nav>
@@ -50,5 +53,6 @@ export default function Layout() {
         <Outlet />
       </main>
     </div>
+    </ReplayLayoutProvider>
   )
 }
