@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ReactGridLayout, { useContainerWidth } from 'react-grid-layout'
 import type { Layout } from 'react-grid-layout'
 
@@ -30,6 +30,28 @@ import {
 import type { SessionSummary } from '../../lib/api/types'
 
 const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v2'
+const ROW_HEIGHT = 30
+const GRID_MARGIN = 16
+
+function timingTowerHeight(driverCount: number): number {
+  const headerPx = 96
+  const rowPx = 34
+  const contentPx = headerPx + rowPx * driverCount
+  const rowUnit = ROW_HEIGHT + GRID_MARGIN
+  return Math.max(6, Math.ceil((contentPx + GRID_MARGIN) / rowUnit))
+}
+
+function buildDefaultLayout(driverCount: number): Layout {
+  return [
+    { i: 'title', x: 0, y: 0, w: 8, h: 3, minW: 4, minH: 2 },
+    { i: 'timingTower', x: 8, y: 0, w: 4, h: timingTowerHeight(driverCount), minW: 3, minH: 6 },
+    { i: 'trackmap', x: 0, y: 3, w: 4, h: 10, minW: 3, minH: 6 },
+    { i: 'raceControl', x: 4, y: 3, w: 2, h: 5, minW: 2, minH: 3 },
+    { i: 'pitStops', x: 6, y: 3, w: 2, h: 5, minW: 2, minH: 3 },
+    { i: 'telemetry', x: 4, y: 8, w: 4, h: 5, minW: 2, minH: 3 },
+    { i: 'playback', x: 0, y: 13, w: 8, h: 2, minW: 3, minH: 2 },
+  ]
+}
 
 function DragHandle({ title }: { title: string }) {
   return (
@@ -39,16 +61,6 @@ function DragHandle({ title }: { title: string }) {
     </div>
   )
 }
-
-const DEFAULT_LAYOUT: Layout = [
-  { i: 'title', x: 0, y: 0, w: 8, h: 3, minW: 4, minH: 2 },
-  { i: 'timingTower', x: 8, y: 0, w: 4, h: 16, minW: 3, minH: 6 },
-  { i: 'trackmap', x: 0, y: 3, w: 4, h: 10, minW: 3, minH: 6 },
-  { i: 'raceControl', x: 4, y: 3, w: 2, h: 5, minW: 2, minH: 3 },
-  { i: 'pitStops', x: 6, y: 3, w: 2, h: 5, minW: 2, minH: 3 },
-  { i: 'telemetry', x: 4, y: 8, w: 4, h: 5, minW: 2, minH: 3 },
-  { i: 'playback', x: 0, y: 13, w: 8, h: 2, minW: 3, minH: 2 },
-]
 
 export default function ReplayViewer({
   year,
@@ -67,7 +79,8 @@ export default function ReplayViewer({
   const playback = usePlayback(data?.duration ?? 0)
   const [selected, setSelected] = useState<string | null>(null)
   const { width, containerRef, mounted } = useContainerWidth()
-  const { layout, setLayout, reset } = usePersistedLayout(LAYOUT_STORAGE_KEY, DEFAULT_LAYOUT)
+  const defaultLayout = useMemo(() => buildDefaultLayout(data?.drivers?.length ?? 0), [data?.drivers?.length])
+  const { layout, setLayout, reset } = usePersistedLayout(LAYOUT_STORAGE_KEY, defaultLayout)
   const { editMode, setActive, setEditMode, registerReset } = useReplayLayout()
 
   useEffect(() => {
@@ -140,8 +153,9 @@ export default function ReplayViewer({
         <ReactGridLayout
           width={width}
           layout={layout}
-          onLayoutChange={setLayout}
-          gridConfig={{ cols: 12, rowHeight: 30, margin: [16, 16] }}
+          onDragStop={(l) => setLayout(l)}
+          onResizeStop={(l) => setLayout(l)}
+          gridConfig={{ cols: 12, rowHeight: ROW_HEIGHT, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: [0, 0] }}
           dragConfig={{ enabled: editMode, cancel: '.react-resizable-handle' }}
           resizeConfig={{ enabled: editMode }}
         >

@@ -24,6 +24,12 @@ button:not(:disabled) {
   animation: session-download 25s cubic-bezier(0.1, 0.4, 0.2, 1) forwards;
 }
 
+.react-grid-item.react-grid-placeholder {
+  background: #52525b;
+  border-radius: 1rem;
+  opacity: 0.25;
+}
+
 html,
 body,
 #root {
