@@ -30,8 +30,15 @@ export default function SessionBestsFeed({
 
   const { fastestLap, sectorBest, trap } = useMemo(() => {
     const personal = new Map<string, number>()
+    let fastestLap: { driver: string; value: number; sectors: (number | null)[] } | null = null
     for (const r of replay.session_bests ?? []) {
       if (r.time > currentTime) continue
+      if (r.kind === 'lap') {
+        if (!fastestLap || r.value < fastestLap.value) {
+          fastestLap = { driver: r.driver, value: r.value, sectors: r.sectors ?? [null, null, null] }
+        }
+        continue
+      }
       const key = `${r.driver}|${r.kind}`
       const prev = personal.get(key)
       const better = prev === undefined || (r.kind === 'st' ? r.value > prev : r.value < prev)
@@ -42,14 +49,11 @@ export default function SessionBestsFeed({
       s1: null, s2: null, s3: null,
     }
     const trapList: { driver: string; value: number }[] = []
-    let fastestLap: { driver: string; value: number } | null = null
     for (const [key, value] of personal) {
       const [driver, kind] = key.split('|') as [string, Kind]
       if (kind === 'st') {
         trapList.push({ driver, value })
-      } else if (kind === 'lap') {
-        if (!fastestLap || value < fastestLap.value) fastestLap = { driver, value }
-      } else {
+      } else if (kind !== 'lap') {
         const cur = sectorBest[kind]
         if (!cur || value < cur.value) sectorBest[kind] = { driver, value }
       }
@@ -67,17 +71,26 @@ export default function SessionBestsFeed({
       <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto text-xs">
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Fastest Lap</p>
-          <div className="flex items-center gap-2 rounded border border-purple-500/40 bg-purple-500/10 px-2 py-1">
-            {fastestLap ? (
-              <>
+          {fastestLap ? (
+            <div className="rounded border border-purple-500/40 bg-purple-500/10 px-2 py-1">
+              <div className="flex items-center gap-2">
                 <span className="h-3 w-1 shrink-0 rounded-full" style={{ backgroundColor: colour(fastestLap.driver) }} />
                 <span className="font-semibold text-zinc-200">{tla(fastestLap.driver)}</span>
                 <span className="ml-auto font-mono text-purple-400">{formatLapTime(fastestLap.value)}</span>
-              </>
-            ) : (
+              </div>
+              <div className="mt-1 flex items-center gap-1 font-mono text-[10px] text-zinc-400">
+                {fastestLap.sectors.map((s, i) => (
+                  <span key={i} className="flex-1 rounded bg-zinc-800/60 px-1 py-0.5 text-center">
+                    {s !== null ? formatSector(s) : '--'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center rounded border border-purple-500/40 bg-purple-500/10 px-2 py-1">
               <span className="ml-auto text-zinc-600">--</span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Best Sectors</p>

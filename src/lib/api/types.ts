@@ -176,6 +176,12 @@ export interface ReplayLap {
   pit_out: number | null
   start: number | null
   lap_time: number | null
+  s1: number | null
+  s2: number | null
+  s3: number | null
+  s1_time: number | null
+  s2_time: number | null
+  s3_time: number | null
 }
 
 export interface TrackStatusSegment {
@@ -208,6 +214,7 @@ export interface SessionBestRecord {
   driver: string
   kind: 's1' | 's2' | 's3' | 'st' | 'lap'
   value: number
+  sectors?: (number | null)[]
 }
 
 export interface WeatherSample {

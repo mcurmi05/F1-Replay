@@ -121,6 +121,13 @@ export function currentLap(laps: ReplayLap[] | undefined, time: number): ReplayL
   return result ?? laps[0]
 }
 
+export type SectorTone = 'best' | 'pb' | 'set' | null
+
+export interface SectorCell {
+  value: number | null
+  tone: SectorTone
+}
+
 export interface TowerRow {
   number: string
   abbreviation: string | null
@@ -133,6 +140,91 @@ export interface TowerRow {
   interval: string | null
   best_lap: number | null
   best_lap_compound: string | null
+  last_lap: number | null
+  live_sectors: SectorCell[]
+  best_sectors: SectorCell[]
+}
+
+interface SectorBests {
+  overall: (number | null)[]
+  personal: Map<string, (number | null)[]>
+}
+
+function computeSectorBests(replay: ReplayData, time: number): SectorBests {
+  const overall: (number | null)[] = [null, null, null]
+  const personal = new Map<string, (number | null)[]>()
+  for (const driver of replay.drivers) {
+    const laps = replay.laps[driver.number] ?? []
+    const pb: (number | null)[] = [null, null, null]
+    for (const lap of laps) {
+      const values = [lap.s1, lap.s2, lap.s3]
+      const times = [lap.s1_time, lap.s2_time, lap.s3_time]
+      for (let i = 0; i < 3; i++) {
+        const v = values[i]
+        const t = times[i]
+        if (v === null || t === null || t > time) continue
+        if (pb[i] === null || v < (pb[i] as number)) pb[i] = v
+        if (overall[i] === null || v < (overall[i] as number)) overall[i] = v
+      }
+    }
+    personal.set(driver.number, pb)
+  }
+  return { overall, personal }
+}
+
+function sectorTone(
+  value: number | null,
+  idx: number,
+  driverNumber: string,
+  bests: SectorBests,
+): SectorTone {
+  if (value === null) return null
+  const eps = 1e-4
+  const ov = bests.overall[idx]
+  if (ov !== null && Math.abs(value - ov) < eps) return 'best'
+  const pb = bests.personal.get(driverNumber)
+  if (pb && pb[idx] !== null && Math.abs(value - (pb[idx] as number)) < eps) return 'pb'
+  return 'set'
+}
+
+function liveSectorCells(lap: ReplayLap | null, time: number, driverNumber: string, bests: SectorBests): SectorCell[] {
+  const values = lap ? [lap.s1, lap.s2, lap.s3] : [null, null, null]
+  const times = lap ? [lap.s1_time, lap.s2_time, lap.s3_time] : [null, null, null]
+  return [0, 1, 2].map((i) => {
+    const done = values[i] !== null && times[i] !== null && (times[i] as number) <= time
+    const value = done ? values[i] : null
+    return { value, tone: sectorTone(value, i, driverNumber, bests) }
+  })
+}
+
+function lapSectorCells(lap: ReplayLap | null, driverNumber: string, bests: SectorBests): SectorCell[] {
+  const values = lap ? [lap.s1, lap.s2, lap.s3] : [null, null, null]
+  return [0, 1, 2].map((i) => ({ value: values[i], tone: sectorTone(values[i], i, driverNumber, bests) }))
+}
+
+function lastCompletedLap(laps: ReplayLap[], time: number): ReplayLap | null {
+  let result: ReplayLap | null = null
+  let bestEnd = -Infinity
+  for (const lap of laps) {
+    if (lap.lap_time === null || lap.start === null) continue
+    const end = lap.start + lap.lap_time
+    if (end <= time && end > bestEnd) {
+      bestEnd = end
+      result = lap
+    }
+  }
+  return result
+}
+
+function bestLapEntry(laps: ReplayLap[], time: number, window?: { start: number; end: number } | null): ReplayLap | null {
+  let best: ReplayLap | null = null
+  for (const lap of laps) {
+    if (lap.lap_time === null || lap.start === null) continue
+    if (lap.start + lap.lap_time > time) continue
+    if (window && (lap.start < window.start || lap.start >= window.end)) continue
+    if (best === null || lap.lap_time < (best.lap_time as number)) best = lap
+  }
+  return best
 }
 
 function formatGap(seconds: number): string {
@@ -150,6 +242,7 @@ function lapsBehind(n: number): string {
 
 export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
   const frame = frameIndex(time, replay.step, replay.time.length)
+  const bests = computeSectorBests(replay, time)
   const entries = replay.drivers.map((driver) => {
     const lap = currentLap(replay.laps[driver.number], time)
     const pos = replay.positions[driver.number]
@@ -198,6 +291,9 @@ export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
       }
     }
 
+    const laps = replay.laps[entry.driver.number] ?? []
+    const best = bestLapEntry(laps, time)
+    const last = lastCompletedLap(laps, time)
     return {
       number: entry.driver.number,
       abbreviation: entry.driver.abbreviation,
@@ -212,8 +308,11 @@ export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
         : false,
       gap_leader,
       interval,
-      best_lap: null,
-      best_lap_compound: null,
+      best_lap: best ? best.lap_time : null,
+      best_lap_compound: best ? best.compound : null,
+      last_lap: last ? last.lap_time : null,
+      live_sectors: liveSectorCells(entry.lap, time, entry.driver.number, bests),
+      best_sectors: lapSectorCells(best, entry.driver.number, bests),
     }
   })
 }
@@ -253,25 +352,11 @@ export function lapLeaderboard(
   time: number,
   window?: { start: number; end: number } | null,
 ): TowerRow[] {
-  const rows = replay.drivers.map((driver) => {
+  const bests = computeSectorBests(replay, time)
+  const rows: TowerRow[] = replay.drivers.map((driver) => {
     const laps = replay.laps[driver.number] ?? []
-    let bestLap: number | null = null
-    let bestCompound: string | null = null
-    for (const lap of laps) {
-      if (lap.lap_time === null || lap.start === null) {
-        continue
-      }
-      if (lap.start + lap.lap_time > time) {
-        continue
-      }
-      if (window && (lap.start < window.start || lap.start >= window.end)) {
-        continue
-      }
-      if (bestLap === null || lap.lap_time < bestLap) {
-        bestLap = lap.lap_time
-        bestCompound = lap.compound
-      }
-    }
+    const best = bestLapEntry(laps, time, window)
+    const last = lastCompletedLap(laps, time)
     const current = currentLap(laps, time)
     return {
       number: driver.number,
@@ -287,8 +372,11 @@ export function lapLeaderboard(
         : false,
       gap_leader: null,
       interval: null,
-      best_lap: bestLap,
-      best_lap_compound: bestCompound,
+      best_lap: best ? best.lap_time : null,
+      best_lap_compound: best ? best.compound : null,
+      last_lap: last ? last.lap_time : null,
+      live_sectors: liveSectorCells(current, time, driver.number, bests),
+      best_sectors: lapSectorCells(best, driver.number, bests),
     }
   })
 

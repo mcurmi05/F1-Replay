@@ -7,8 +7,10 @@ import editPencilIcon from '../assets/edit_pencil.png'
 import binDeleteIcon from '../assets/bin_delete.png'
 import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
+import type { TimingColumnState } from '../lib/timingColumns'
 
 const HIDDEN_PANELS_KEY = 'f1replay.hiddenPanels.v1'
+const TIMING_COLUMNS_KEY = 'f1replay.timingColumns.v1'
 
 interface TitleInfo {
   eventName: string | null
@@ -27,6 +29,8 @@ interface ReplayLayoutContextValue {
   titleInfo: TitleInfo | null
   panelDefs: PanelDef[]
   hiddenPanels: Set<string>
+  timingColumns: TimingColumnState[] | null
+  setTimingColumns: (next: TimingColumnState[] | null) => void
   setActive: (value: boolean) => void
   setEditMode: (value: boolean) => void
   setTitleInfo: (info: TitleInfo | null) => void
@@ -59,6 +63,14 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
       return new Set()
     }
   })
+  const [timingColumns, setTimingColumnsState] = useState<TimingColumnState[] | null>(() => {
+    try {
+      const saved = localStorage.getItem(TIMING_COLUMNS_KEY)
+      return saved ? (JSON.parse(saved) as TimingColumnState[]) : null
+    } catch {
+      return null
+    }
+  })
   const resetRef = useRef<(() => void) | null>(null)
   const showPanelRef = useRef<((id: string) => void) | null>(null)
   const getLayoutRef = useRef<(() => Layout) | null>(null)
@@ -80,10 +92,21 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const setTimingColumns = useCallback((next: TimingColumnState[] | null) => {
+    setTimingColumnsState(next)
+    if (next === null) {
+      localStorage.removeItem(TIMING_COLUMNS_KEY)
+    } else {
+      localStorage.setItem(TIMING_COLUMNS_KEY, JSON.stringify(next))
+    }
+  }, [])
+
   const reset = useCallback(() => {
     resetRef.current?.()
     setHiddenPanels(new Set())
     localStorage.removeItem(HIDDEN_PANELS_KEY)
+    setTimingColumnsState(null)
+    localStorage.removeItem(TIMING_COLUMNS_KEY)
   }, [])
 
   const toggleEditMode = useCallback(() => {
@@ -138,14 +161,14 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      active, editMode, titleInfo, panelDefs, hiddenPanels,
+      active, editMode, titleInfo, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
       setActive, setEditMode, setTitleInfo, toggleEditMode,
       registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
     }),
     [
-      active, editMode, titleInfo, panelDefs, hiddenPanels,
+      active, editMode, titleInfo, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
       toggleEditMode, registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
@@ -193,6 +216,7 @@ export function ReplayLayoutControls() {
     active, editMode, toggleEditMode, reset,
     hiddenPanels, handleShowPanel, panelDefs,
     replaceHiddenPanels, callGetLayout, callSetLayout,
+    timingColumns, setTimingColumns,
   } = useReplayLayout()
 
   const [showSave, setShowSave] = useState(false)
@@ -225,7 +249,7 @@ export function ReplayLayoutControls() {
     setSaving(true)
     setSaveError(null)
     try {
-      await api.saveLayout(name, callGetLayout() as unknown[], [...hiddenPanels])
+      await api.saveLayout(name, callGetLayout() as unknown[], [...hiddenPanels], timingColumns)
       setShowSave(false)
     } catch {
       setSaveError('Failed to save layout.')
@@ -254,6 +278,7 @@ export function ReplayLayoutControls() {
       const full: SavedLayoutFull = await api.getLayout(id)
       callSetLayout(full.layout as unknown as Layout)
       replaceHiddenPanels(full.hiddenPanels)
+      setTimingColumns((full.timingColumns as TimingColumnState[] | null | undefined) ?? null)
       setShowLayouts(false)
     } catch {
       setModalError('Could not load layout.')
@@ -280,7 +305,7 @@ export function ReplayLayoutControls() {
   async function doOverwrite(id: string) {
     setBusyId(id)
     try {
-      await api.updateLayout(id, undefined, callGetLayout() as unknown[], [...hiddenPanels])
+      await api.updateLayout(id, undefined, callGetLayout() as unknown[], [...hiddenPanels], timingColumns)
       setEditingId(null)
     } catch {
       setModalError('Could not update layout.')

@@ -37,12 +37,14 @@ class SaveLayoutRequest(BaseModel):
     name: str
     layout: list
     hidden_panels: list[str] = []
+    timing_columns: list | None = None
 
 
 class UpdateLayoutRequest(BaseModel):
     name: str | None = None
     layout: list | None = None
     hidden_panels: list[str] | None = None
+    timing_columns: list | None = None
 
 
 def _layouts_dir():
@@ -204,7 +206,12 @@ def save_layout(request: SaveLayoutRequest):
     f = d / f"{name}.json"
     if f.exists():
         raise HTTPException(status_code=409, detail="A layout with that name already exists")
-    data = {"name": name, "layout": request.layout, "hiddenPanels": request.hidden_panels}
+    data = {
+        "name": name,
+        "layout": request.layout,
+        "hiddenPanels": request.hidden_panels,
+        "timingColumns": request.timing_columns,
+    }
     f.write_text(json.dumps(data), encoding="utf-8")
     return {"id": name, "name": name}
 
@@ -221,6 +228,10 @@ def update_layout(layout_name: str, request: UpdateLayoutRequest):
         data["layout"] = request.layout
     if request.hidden_panels is not None:
         data["hiddenPanels"] = request.hidden_panels
+    if request.timing_columns is not None:
+        data["timingColumns"] = request.timing_columns
+    elif request.layout is not None:
+        data["timingColumns"] = None
     if request.name is not None:
         new_name = _sanitize_name(request.name)
         new_file = d / f"{new_name}.json"

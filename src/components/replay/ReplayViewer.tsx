@@ -168,7 +168,7 @@ export default function ReplayViewer({
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  const { editMode, setActive, setEditMode, setTitleInfo, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors } = useReplayLayout()
+  const { editMode, setActive, setEditMode, setTitleInfo, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors, timingColumns, setTimingColumns } = useReplayLayout()
 
   useEffect(() => {
     setActive(true)
@@ -349,6 +349,8 @@ export default function ReplayViewer({
               selected={selected}
               onSelect={setSelected}
               mode={lapMode ? 'lap' : 'race'}
+              columns={timingColumns}
+              onColumnsChange={setTimingColumns}
               header={<ReplayClock relative={clockRelative} lap={lap} totalLaps={data.total_laps} label={segmentLabel} hideHours={isQualifying} />}
             />
           </div>

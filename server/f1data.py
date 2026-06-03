@@ -450,7 +450,7 @@ def _session_bests(session, start):
                     float(pd.Timedelta(st).total_seconds()),
                     num, kind,
                     round(float(pd.Timedelta(v).total_seconds()), 3),
-                    "min",
+                    "min", None,
                 ))
         tt = lap.get("Time")
         sp = lap.get("SpeedST")
@@ -459,32 +459,36 @@ def _session_bests(session, start):
                 float(pd.Timedelta(tt).total_seconds()),
                 num, "st",
                 round(float(sp), 1),
-                "max",
+                "max", None,
             ))
         lt = lap.get("LapTime")
         if pd.notna(lt) and pd.notna(tt):
+            sectors = [_seconds(lap.get("Sector1Time")), _seconds(lap.get("Sector2Time")), _seconds(lap.get("Sector3Time"))]
             events.append((
                 float(pd.Timedelta(tt).total_seconds()),
                 num, "lap",
                 round(float(pd.Timedelta(lt).total_seconds()), 3),
-                "min",
+                "min", {"sectors": sectors},
             ))
 
     events.sort(key=lambda e: e[0])
     best = {}
     records = []
-    for t, num, kind, val, mode in events:
+    for t, num, kind, val, mode, extra in events:
         key = (num, kind)
         cur = best.get(key)
         improved = cur is None or (val < cur if mode == "min" else val > cur)
         if improved:
             best[key] = val
-            records.append({
+            record = {
                 "time": round(t - start, 1),
                 "driver": num,
                 "kind": kind,
                 "value": val,
-            })
+            }
+            if extra:
+                record.update(extra)
+            records.append(record)
     return records
 
 
@@ -715,6 +719,12 @@ def build_replay(session, step=0.5):
                 "pit_out": _seconds_rel(pit_out if pd.notna(pit_out) else None, start),
                 "start": _seconds_rel(lap.get("LapStartTime"), start),
                 "lap_time": _seconds(lap.get("LapTime")),
+                "s1": _seconds(lap.get("Sector1Time")),
+                "s2": _seconds(lap.get("Sector2Time")),
+                "s3": _seconds(lap.get("Sector3Time")),
+                "s1_time": _seconds_rel(lap.get("Sector1SessionTime"), start),
+                "s2_time": _seconds_rel(lap.get("Sector2SessionTime"), start),
+                "s3_time": _seconds_rel(lap.get("Sector3SessionTime"), start),
             })
         laps_by_driver[number] = entries
 
