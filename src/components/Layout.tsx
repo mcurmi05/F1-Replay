@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import CacheSettings from './CacheSettings'
 import { ReplayLayoutControls, ReplayLayoutProvider, ReplayTitleBadge } from '../hooks/useReplayLayout'
@@ -9,6 +9,7 @@ const navItems: { to: string; label: string; live?: boolean }[] = [
 ]
 
 export default function Layout() {
+  const { pathname } = useLocation()
   return (
     <ReplayLayoutProvider>
     <div className="flex min-h-full flex-col">
@@ -47,8 +48,12 @@ export default function Layout() {
               </NavLink>
             ))}
             <ReplayLayoutControls />
-            <span className="mx-1 h-5 w-px bg-zinc-800" />
-            <CacheSettings />
+            {pathname === '/home' ? (
+              <>
+                <span className="mx-1 h-5 w-px bg-zinc-800" />
+                <CacheSettings />
+              </>
+            ) : null}
           </nav>
         </div>
       </header>

@@ -1,4 +1,6 @@
+import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -29,6 +31,34 @@ api = APIRouter(prefix="/api")
 class CacheRequest(BaseModel):
     dir: str
     delete_previous: bool = False
+
+
+class SaveLayoutRequest(BaseModel):
+    name: str
+    layout: list
+    hidden_panels: list[str] = []
+
+
+class UpdateLayoutRequest(BaseModel):
+    name: str | None = None
+    layout: list | None = None
+    hidden_panels: list[str] | None = None
+
+
+def _layouts_dir():
+    cache = f1data.get_cache()
+    if not cache:
+        raise HTTPException(status_code=409, detail="No cache folder selected")
+    d = Path(cache) / "layouts"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+def _sanitize_name(name: str) -> str:
+    safe = re.sub(r'[/\\:*?"<>|\x00]', '', name).strip().strip('.')
+    if not safe:
+        raise HTTPException(status_code=400, detail="Invalid layout name")
+    return safe
 
 
 def _is_within(child, parent):
@@ -142,6 +172,77 @@ def replay(year: int, event: str, session_type: str, step: float = 0.5):
         return f1data.build_replay(loaded, step=step)
     except f1data.ReplayTimingError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@api.get("/layouts")
+def list_layouts():
+    d = _layouts_dir()
+    results = []
+    for f in sorted(d.glob("*.json"), key=lambda p: p.stat().st_mtime):
+        try:
+            name = json.loads(f.read_text(encoding="utf-8")).get("name", f.stem)
+            results.append({"id": name, "name": name})
+        except Exception:
+            pass
+    return results
+
+
+@api.get("/layouts/{layout_name:path}")
+def get_layout(layout_name: str):
+    name = _sanitize_name(layout_name)
+    d = _layouts_dir()
+    f = d / f"{name}.json"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="Layout not found")
+    return json.loads(f.read_text(encoding="utf-8"))
+
+
+@api.post("/layouts")
+def save_layout(request: SaveLayoutRequest):
+    d = _layouts_dir()
+    name = _sanitize_name(request.name)
+    f = d / f"{name}.json"
+    if f.exists():
+        raise HTTPException(status_code=409, detail="A layout with that name already exists")
+    data = {"name": name, "layout": request.layout, "hiddenPanels": request.hidden_panels}
+    f.write_text(json.dumps(data), encoding="utf-8")
+    return {"id": name, "name": name}
+
+
+@api.put("/layouts/{layout_name:path}")
+def update_layout(layout_name: str, request: UpdateLayoutRequest):
+    old_name = _sanitize_name(layout_name)
+    d = _layouts_dir()
+    old_file = d / f"{old_name}.json"
+    if not old_file.exists():
+        raise HTTPException(status_code=404, detail="Layout not found")
+    data = json.loads(old_file.read_text(encoding="utf-8"))
+    if request.layout is not None:
+        data["layout"] = request.layout
+    if request.hidden_panels is not None:
+        data["hiddenPanels"] = request.hidden_panels
+    if request.name is not None:
+        new_name = _sanitize_name(request.name)
+        new_file = d / f"{new_name}.json"
+        if new_name != old_name:
+            if new_file.exists():
+                raise HTTPException(status_code=409, detail="A layout with that name already exists")
+            old_file.unlink()
+        data["name"] = new_name
+        new_file.write_text(json.dumps(data), encoding="utf-8")
+        return {"id": new_name, "name": new_name}
+    old_file.write_text(json.dumps(data), encoding="utf-8")
+    return {"id": old_name, "name": old_name}
+
+
+@api.delete("/layouts/{layout_name:path}")
+def delete_layout(layout_name: str):
+    name = _sanitize_name(layout_name)
+    d = _layouts_dir()
+    f = d / f"{name}.json"
+    if f.exists():
+        f.unlink()
+    return {"ok": True}
 
 
 app.include_router(api)

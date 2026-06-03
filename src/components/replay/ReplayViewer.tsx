@@ -143,7 +143,7 @@ export default function ReplayViewer({
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  const { editMode, setActive, setEditMode, setTitleInfo, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel } = useReplayLayout()
+  const { editMode, setActive, setEditMode, setTitleInfo, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors } = useReplayLayout()
 
   useEffect(() => {
     setActive(true)
@@ -187,6 +187,14 @@ export default function ReplayViewer({
     registerShowPanel(handleShowPanel)
     return () => registerShowPanel(null)
   }, [registerShowPanel, handleShowPanel])
+
+  useEffect(() => {
+    registerLayoutAccessors(
+      () => layoutRef.current,
+      (l) => setLayout(l),
+    )
+    return () => registerLayoutAccessors(null, null)
+  }, [registerLayoutAccessors, setLayout])
 
   const visibleLayout = layout.filter((item) => !hiddenPanels.has(item.i))
 

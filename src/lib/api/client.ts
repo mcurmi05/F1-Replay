@@ -43,6 +43,39 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new Error(await errorMessage(response))
+  }
+  return (await response.json()) as T
+}
+
+async function del<T>(path: string): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) {
+    throw new Error(await errorMessage(response))
+  }
+  return (await response.json()) as T
+}
+
+export interface SavedLayoutMeta {
+  id: string
+  name: string
+}
+
+export interface SavedLayoutFull extends SavedLayoutMeta {
+  layout: unknown[]
+  hiddenPanels: string[]
+}
+
 export const api = {
   years: (signal?: AbortSignal) => get<number[]>('/years', signal),
   getCache: (signal?: AbortSignal) =>
@@ -81,4 +114,15 @@ export const api = {
       `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/replay`,
       signal,
     ),
+  listLayouts: (signal?: AbortSignal) => get<SavedLayoutMeta[]>('/layouts', signal),
+  getLayout: (id: string, signal?: AbortSignal) => get<SavedLayoutFull>(`/layouts/${encodeURIComponent(id)}`, signal),
+  saveLayout: (name: string, layout: unknown[], hiddenPanels: string[]) =>
+    post<SavedLayoutMeta>('/layouts', { name, layout, hidden_panels: hiddenPanels }),
+  updateLayout: (id: string, name?: string, layout?: unknown[], hiddenPanels?: string[]) =>
+    put<SavedLayoutMeta>(`/layouts/${encodeURIComponent(id)}`, {
+      ...(name !== undefined ? { name } : {}),
+      ...(layout !== undefined ? { layout } : {}),
+      ...(hiddenPanels !== undefined ? { hidden_panels: hiddenPanels } : {}),
+    }),
+  deleteLayout: (id: string) => del<{ ok: boolean }>(`/layouts/${encodeURIComponent(id)}`),
 }
