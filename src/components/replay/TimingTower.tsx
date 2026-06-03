@@ -39,6 +39,8 @@ export default function TimingTower({
   const anchorPos = useRef<Map<string, number>>(new Map())
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
+  const [rowH, setRowH] = useState(28)
+
   useEffect(() => {
     const changed: Record<string, { dir: 'up' | 'down'; count: number } | null> = {}
     for (const row of rows) {
@@ -108,6 +110,18 @@ export default function TimingTower({
     }
   }, [])
 
+  useEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const update = () => {
+      if (rows.length > 0) setRowH(list.offsetHeight / rows.length)
+    }
+    update()
+    const obs = new ResizeObserver(update)
+    obs.observe(list)
+    return () => obs.disconnect()
+  }, [rows.length])
+
   useLayoutEffect(() => {
     const list = listRef.current
     if (!list) {
@@ -136,56 +150,70 @@ export default function TimingTower({
     }
   })
 
+  const t = Math.max(0, Math.min(1, (rowH - 28) / 52))
+  const fs = 14 + t * 5
+  const iconPx = Math.round(18 + t * 10)
+  const barH = Math.round(14 + t * 10)
+  const barW = Math.round(3 + t * 2)
+  const posW = Math.round(fs * 1.4)
+  const dataColW = Math.round(fs * 4.8)
+  const bestLapW = Math.round(fs * 6)
+  const tyreColW = Math.round(fs * 2.2)
+  const pitTyreW = Math.round(fs * 3.4)
+  const moveSz = Math.round(fs * 0.75)
+
   return (
-    <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent h-full overflow-y-auto rounded-2xl border border-zinc-800 bg-surface p-2">
-      {header ? <div className="mb-1 border-b border-zinc-800 pb-1.5">{header}</div> : null}
-      <div className="flex items-center gap-2 px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-        <span className="w-5 text-right">P</span>
-        <span className="w-1 shrink-0" />
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-2">
+      {header ? <div className="mb-1 flex-none border-b border-zinc-800 pb-1.5">{header}</div> : null}
+      <div className="flex flex-none items-center gap-2 px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+        <span style={{ width: posW }} className="text-right">P</span>
+        <span style={{ width: barW }} className="shrink-0" />
         <span>Driver</span>
         {mode === 'lap' ? (
           <>
-            <span className="ml-auto w-20 text-right">Best Lap</span>
-            <span className="w-8 text-center">Best</span>
-            <span className="w-8 text-center">Tyre</span>
+            <span style={{ width: bestLapW }} className="ml-auto text-right">Best Lap</span>
+            <span style={{ width: tyreColW }} className="text-center">Best</span>
+            <span style={{ width: tyreColW }} className="text-center">Tyre</span>
           </>
         ) : (
           <>
-            <span className="ml-auto w-16 text-right">Interval</span>
-            <span className="w-16 text-right">Leader</span>
-            <span className="w-12" />
+            <span style={{ width: dataColW }} className="ml-auto text-right">Interval</span>
+            <span style={{ width: dataColW }} className="text-right">Leader</span>
+            <span style={{ width: pitTyreW }} />
           </>
         )}
       </div>
-      <ul ref={listRef} className="relative space-y-0.5">
+      <ul ref={listRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
         {rows.map((row, idx) => {
           const icon = tyreIcon(row.compound)
           const isSelected = selected === row.number
           const move = moves[row.number]
           return (
-            <li key={row.number} data-driver={row.number}>
+            <li key={row.number} data-driver={row.number} className="flex min-h-7 flex-1" style={{ maxHeight: 80 }}>
               <button
                 type="button"
                 onClick={() => onSelect?.(row.number)}
+                style={{ fontSize: fs }}
                 className={[
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition',
+                  'flex h-full w-full items-center gap-2 rounded-md px-2 transition',
                   isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50',
                 ].join(' ')}
               >
-                <span className="w-5 text-right font-mono text-zinc-400">{row.position ?? '-'}</span>
+                <span style={{ width: posW }} className="shrink-0 text-right font-mono text-zinc-400">{row.position ?? '-'}</span>
                 <span
-                  className="h-4 w-1 shrink-0 rounded-full"
-                  style={{ backgroundColor: teamColor(row.team_colour) }}
+                  className="shrink-0 rounded-full"
+                  style={{ height: barH, width: barW, backgroundColor: teamColor(row.team_colour) }}
                 />
                 <span className="font-semibold text-white">{row.abbreviation ?? row.number}</span>
                 {move ? (
                   <span
+                    style={{ fontSize: moveSz }}
                     className={[
-                      'flex items-center gap-0.5 text-[10px] font-bold leading-none',
+                      'flex items-center gap-0.5 font-bold leading-none',
                       move.dir === 'up' ? 'text-emerald-500' : 'text-f1-red',
                     ].join(' ')}
                   >
-                    <svg viewBox="0 0 10 10" className="h-2.5 w-2.5" fill="currentColor" aria-hidden="true">
+                    <svg viewBox="0 0 10 10" style={{ width: moveSz, height: moveSz }} fill="currentColor" aria-hidden="true">
                       {move.dir === 'up' ? <path d="M5 1l4 7H1z" /> : <path d="M5 9L1 2h8z" />}
                     </svg>
                     {move.count}
@@ -193,42 +221,42 @@ export default function TimingTower({
                 ) : null}
                 {mode === 'lap' ? (
                   <>
-                    <span className="ml-auto w-20 text-right font-mono text-xs text-zinc-200">
+                    <span style={{ width: bestLapW, fontSize: fs * 0.82 }} className="ml-auto shrink-0 text-right font-mono text-zinc-200">
                       {row.best_lap !== null ? formatLapTime(row.best_lap) : '-'}
                     </span>
-                    <span className="flex w-8 items-center justify-center">
+                    <span style={{ width: tyreColW }} className="flex shrink-0 items-center justify-center">
                       {tyreIcon(row.best_lap_compound) ? (
-                        <img src={tyreIcon(row.best_lap_compound)} alt={row.best_lap_compound ?? ''} className="h-5 w-5" />
+                        <img src={tyreIcon(row.best_lap_compound)} alt={row.best_lap_compound ?? ''} style={{ width: iconPx, height: iconPx }} />
                       ) : (
-                        <span className="h-5 w-5" />
+                        <span style={{ width: iconPx, height: iconPx }} />
                       )}
                     </span>
-                    <span className="flex w-8 items-center justify-center">
+                    <span style={{ width: tyreColW }} className="flex shrink-0 items-center justify-center">
                       {icon ? (
-                        <img src={icon} alt={row.compound ?? ''} className="h-5 w-5" />
+                        <img src={icon} alt={row.compound ?? ''} style={{ width: iconPx, height: iconPx }} />
                       ) : (
-                        <span className="h-5 w-5" />
+                        <span style={{ width: iconPx, height: iconPx }} />
                       )}
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className="ml-auto w-16 text-right font-mono text-xs text-zinc-300">
+                    <span style={{ width: dataColW, fontSize: fs * 0.82 }} className="ml-auto shrink-0 text-right font-mono text-zinc-300">
                       {idx === 0 ? '' : row.interval ?? '-'}
                     </span>
-                    <span className="w-16 text-right font-mono text-xs text-zinc-500">
+                    <span style={{ width: dataColW, fontSize: fs * 0.82 }} className="shrink-0 text-right font-mono text-zinc-500">
                       {idx === 0 ? 'LEADER' : row.gap_leader ?? '-'}
                     </span>
-                    <span className="flex w-12 items-center justify-end gap-1.5">
+                    <span style={{ width: pitTyreW }} className="flex shrink-0 items-center justify-end gap-1.5">
                       {row.pitted ? (
-                        <span className="rounded bg-amber-500/20 px-1 text-[10px] font-bold uppercase text-amber-400">
+                        <span style={{ fontSize: moveSz }} className="rounded bg-amber-500/20 px-1 font-bold uppercase text-amber-400">
                           pit
                         </span>
                       ) : null}
                       {icon ? (
-                        <img src={icon} alt={row.compound ?? ''} className="h-5 w-5" />
+                        <img src={icon} alt={row.compound ?? ''} style={{ width: iconPx, height: iconPx }} />
                       ) : (
-                        <span className="h-5 w-5" />
+                        <span style={{ width: iconPx, height: iconPx }} />
                       )}
                     </span>
                   </>

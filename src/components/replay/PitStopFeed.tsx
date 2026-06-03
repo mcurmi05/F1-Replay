@@ -71,9 +71,7 @@ export default function PitStopFeed({
   const pits = allPits.filter((pit) => pit.time <= currentTime)
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [pits.length])
 
   return (

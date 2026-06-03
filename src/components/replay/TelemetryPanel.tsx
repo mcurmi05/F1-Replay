@@ -97,8 +97,8 @@ function buildSegments(
 function VerticalBar({ value, color }: { value: number | null; color: string }) {
   const pct = value === null ? 0 : Math.max(0, Math.min(100, value))
   return (
-    <div className="flex shrink-0 flex-col items-center gap-1.5">
-      <div className="relative h-24 w-4 overflow-hidden rounded-md bg-zinc-800">
+    <div className="flex min-h-0 shrink-0 flex-col items-center gap-1.5">
+      <div className="relative min-h-0 flex-1 w-4 overflow-hidden rounded-md bg-zinc-800">
         <div
           className="absolute bottom-0 left-0 w-full"
           style={{ height: `${pct}%`, backgroundColor: color }}
@@ -200,7 +200,7 @@ export default function TelemetryPanel({
     : []
 
   return (
-    <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent h-full overflow-y-auto rounded-2xl border border-zinc-800 bg-surface p-5">
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-3">
       <div className="flex items-center gap-2.5">
         <span
           className="h-4 w-1.5 rounded-full"
@@ -232,13 +232,13 @@ export default function TelemetryPanel({
         )}
       </div>
 
-      <div className="mt-4">
-        <div className="mb-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500">Throttle</div>
-        <div className="flex items-start gap-3">
+      <div className="mt-2 flex min-h-0 flex-1 flex-col">
+        <div className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-500">Throttle</div>
+        <div className="flex min-h-0 flex-1 items-stretch gap-3">
           <svg
             viewBox="0 0 100 40"
             preserveAspectRatio="none"
-            className="h-24 flex-1 rounded-md bg-zinc-900/40"
+            className="min-h-0 flex-1 rounded-md bg-zinc-900/40"
           >
             {throttleSegments.map((segment, index) => (
               <polyline

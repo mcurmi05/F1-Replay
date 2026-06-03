@@ -146,7 +146,7 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-14">
+    <div className="mx-auto max-w-[1200px] space-y-14 pb-10">
       <section className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-surface to-[#0a0a0f] px-8 py-16 sm:px-12">
         <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-f1-red/10 blur-3xl" />
         <div className="relative max-w-2xl">
@@ -276,7 +276,7 @@ export default function Home() {
 
       {pickerEvent ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
+          className="fixed left-0 top-0 z-50 flex h-screen w-screen items-center justify-center bg-black/60 px-6"
           onClick={() => setPickerEvent(null)}
         >
           <div

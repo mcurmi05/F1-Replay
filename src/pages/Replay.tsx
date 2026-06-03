@@ -26,7 +26,6 @@ function SessionView({
       event={event}
       session={session}
       summary={summary}
-      lapCount={laps.length}
     />
   )
 }

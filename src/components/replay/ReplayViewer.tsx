@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
-import ReactGridLayout, { useContainerWidth } from 'react-grid-layout'
-import type { Layout } from 'react-grid-layout'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import ReactGridLayout, { noCompactor } from 'react-grid-layout'
+import type { Layout, ResizeHandleAxis } from 'react-grid-layout'
 
 import StatusCard from '../StatusCard'
 import PitStopFeed from './PitStopFeed'
 import PlaybackControls from './PlaybackControls'
 import RaceControlFeed from './RaceControlFeed'
 import ReplayClock from './ReplayClock'
-import ReplayTitle from './ReplayTitle'
 import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
 import TrackMap from './TrackMap'
@@ -29,28 +28,87 @@ import {
 } from '../../lib/replay'
 import type { SessionSummary } from '../../lib/api/types'
 
-const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v2'
-const ROW_HEIGHT = 30
-const GRID_MARGIN = 16
+const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v8'
+const GRID_MARGIN = 8
+const COLS = 32
+const HEADER_H = 64
+const PAD_TOP = 16
+const PAD_H = 32
+const FREE_COMPACTOR = { ...noCompactor, preventCollision: true }
+const RESIZE_HANDLES: ResizeHandleAxis[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 
-function timingTowerHeight(driverCount: number): number {
-  const headerPx = 96
-  const rowPx = 34
-  const contentPx = headerPx + rowPx * driverCount
-  const rowUnit = ROW_HEIGHT + GRID_MARGIN
-  return Math.max(6, Math.ceil((contentPx + GRID_MARGIN) / rowUnit))
+const PANEL_DEFS = [
+  { id: 'trackmap',    label: 'Track Map' },
+  { id: 'raceControl', label: 'Race Control' },
+  { id: 'pitStops',    label: 'Pit Stops' },
+  { id: 'telemetry',   label: 'Telemetry' },
+  { id: 'timingTower', label: 'Timing Tower' },
+  { id: 'playback',    label: 'Playback' },
+]
+const RESIZE_EDGE = 8
+const RESIZE_CORNER = 14
+
+function renderResizeHandle(axis: ResizeHandleAxis, ref: React.Ref<HTMLElement>) {
+  const e = RESIZE_EDGE
+  const c = RESIZE_CORNER
+  const style: React.CSSProperties =
+    axis === 'n'  ? { top: 0,    left: c, right: c, width: 'auto', height: e, cursor: 'ns-resize' } :
+    axis === 's'  ? { bottom: 0, left: c, right: c, width: 'auto', height: e, cursor: 'ns-resize' } :
+    axis === 'e'  ? { right: 0,  top: c,  bottom: c, width: e, height: 'auto', cursor: 'ew-resize' } :
+    axis === 'w'  ? { left: 0,   top: c,  bottom: c, width: e, height: 'auto', cursor: 'ew-resize' } :
+    axis === 'ne' ? { top: 0,    right: 0,  width: c, height: c, cursor: 'ne-resize' } :
+    axis === 'nw' ? { top: 0,    left: 0,   width: c, height: c, cursor: 'nw-resize' } :
+    axis === 'se' ? { bottom: 0, right: 0,  width: c, height: c, cursor: 'se-resize' } :
+                    { bottom: 0, left: 0,   width: c, height: c, cursor: 'sw-resize' }
+  return (
+    <div
+      ref={ref as React.Ref<HTMLDivElement>}
+      className="react-resizable-handle"
+      style={{ position: 'absolute', backgroundImage: 'none', zIndex: 25, ...style }}
+    />
+  )
 }
 
-function buildDefaultLayout(driverCount: number): Layout {
+function EditBorder() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl border-2 border-dashed border-sky-400" />
+  )
+}
+
+function HidePanelButton({ onHide }: { onHide: () => void }) {
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onHide() }}
+      className="absolute right-1.5 top-1.5 z-30 flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/90 text-zinc-400 hover:border-zinc-500 hover:text-white"
+      title="Hide panel"
+    >
+      <svg viewBox="0 0 8 8" className="h-2.5 w-2.5" stroke="currentColor" strokeWidth="1.5" fill="none">
+        <path d="M1 1l6 6M7 1l-6 6" />
+      </svg>
+    </button>
+  )
+}
+
+function buildDefaultLayout(): Layout {
   return [
-    { i: 'title', x: 0, y: 0, w: 8, h: 3, minW: 4, minH: 2 },
-    { i: 'timingTower', x: 8, y: 0, w: 4, h: timingTowerHeight(driverCount), minW: 3, minH: 6 },
-    { i: 'trackmap', x: 0, y: 3, w: 4, h: 10, minW: 3, minH: 6 },
-    { i: 'raceControl', x: 4, y: 3, w: 2, h: 5, minW: 2, minH: 3 },
-    { i: 'pitStops', x: 6, y: 3, w: 2, h: 5, minW: 2, minH: 3 },
-    { i: 'telemetry', x: 4, y: 8, w: 4, h: 5, minW: 2, minH: 3 },
-    { i: 'playback', x: 0, y: 13, w: 8, h: 2, minW: 3, minH: 2 },
+    { i: 'timingTower', x: 21, y: 0, w: 11, h: 16, minW: 6, minH: 6 },
+    { i: 'trackmap',    x: 0,  y: 0, w: 10, h: 8,  minW: 4, minH: 4 },
+    { i: 'raceControl', x: 10, y: 0, w: 6,  h: 4,  minW: 2, minH: 2 },
+    { i: 'pitStops',    x: 16, y: 0, w: 5,  h: 4,  minW: 2, minH: 2 },
+    { i: 'telemetry',   x: 10, y: 4, w: 11, h: 4,  minW: 4, minH: 2 },
+    { i: 'playback',    x: 0,  y: 8, w: 21, h: 2,  minW: 6, minH: 2 },
   ]
+}
+
+function calcGrid(windowW: number, windowH: number) {
+  const gridW = windowW - PAD_H
+  const colWidth = Math.max(16, Math.floor((gridW - (COLS - 1) * GRID_MARGIN) / COLS))
+  const availH = windowH - HEADER_H - PAD_TOP
+  const totalRows = Math.max(1, Math.floor(availH / (colWidth + GRID_MARGIN)))
+  const rowHeight = availH / totalRows - GRID_MARGIN
+  return { gridWidth: gridW, rowHeight, totalRows }
 }
 
 function DragHandle({ title }: { title: string }) {
@@ -67,21 +125,25 @@ export default function ReplayViewer({
   event,
   session,
   summary,
-  lapCount,
 }: {
   year: number
   event: string
   session: string
   summary: SessionSummary
-  lapCount: number
 }) {
   const { data, error, loading } = useReplay(year, event, session)
   const playback = usePlayback(data?.duration ?? 0)
   const [selected, setSelected] = useState<string | null>(null)
-  const { width, containerRef, mounted } = useContainerWidth()
-  const defaultLayout = useMemo(() => buildDefaultLayout(data?.drivers?.length ?? 0), [data?.drivers?.length])
+  const defaultLayout = useMemo(() => buildDefaultLayout(), [])
   const { layout, setLayout, reset } = usePersistedLayout(LAYOUT_STORAGE_KEY, defaultLayout)
-  const { editMode, setActive, setEditMode, registerReset } = useReplayLayout()
+  const [grid, setGrid] = useState(() => calcGrid(window.innerWidth, window.innerHeight))
+
+  useEffect(() => {
+    const onResize = () => setGrid(calcGrid(window.innerWidth, window.innerHeight))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const { editMode, setActive, setEditMode, setTitleInfo, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel } = useReplayLayout()
 
   useEffect(() => {
     setActive(true)
@@ -93,10 +155,44 @@ export default function ReplayViewer({
     }
   }, [setActive, setEditMode, registerReset, reset])
 
+  useEffect(() => {
+    setTitleInfo({ eventName: summary.event_name, sessionName: summary.session_name, location: summary.location })
+    return () => setTitleInfo(null)
+  }, [summary.event_name, summary.session_name, summary.location, setTitleInfo])
+
+  useEffect(() => {
+    registerPanelDefs(PANEL_DEFS)
+    return () => registerPanelDefs([])
+  }, [registerPanelDefs])
+
+  const layoutRef = useRef(layout)
+  useEffect(() => { layoutRef.current = layout }, [layout])
+  const hiddenPanelsRef = useRef(hiddenPanels)
+  useEffect(() => { hiddenPanelsRef.current = hiddenPanels }, [hiddenPanels])
+
+  const handleShowPanel = useCallback((id: string) => {
+    const visible = layoutRef.current.filter((item) => !hiddenPanelsRef.current.has(item.i))
+    const current = layoutRef.current.find((item) => item.i === id)
+    const w = current?.w ?? 6
+    const h = current?.h ?? 4
+    let targetY = 0
+    while (visible.some((o) => w > o.x && targetY < o.y + o.h && targetY + h > o.y)) {
+      targetY++
+    }
+    setLayout((prev) => prev.map((item) => item.i === id ? { ...item, x: 0, y: targetY } : item))
+    showPanel(id)
+  }, [showPanel, setLayout])
+
+  useEffect(() => {
+    registerShowPanel(handleShowPanel)
+    return () => registerShowPanel(null)
+  }, [registerShowPanel, handleShowPanel])
+
+  const visibleLayout = layout.filter((item) => !hiddenPanels.has(item.i))
+
   if (loading || error || !data || !data.available) {
     return (
       <div className="space-y-4">
-        <ReplayTitle summary={summary} lapCount={lapCount} />
         {loading ? <StatusCard text="Loading replay data..." /> : null}
         {error ? <StatusCard text={`Could not load replay: ${error.message}`} /> : null}
         {!loading && !error && (!data || !data.available) ? (
@@ -143,28 +239,27 @@ export default function ReplayViewer({
   const status = trackStatusInfo(effectiveFlag)
   const weather = currentWeather(data.weather, time)
 
-  const panelOutline = editMode
-    ? 'relative h-full cursor-move select-none rounded-2xl outline-dashed outline-2 -outline-offset-2 outline-sky-500/70'
-    : 'relative h-full'
+  const panelOutline = editMode ? 'relative h-full cursor-move select-none' : 'relative h-full'
+  const panelZ = (id: string): React.CSSProperties | undefined =>
+    editMode ? { zIndex: (visibleLayout.find((i) => i.i === id)?.y ?? 0) + 1 } : undefined
 
   return (
-    <div ref={containerRef}>
-      {mounted ? (
-        <ReactGridLayout
-          width={width}
-          layout={layout}
-          onDragStop={(l) => setLayout(l)}
-          onResizeStop={(l) => setLayout(l)}
-          gridConfig={{ cols: 12, rowHeight: ROW_HEIGHT, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: [0, 0] }}
-          dragConfig={{ enabled: editMode, cancel: '.react-resizable-handle' }}
-          resizeConfig={{ enabled: editMode }}
-        >
-          <div key="title" className={panelOutline}>
-            {editMode ? <DragHandle title="Title" /> : null}
-            <ReplayTitle summary={summary} lapCount={lapCount} />
-          </div>
-          <div key="trackmap" className={panelOutline}>
+    <div>
+      <ReactGridLayout
+        width={grid.gridWidth}
+        layout={visibleLayout}
+        onDragStop={(l) => setLayout([...l, ...layout.filter((item) => hiddenPanels.has(item.i))])}
+        onResizeStop={(l) => setLayout([...l, ...layout.filter((item) => hiddenPanels.has(item.i))])}
+        gridConfig={{ cols: COLS, rowHeight: grid.rowHeight, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: [0, 0] }}
+        dragConfig={{ enabled: editMode, cancel: '.react-resizable-handle' }}
+        resizeConfig={{ enabled: editMode, handles: RESIZE_HANDLES, handleComponent: renderResizeHandle }}
+        compactor={FREE_COMPACTOR}
+      >
+          {!hiddenPanels.has('trackmap') && (
+          <div key="trackmap" className={panelOutline} style={panelZ('trackmap')}>
             {editMode ? <DragHandle title="Track Map" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('trackmap')} /> : null}
             <div className="relative h-full w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
               <div className="absolute inset-0 overflow-hidden p-3">
                 <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
@@ -181,16 +276,28 @@ export default function ReplayViewer({
               </div>
             </div>
           </div>
-          <div key="raceControl" className={panelOutline}>
+          )}
+          {!hiddenPanels.has('raceControl') && (
+          <div key="raceControl" className={panelOutline} style={panelZ('raceControl')}>
             {editMode ? <DragHandle title="Race Control" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('raceControl')} /> : null}
             <RaceControlFeed messages={data.race_control_messages} currentTime={time} />
           </div>
-          <div key="pitStops" className={panelOutline}>
+          )}
+          {!hiddenPanels.has('pitStops') && (
+          <div key="pitStops" className={panelOutline} style={panelZ('pitStops')}>
             {editMode ? <DragHandle title="Pit Stops" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('pitStops')} /> : null}
             <PitStopFeed replay={data} currentTime={time} label={pitLabel} />
           </div>
-          <div key="telemetry" className={panelOutline}>
+          )}
+          {!hiddenPanels.has('telemetry') && (
+          <div key="telemetry" className={panelOutline} style={panelZ('telemetry')}>
             {editMode ? <DragHandle title="Telemetry" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('telemetry')} /> : null}
             {selected ? (
               <TelemetryPanel year={year} event={event} session={session} replay={data} driver={selected} currentTime={time} />
             ) : (
@@ -199,8 +306,12 @@ export default function ReplayViewer({
               </div>
             )}
           </div>
-          <div key="timingTower" className={panelOutline}>
+          )}
+          {!hiddenPanels.has('timingTower') && (
+          <div key="timingTower" className={panelOutline} style={panelZ('timingTower')}>
             {editMode ? <DragHandle title="Timing Tower" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('timingTower')} /> : null}
             <TimingTower
               rows={board}
               selected={selected}
@@ -209,12 +320,16 @@ export default function ReplayViewer({
               header={<ReplayClock relative={clockRelative} lap={lap} totalLaps={data.total_laps} label={segmentLabel} hideHours={isQualifying} />}
             />
           </div>
-          <div key="playback" className={panelOutline}>
+          )}
+          {!hiddenPanels.has('playback') && (
+          <div key="playback" className={panelOutline} style={panelZ('playback')}>
             {editMode ? <DragHandle title="Playback" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('playback')} /> : null}
             <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} markers={markers} />
           </div>
+          )}
         </ReactGridLayout>
-      ) : null}
     </div>
   )
 }

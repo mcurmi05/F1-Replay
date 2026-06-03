@@ -96,7 +96,7 @@ export default function CacheSettings() {
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
+          className="fixed left-0 top-0 z-50 flex h-screen w-screen items-center justify-center bg-black/60 px-6"
           onClick={closeModal}
         >
           <div

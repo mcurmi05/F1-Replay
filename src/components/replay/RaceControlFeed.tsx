@@ -23,9 +23,7 @@ export default function RaceControlFeed({
   const relevant = messages.filter((m) => m.time !== null && m.time <= currentTime)
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [relevant.length])
 
   return (
