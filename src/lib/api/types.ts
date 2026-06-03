@@ -196,6 +196,20 @@ export interface RaceControlMessage {
   lap: number | null
 }
 
+export interface TeamRadioClip {
+  time: number | null
+  driver_code: string | null
+  racing_number: string | null
+  url: string
+}
+
+export interface SessionBestRecord {
+  time: number
+  driver: string
+  kind: 's1' | 's2' | 's3' | 'st' | 'lap'
+  value: number
+}
+
 export interface WeatherSample {
   time: number
   air_temp: number | null
@@ -246,6 +260,8 @@ export interface ReplayData {
   >
   laps: Record<string, ReplayLap[]>
   race_control_messages: RaceControlMessage[]
+  team_radio: TeamRadioClip[]
+  session_bests: SessionBestRecord[]
   weather: WeatherSample[]
   qualifying_segments: QualifyingSegment[]
   session_window: SessionWindow | null

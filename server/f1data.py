@@ -360,6 +360,134 @@ def _race_control_messages(session, first_sample_time_offset):
         return []
 
 
+def _team_radio(session, start):
+    try:
+        import fastf1._api as ff1_api
+
+        entries = ff1_api.fetch_page(session.api_path, "team_radio")
+        if not entries:
+            return []
+
+        t0 = getattr(session, "t0_date", None)
+        if t0 is not None:
+            t0 = pd.Timestamp(t0)
+            if t0.tzinfo is not None:
+                t0 = t0.tz_convert("UTC").tz_localize(None)
+
+        base = ff1_api.base_url + session.api_path
+        seen = set()
+        result = []
+        for _, content in entries:
+            if not isinstance(content, dict):
+                continue
+            captures = content.get("Captures")
+            if captures is None:
+                continue
+            if isinstance(captures, dict):
+                captures = list(captures.values())
+            if not isinstance(captures, list):
+                continue
+            for cap in captures:
+                if not isinstance(cap, dict):
+                    continue
+                path = cap.get("Path")
+                if not path or path in seen:
+                    continue
+                seen.add(path)
+
+                clip_time = None
+                utc = cap.get("Utc")
+                if utc is not None and t0 is not None:
+                    try:
+                        ts = pd.Timestamp(utc)
+                        if ts.tzinfo is not None:
+                            ts = ts.tz_convert("UTC").tz_localize(None)
+                        clip_time = round((ts - t0).total_seconds() - start, 1)
+                    except Exception:
+                        clip_time = None
+
+                filename = path.rsplit("/", 1)[-1]
+                code = filename.split("_", 1)[0] if "_" in filename else None
+                code = code.upper() if code else None
+
+                result.append({
+                    "time": clip_time,
+                    "driver_code": code,
+                    "racing_number": _text(cap.get("RacingNumber")),
+                    "url": base + path,
+                })
+
+        result.sort(key=lambda r: (r["time"] is None, r["time"] if r["time"] is not None else 0.0))
+        return result
+    except Exception:
+        return []
+
+
+def _session_bests(session, start):
+    try:
+        laps = session.laps
+    except Exception:
+        return []
+    if laps is None or len(laps) == 0:
+        return []
+
+    sector_specs = [
+        ("s1", "Sector1SessionTime", "Sector1Time"),
+        ("s2", "Sector2SessionTime", "Sector2Time"),
+        ("s3", "Sector3SessionTime", "Sector3Time"),
+    ]
+
+    events = []
+    for _, lap in laps.iterrows():
+        num = _text(lap.get("DriverNumber"))
+        if num is None:
+            continue
+        for kind, tcol, vcol in sector_specs:
+            st = lap.get(tcol)
+            v = lap.get(vcol)
+            if pd.notna(st) and pd.notna(v):
+                events.append((
+                    float(pd.Timedelta(st).total_seconds()),
+                    num, kind,
+                    round(float(pd.Timedelta(v).total_seconds()), 3),
+                    "min",
+                ))
+        tt = lap.get("Time")
+        sp = lap.get("SpeedST")
+        if pd.notna(sp) and pd.notna(tt) and float(sp) > 0:
+            events.append((
+                float(pd.Timedelta(tt).total_seconds()),
+                num, "st",
+                round(float(sp), 1),
+                "max",
+            ))
+        lt = lap.get("LapTime")
+        if pd.notna(lt) and pd.notna(tt):
+            events.append((
+                float(pd.Timedelta(tt).total_seconds()),
+                num, "lap",
+                round(float(pd.Timedelta(lt).total_seconds()), 3),
+                "min",
+            ))
+
+    events.sort(key=lambda e: e[0])
+    best = {}
+    records = []
+    for t, num, kind, val, mode in events:
+        key = (num, kind)
+        cur = best.get(key)
+        improved = cur is None or (val < cur if mode == "min" else val > cur)
+        if improved:
+            best[key] = val
+            records.append({
+                "time": round(t - start, 1),
+                "driver": num,
+                "kind": kind,
+                "value": val,
+            })
+    return records
+
+
 def _weather_series(session, start):
     try:
         weather = session.weather_data
@@ -591,6 +719,8 @@ def build_replay(session, step=0.5):
         laps_by_driver[number] = entries
 
     race_control = _race_control_messages(session, start)
+    team_radio = _team_radio(session, start)
+    session_bests = _session_bests(session, start)
     weather = _weather_series(session, start)
     qualifying_segments = _qualifying_segments(session, start)
     session_window = _session_window(session, start)
@@ -610,6 +740,8 @@ def build_replay(session, step=0.5):
         "positions": positions,
         "laps": laps_by_driver,
         "race_control_messages": race_control,
+        "team_radio": team_radio,
+        "session_bests": session_bests,
         "weather": weather,
         "qualifying_segments": qualifying_segments,
         "session_window": session_window,

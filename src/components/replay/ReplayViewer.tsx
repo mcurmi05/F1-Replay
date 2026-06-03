@@ -7,6 +7,8 @@ import PitStopFeed from './PitStopFeed'
 import PlaybackControls from './PlaybackControls'
 import RaceControlFeed from './RaceControlFeed'
 import ReplayClock from './ReplayClock'
+import SessionBestsFeed from './SessionBestsFeed'
+import TeamRadioFeed from './TeamRadioFeed'
 import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
 import TrackMap from './TrackMap'
@@ -43,6 +45,8 @@ const PANEL_DEFS = [
   { id: 'pitStops',    label: 'Pit Stops' },
   { id: 'telemetry',   label: 'Telemetry' },
   { id: 'timingTower', label: 'Timing Tower' },
+  { id: 'teamRadio',   label: 'Team Radio' },
+  { id: 'sessionBests', label: 'Session Bests' },
   { id: 'playback',    label: 'Playback' },
 ]
 const RESIZE_EDGE = 8
@@ -93,13 +97,34 @@ function HidePanelButton({ onHide }: { onHide: () => void }) {
 
 function buildDefaultLayout(): Layout {
   return [
-    { i: 'trackmap',    x: 0,  y: 0,  w: 10, h: 12, minW: 4, minH: 4 },
-    { i: 'telemetry',   x: 10, y: 0,  w: 14, h: 4,  minW: 4, minH: 2 },
-    { i: 'raceControl', x: 10, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
-    { i: 'pitStops',    x: 17, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
-    { i: 'timingTower', x: 24, y: 0,  w: 8,  h: 14, minW: 6, minH: 6 },
-    { i: 'playback',    x: 0,  y: 12, w: 24, h: 2,  minW: 6, minH: 2 },
+    { i: 'trackmap',     x: 0,  y: 0,  w: 10, h: 9,  minW: 4, minH: 4 },
+    { i: 'teamRadio',    x: 0,  y: 9,  w: 10, h: 3,  minW: 3, minH: 2 },
+    { i: 'telemetry',    x: 10, y: 0,  w: 14, h: 4,  minW: 4, minH: 2 },
+    { i: 'raceControl',  x: 10, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
+    { i: 'pitStops',     x: 17, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
+    { i: 'timingTower',  x: 24, y: 0,  w: 8,  h: 11, minW: 6, minH: 6 },
+    { i: 'sessionBests', x: 24, y: 11, w: 8,  h: 3,  minW: 4, minH: 2 },
+    { i: 'playback',     x: 0,  y: 12, w: 24, h: 2,  minW: 6, minH: 2 },
   ]
+}
+
+function firstFreeY(items: Layout, w: number, h: number): number {
+  let y = 0
+  while (items.some((o) => w > o.x && y < o.y + o.h && y + h > o.y)) {
+    y++
+  }
+  return y
+}
+
+function mergeMissingPanels(current: Layout, defaults: Layout): Layout {
+  const present = new Set(current.map((i) => i.i))
+  const missing = defaults.filter((d) => !present.has(d.i))
+  if (missing.length === 0) return current
+  const merged = [...current]
+  for (const d of missing) {
+    merged.push({ ...d, x: 0, y: firstFreeY(merged, d.w, d.h) })
+  }
+  return merged
 }
 
 function calcGrid(windowW: number, windowH: number) {
@@ -165,8 +190,10 @@ export default function ReplayViewer({
     return () => registerPanelDefs([])
   }, [registerPanelDefs])
 
-  const layoutRef = useRef(layout)
-  useEffect(() => { layoutRef.current = layout }, [layout])
+  const fullLayout = useMemo(() => mergeMissingPanels(layout, defaultLayout), [layout, defaultLayout])
+
+  const layoutRef = useRef(fullLayout)
+  useEffect(() => { layoutRef.current = fullLayout }, [fullLayout])
   const hiddenPanelsRef = useRef(hiddenPanels)
   useEffect(() => { hiddenPanelsRef.current = hiddenPanels }, [hiddenPanels])
 
@@ -175,11 +202,8 @@ export default function ReplayViewer({
     const current = layoutRef.current.find((item) => item.i === id)
     const w = current?.w ?? 6
     const h = current?.h ?? 4
-    let targetY = 0
-    while (visible.some((o) => w > o.x && targetY < o.y + o.h && targetY + h > o.y)) {
-      targetY++
-    }
-    setLayout((prev) => prev.map((item) => item.i === id ? { ...item, x: 0, y: targetY } : item))
+    const targetY = firstFreeY(visible, w, h)
+    setLayout(layoutRef.current.map((item) => item.i === id ? { ...item, x: 0, y: targetY } : item))
     showPanel(id)
   }, [showPanel, setLayout])
 
@@ -196,7 +220,7 @@ export default function ReplayViewer({
     return () => registerLayoutAccessors(null, null)
   }, [registerLayoutAccessors, setLayout])
 
-  const visibleLayout = layout.filter((item) => !hiddenPanels.has(item.i))
+  const visibleLayout = fullLayout.filter((item) => !hiddenPanels.has(item.i))
 
   if (loading || error || !data || !data.available) {
     return (
@@ -256,8 +280,8 @@ export default function ReplayViewer({
       <ReactGridLayout
         width={grid.gridWidth}
         layout={visibleLayout}
-        onDragStop={(l) => setLayout([...l, ...layout.filter((item) => hiddenPanels.has(item.i))])}
-        onResizeStop={(l) => setLayout([...l, ...layout.filter((item) => hiddenPanels.has(item.i))])}
+        onDragStop={(l) => setLayout([...l, ...fullLayout.filter((item) => hiddenPanels.has(item.i))])}
+        onResizeStop={(l) => setLayout([...l, ...fullLayout.filter((item) => hiddenPanels.has(item.i))])}
         gridConfig={{ cols: COLS, rowHeight: grid.rowHeight, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: [0, 0] }}
         dragConfig={{ enabled: editMode, cancel: '.react-resizable-handle' }}
         resizeConfig={{ enabled: editMode, handles: RESIZE_HANDLES, handleComponent: renderResizeHandle }}
@@ -327,6 +351,22 @@ export default function ReplayViewer({
               mode={lapMode ? 'lap' : 'race'}
               header={<ReplayClock relative={clockRelative} lap={lap} totalLaps={data.total_laps} label={segmentLabel} hideHours={isQualifying} />}
             />
+          </div>
+          )}
+          {!hiddenPanels.has('teamRadio') && (
+          <div key="teamRadio" className={panelOutline} style={panelZ('teamRadio')}>
+            {editMode ? <DragHandle title="Team Radio" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('teamRadio')} /> : null}
+            <TeamRadioFeed replay={data} currentTime={time} />
+          </div>
+          )}
+          {!hiddenPanels.has('sessionBests') && (
+          <div key="sessionBests" className={panelOutline} style={panelZ('sessionBests')}>
+            {editMode ? <DragHandle title="Session Bests" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('sessionBests')} /> : null}
+            <SessionBestsFeed replay={data} currentTime={time} />
           </div>
           )}
           {!hiddenPanels.has('playback') && (
