@@ -71,7 +71,7 @@ function renderResizeHandle(axis: ResizeHandleAxis, ref: React.Ref<HTMLElement>)
 
 function EditBorder() {
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl border-2 border-dashed border-sky-400" />
+    <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl border-2 border-dashed border-f1-red" />
   )
 }
 
@@ -93,12 +93,12 @@ function HidePanelButton({ onHide }: { onHide: () => void }) {
 
 function buildDefaultLayout(): Layout {
   return [
-    { i: 'timingTower', x: 21, y: 0, w: 11, h: 16, minW: 6, minH: 6 },
-    { i: 'trackmap',    x: 0,  y: 0, w: 10, h: 8,  minW: 4, minH: 4 },
-    { i: 'raceControl', x: 10, y: 0, w: 6,  h: 4,  minW: 2, minH: 2 },
-    { i: 'pitStops',    x: 16, y: 0, w: 5,  h: 4,  minW: 2, minH: 2 },
-    { i: 'telemetry',   x: 10, y: 4, w: 11, h: 4,  minW: 4, minH: 2 },
-    { i: 'playback',    x: 0,  y: 8, w: 21, h: 2,  minW: 6, minH: 2 },
+    { i: 'trackmap',    x: 0,  y: 0,  w: 10, h: 12, minW: 4, minH: 4 },
+    { i: 'telemetry',   x: 10, y: 0,  w: 14, h: 4,  minW: 4, minH: 2 },
+    { i: 'raceControl', x: 10, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
+    { i: 'pitStops',    x: 17, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
+    { i: 'timingTower', x: 24, y: 0,  w: 8,  h: 14, minW: 6, minH: 6 },
+    { i: 'playback',    x: 0,  y: 12, w: 24, h: 2,  minW: 6, minH: 2 },
   ]
 }
 
@@ -113,7 +113,7 @@ function calcGrid(windowW: number, windowH: number) {
 
 function DragHandle({ title }: { title: string }) {
   return (
-    <div className="panel-drag-handle absolute -top-3 left-1/2 z-30 flex -translate-x-1/2 cursor-move items-center gap-1.5 rounded-full border border-sky-500/60 bg-zinc-800 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-100 shadow-lg">
+    <div className="panel-drag-handle absolute -top-3 left-1/2 z-30 flex -translate-x-1/2 cursor-move items-center gap-1.5 rounded-full border border-f1-red/60 bg-zinc-800 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-100 shadow-lg">
       <span className="tracking-[0.25em] text-zinc-400">:::</span>
       {title}
     </div>

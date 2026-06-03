@@ -30,6 +30,10 @@ button:not(:disabled) {
   opacity: 0.25;
 }
 
+.react-grid-item > .react-resizable-handle::after {
+  content: none;
+}
+
 html,
 body,
 #root {

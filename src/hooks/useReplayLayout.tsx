@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { Layout } from 'react-grid-layout'
 
+import editPencilIcon from '../assets/edit_pencil.png'
+import binDeleteIcon from '../assets/bin_delete.png'
 import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 
@@ -303,6 +305,20 @@ export function ReplayLayoutControls() {
   return (
     <>
       <span className="mx-1 h-5 w-px bg-zinc-800" />
+      <button
+        type="button"
+        onClick={openLayoutsModal}
+        className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-white"
+      >
+        Layouts
+      </button>
+      <button
+        type="button"
+        onClick={openSaveModal}
+        className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-white"
+      >
+        Save layout
+      </button>
       {editMode ? (
         <>
           {hiddenDefs.map((p) => (
@@ -310,7 +326,7 @@ export function ReplayLayoutControls() {
               key={p.id}
               type="button"
               onClick={() => handleShowPanel(p.id)}
-              className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900/80 px-2 py-1.5 text-xs font-medium text-zinc-400 transition hover:border-sky-500/50 hover:text-zinc-200"
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900/80 px-2 py-1.5 text-xs font-medium text-zinc-400 transition hover:border-f1-red/50 hover:text-zinc-200"
             >
               <svg viewBox="0 0 8 8" className="h-2.5 w-2.5 shrink-0" stroke="currentColor" strokeWidth="1.5" fill="none">
                 <path d="M4 1v6M1 4h6" />
@@ -318,13 +334,6 @@ export function ReplayLayoutControls() {
               {p.label}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={openSaveModal}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-white"
-          >
-            Save layout
-          </button>
           <button
             type="button"
             onClick={reset}
@@ -336,16 +345,9 @@ export function ReplayLayoutControls() {
       ) : null}
       <button
         type="button"
-        onClick={openLayoutsModal}
-        className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-white"
-      >
-        Layouts
-      </button>
-      <button
-        type="button"
         onClick={toggleEditMode}
         className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-800/50 ${
-          editMode ? 'text-sky-400 hover:text-sky-300' : 'text-zinc-400 hover:text-white'
+          editMode ? 'text-f1-red hover:text-red-400' : 'text-zinc-400 hover:text-white'
         }`}
       >
         {editMode ? 'Done' : 'Edit UI'}
@@ -367,7 +369,7 @@ export function ReplayLayoutControls() {
               onChange={(e) => setSaveName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void doSave() }}
               placeholder="Layout name"
-              className="mt-4 w-full rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2.5 text-sm text-zinc-200 focus:border-sky-500 focus:outline-none"
+              className="mt-4 w-full rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2.5 text-sm text-zinc-200 focus:border-f1-red focus:outline-none"
             />
             {saveError ? <p className="mt-2 text-xs text-f1-red">{saveError}</p> : null}
             <div className="mt-4 flex justify-end gap-3">
@@ -383,7 +385,7 @@ export function ReplayLayoutControls() {
                 type="button"
                 onClick={() => void doSave()}
                 disabled={saving || !saveName.trim()}
-                className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
+                className="rounded-lg bg-f1-red px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save'}
               </button>
@@ -402,13 +404,22 @@ export function ReplayLayoutControls() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-4 text-lg font-bold text-white">Saved layouts</h2>
-            {layoutsLoading ? (
-              <p className="text-sm text-zinc-500">Loading...</p>
-            ) : layouts.length === 0 && !modalError ? (
-              <p className="text-sm text-zinc-500">No saved layouts yet.</p>
-            ) : (
-              <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
-                {layouts.map((item) => {
+            <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
+              <li className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2">
+                <span className="flex-1 truncate text-sm text-zinc-200">Default</span>
+                <button
+                  type="button"
+                  onClick={() => { reset(); setShowLayouts(false) }}
+                  className="shrink-0 rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110"
+                >
+                  Load
+                </button>
+              </li>
+              {layoutsLoading ? (
+                <li className="text-sm text-zinc-500 px-1 py-1">Loading...</li>
+              ) : layouts.length === 0 && !modalError ? (
+                <li className="text-sm text-zinc-500 px-1 py-1">No saved layouts yet.</li>
+              ) : layouts.map((item) => {
                   const isEditing = editingId === item.id
                   const isConfirmDelete = confirmDeleteId === item.id
                   const busy = busyId === item.id
@@ -416,7 +427,7 @@ export function ReplayLayoutControls() {
                   if (isConfirmDelete) {
                     return (
                       <li key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2.5">
-                        <span className="truncate text-sm text-zinc-300">Delete "{item.name}"?</span>
+                        <span className="truncate text-sm text-zinc-300">Delete {item.name}?</span>
                         <div className="flex shrink-0 gap-2">
                           <button
                             type="button"
@@ -440,13 +451,13 @@ export function ReplayLayoutControls() {
 
                   if (isEditing) {
                     return (
-                      <li key={item.id} className="space-y-2 rounded-lg border border-sky-500/40 bg-zinc-900/60 px-3 py-2.5">
+                      <li key={item.id} className="space-y-2 rounded-lg border border-f1-red/40 bg-zinc-900/60 px-3 py-2.5">
                         <input
                           autoFocus
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') void doRename(item.id) }}
-                          className="w-full rounded border border-zinc-600 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-sky-500 focus:outline-none"
+                          className="w-full rounded border border-zinc-600 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-f1-red focus:outline-none"
                         />
                         <div className="flex flex-wrap items-center gap-2">
                           <button
@@ -461,9 +472,9 @@ export function ReplayLayoutControls() {
                             type="button"
                             onClick={() => void doOverwrite(item.id)}
                             disabled={busy}
-                            className="rounded bg-sky-600/25 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-600/40 disabled:opacity-50"
+                            className="rounded bg-f1-red/20 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-f1-red/35 disabled:opacity-50"
                           >
-                            Overwrite with current
+                            Overwrite with current layout
                           </button>
                           <button
                             type="button"
@@ -482,31 +493,30 @@ export function ReplayLayoutControls() {
                       <span className="flex-1 truncate text-sm text-zinc-200">{item.name}</span>
                       <button
                         type="button"
-                        onClick={() => void doLoad(item.id)}
-                        disabled={busy}
-                        className="shrink-0 rounded bg-sky-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
-                      >
-                        Load
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => { setEditingId(item.id); setEditName(item.name) }}
-                        className="shrink-0 rounded border border-zinc-600 px-2 py-1 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                        className="shrink-0 p-1 opacity-50 hover:opacity-100"
                       >
-                        Edit
+                        <img src={editPencilIcon} alt="Edit" className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteId(item.id)}
-                        className="shrink-0 rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:border-f1-red/50 hover:text-f1-red"
+                        className="shrink-0 p-1 opacity-50 hover:opacity-100"
                       >
-                        x
+                        <img src={binDeleteIcon} alt="Delete" className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void doLoad(item.id)}
+                        disabled={busy}
+                        className="shrink-0 rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                      >
+                        Load
                       </button>
                     </li>
                   )
                 })}
-              </ul>
-            )}
+            </ul>
             {modalError ? <p className="mt-3 text-xs text-f1-red">{modalError}</p> : null}
             <button
               type="button"
