@@ -164,6 +164,7 @@ export interface ReplayDriver {
   full_name: string | null
   team_name: string | null
   team_colour: string | null
+  headshot_url: string | null
 }
 
 export interface ReplayLap {

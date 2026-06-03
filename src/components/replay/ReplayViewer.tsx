@@ -8,6 +8,7 @@ import PlaybackControls from './PlaybackControls'
 import RaceControlFeed from './RaceControlFeed'
 import ReplayClock from './ReplayClock'
 import SessionBestsFeed from './SessionBestsFeed'
+import SpeedTrapFeed from './SpeedTrapFeed'
 import TeamRadioFeed from './TeamRadioFeed'
 import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
@@ -47,6 +48,7 @@ const PANEL_DEFS = [
   { id: 'timingTower', label: 'Timing Tower' },
   { id: 'teamRadio',   label: 'Team Radio' },
   { id: 'sessionBests', label: 'Session Bests' },
+  { id: 'speedTrap',   label: 'Speed Trap' },
   { id: 'playback',    label: 'Playback' },
 ]
 const RESIZE_EDGE = 8
@@ -102,8 +104,9 @@ function buildDefaultLayout(): Layout {
     { i: 'telemetry',    x: 10, y: 0,  w: 14, h: 4,  minW: 4, minH: 2 },
     { i: 'raceControl',  x: 10, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
     { i: 'pitStops',     x: 17, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
-    { i: 'timingTower',  x: 24, y: 0,  w: 8,  h: 11, minW: 6, minH: 6 },
-    { i: 'sessionBests', x: 24, y: 11, w: 8,  h: 3,  minW: 4, minH: 2 },
+    { i: 'timingTower',  x: 24, y: 0,  w: 8,  h: 9,  minW: 6, minH: 6 },
+    { i: 'sessionBests', x: 24, y: 9,  w: 8,  h: 3,  minW: 4, minH: 2 },
+    { i: 'speedTrap',    x: 24, y: 12, w: 8,  h: 2,  minW: 3, minH: 2 },
     { i: 'playback',     x: 0,  y: 12, w: 24, h: 2,  minW: 6, minH: 2 },
   ]
 }
@@ -369,6 +372,14 @@ export default function ReplayViewer({
             {editMode ? <EditBorder /> : null}
             {editMode ? <HidePanelButton onHide={() => hidePanel('sessionBests')} /> : null}
             <SessionBestsFeed replay={data} currentTime={time} />
+          </div>
+          )}
+          {!hiddenPanels.has('speedTrap') && (
+          <div key="speedTrap" className={panelOutline} style={panelZ('speedTrap')}>
+            {editMode ? <DragHandle title="Speed Trap" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('speedTrap')} /> : null}
+            <SpeedTrapFeed replay={data} currentTime={time} />
           </div>
           )}
           {!hiddenPanels.has('playback') && (

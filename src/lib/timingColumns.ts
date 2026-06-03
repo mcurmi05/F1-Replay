@@ -7,6 +7,7 @@ export type TimingColumnId =
   | 'sectors'
   | 'bestLap'
   | 'bestSectors'
+  | 'pbSectors'
   | 'tyre'
   | 'bestTyre'
 
@@ -23,7 +24,8 @@ export const TIMING_COLUMN_LABELS: Record<TimingColumnId, string> = {
   lastLap: 'Last Lap',
   sectors: 'Sectors (live)',
   bestLap: 'Best Lap',
-  bestSectors: 'Best Sectors',
+  bestSectors: 'Best Lap Sectors',
+  pbSectors: 'Best Sectors',
   tyre: 'Tyre',
   bestTyre: 'Best Tyre',
 }
@@ -37,17 +39,18 @@ const CANONICAL_ORDER: TimingColumnId[] = [
   'sectors',
   'bestLap',
   'bestSectors',
+  'pbSectors',
   'tyre',
   'bestTyre',
 ]
 
 const RACE_VISIBLE: TimingColumnId[] = ['pos', 'driver', 'interval', 'leader', 'sectors', 'bestLap', 'tyre']
-const LAP_VISIBLE: TimingColumnId[] = ['pos', 'driver', 'bestLap', 'bestSectors', 'sectors', 'tyre']
+const LAP_VISIBLE: TimingColumnId[] = ['pos', 'driver', 'bestLap', 'pbSectors', 'sectors', 'tyre']
 
 export function defaultColumns(mode: 'race' | 'lap'): TimingColumnState[] {
   const visible = new Set(mode === 'lap' ? LAP_VISIBLE : RACE_VISIBLE)
   const order = mode === 'lap'
-    ? ['pos', 'driver', 'bestLap', 'bestSectors', 'sectors', 'lastLap', 'tyre', 'bestTyre', 'interval', 'leader'] as TimingColumnId[]
+    ? ['pos', 'driver', 'bestLap', 'pbSectors', 'bestSectors', 'sectors', 'lastLap', 'tyre', 'bestTyre', 'interval', 'leader'] as TimingColumnId[]
     : CANONICAL_ORDER
   return order.map((id) => ({ id, visible: visible.has(id) }))
 }

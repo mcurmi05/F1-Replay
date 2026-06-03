@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import settingsCogIcon from '../../assets/settings_cog.png'
 import { formatLapTime, teamColor } from '../../lib/format'
 import { tyreIcon } from '../../lib/replay'
 import type { SectorCell, TowerRow } from '../../lib/replay'
@@ -15,7 +16,7 @@ export type TimingTowerRow = TowerRow
 function toneClass(tone: SectorCell['tone']): string {
   if (tone === 'best') return 'text-purple-400'
   if (tone === 'pb') return 'text-emerald-400'
-  if (tone === 'set') return 'text-zinc-300'
+  if (tone === 'set') return 'text-yellow-400'
   return 'text-zinc-600'
 }
 
@@ -172,13 +173,14 @@ export default function TimingTower({
   const moveSz = Math.round(fs * 0.75)
 
   const width: Record<Exclude<TimingColumnId, 'driver'>, number> = {
-    pos: Math.round(fs * 1.6),
+    pos: Math.round(fs * 1.6) + 3,
     interval: Math.round(fs * 4.6),
     leader: Math.round(fs * 4.6),
     lastLap: Math.round(fs * 5),
     sectors: Math.round(fs * 9),
     bestLap: Math.round(fs * 5.2),
     bestSectors: Math.round(fs * 9),
+    pbSectors: Math.round(fs * 9),
     tyre: Math.round(fs * 3.4),
     bestTyre: Math.round(fs * 2.4),
   }
@@ -200,7 +202,9 @@ export default function TimingTower({
       case 'bestLap':
         return <span key={id} style={{ width: width.bestLap }} className="shrink-0 text-right">Best</span>
       case 'bestSectors':
-        return <span key={id} style={{ width: width.bestSectors }} className="shrink-0 text-center">Best Sec</span>
+        return <span key={id} style={{ width: width.bestSectors }} className="shrink-0 text-center">Lap Sec</span>
+      case 'pbSectors':
+        return <span key={id} style={{ width: width.pbSectors }} className="shrink-0 text-center">Best Sec</span>
       case 'tyre':
         return <span key={id} style={{ width: width.tyre }} className="shrink-0 text-center">Tyre</span>
       case 'bestTyre':
@@ -208,41 +212,32 @@ export default function TimingTower({
     }
   }
 
-  function sectorTrio(cells: SectorCell[] | undefined, key: string) {
+  function sectorTrio(cells: SectorCell[] | undefined, key: string, neutralizePb = false) {
     const trio = [0, 1, 2].map((i) => cells?.[i] ?? { value: null, tone: null })
     return (
-      <span key={key} style={{ width: width.sectors }} className="flex shrink-0 items-center gap-0.5">
-        {trio.map((c, i) => (
-          <span
-            key={i}
-            style={{ fontSize: fs * 0.72 }}
-            className={`flex-1 rounded bg-zinc-900/50 px-0.5 py-0.5 text-center font-mono ${toneClass(c.tone)}`}
-          >
-            {formatSector(c.value)}
-          </span>
-        ))}
+      <span key={key} style={{ width: width.sectors }} className="flex shrink-0 items-center gap-0.5 rounded bg-zinc-700/50 px-1 py-0.5">
+        {trio.map((c, i) => {
+          const cls = neutralizePb && c.tone === 'pb' ? 'text-zinc-300' : toneClass(c.tone)
+          return (
+            <span key={i} style={{ fontSize: fs * 0.72 }} className={`flex-1 text-center font-mono ${cls}`}>
+              {formatSector(c.value)}
+            </span>
+          )
+        })}
       </span>
     )
   }
 
   function bodyCell(id: TimingColumnId, row: TimingTowerRow, idx: number) {
     switch (id) {
-      case 'pos':
-        return (
-          <span key={id} style={{ width: width.pos }} className="shrink-0 text-right font-mono text-zinc-400">
-            {row.position ?? '-'}
-          </span>
-        )
-      case 'driver': {
+      case 'pos': {
         const move = moves[row.number]
         return (
-          <span key={id} className="flex min-w-[3.5em] flex-1 items-center gap-2">
-            <span className="shrink-0 rounded-full" style={{ height: barH, width: barW, backgroundColor: teamColor(row.team_colour) }} />
-            <span className="font-semibold text-white">{row.abbreviation ?? row.number}</span>
+          <span key={id} style={{ width: width.pos }} className="relative shrink-0 text-right font-mono text-zinc-400">
             {move ? (
               <span
                 style={{ fontSize: moveSz }}
-                className={['flex items-center gap-0.5 font-bold leading-none', move.dir === 'up' ? 'text-emerald-500' : 'text-f1-red'].join(' ')}
+                className={['pointer-events-none absolute -left-3 top-1/2 flex -translate-y-1/2 items-center gap-0.5 font-bold leading-none', move.dir === 'up' ? 'text-emerald-500' : 'text-f1-red'].join(' ')}
               >
                 <svg viewBox="0 0 10 10" style={{ width: moveSz, height: moveSz }} fill="currentColor" aria-hidden="true">
                   {move.dir === 'up' ? <path d="M5 1l4 7H1z" /> : <path d="M5 9L1 2h8z" />}
@@ -250,6 +245,20 @@ export default function TimingTower({
                 {move.count}
               </span>
             ) : null}
+            {row.position ?? '-'}
+          </span>
+        )
+      }
+      case 'driver': {
+        return (
+          <span key={id} className="flex min-w-[3.5em] flex-1 items-center gap-2">
+            <span className="shrink-0 rounded-full" style={{ height: barH, width: barW, backgroundColor: teamColor(row.team_colour) }} />
+            <span className="shrink-0 font-semibold text-white">{row.abbreviation ?? row.number}</span>
+            <span className="flex shrink-0 items-center overflow-hidden" style={{ width: Math.round(fs * 2.2) }}>
+              {row.pitted ? (
+                <span style={{ fontSize: moveSz }} className="shrink-0 rounded bg-amber-500/20 px-1 font-bold uppercase text-amber-400">pit</span>
+              ) : null}
+            </span>
           </span>
         )
       }
@@ -281,13 +290,12 @@ export default function TimingTower({
         )
       case 'bestSectors':
         return sectorTrio(row.best_sectors, id)
+      case 'pbSectors':
+        return sectorTrio(row.personal_best_sectors, id, true)
       case 'tyre': {
         const icon = tyreIcon(row.compound)
         return (
-          <span key={id} style={{ width: width.tyre }} className="flex shrink-0 items-center justify-end gap-1.5">
-            {row.pitted ? (
-              <span style={{ fontSize: moveSz }} className="rounded bg-amber-500/20 px-1 font-bold uppercase text-amber-400">pit</span>
-            ) : null}
+          <span key={id} style={{ width: width.tyre }} className="flex shrink-0 items-center justify-center gap-1.5">
             {icon ? <img src={icon} alt={row.compound ?? ''} style={{ width: iconPx, height: iconPx }} /> : <span style={{ width: iconPx, height: iconPx }} />}
           </span>
         )
@@ -323,12 +331,10 @@ export default function TimingTower({
         <button
           type="button"
           onClick={() => setMenuOpen((v) => !v)}
-          className="absolute right-2 top-2 z-20 flex h-6 w-6 items-center justify-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+          className="absolute right-2 top-2 z-20 flex h-6 w-6 items-center justify-center rounded text-zinc-500 opacity-70 hover:bg-zinc-800 hover:opacity-100"
           title="Columns"
         >
-          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-            <path d="M11.49 3.17a1 1 0 00-2.98 0l-.1.6a1 1 0 01-1.4.81l-.55-.25a1 1 0 00-1.27 1.42l.32.52a1 1 0 01-.36 1.4l-.53.3a1 1 0 000 1.74l.53.3a1 1 0 01.36 1.4l-.32.52a1 1 0 001.27 1.42l.55-.25a1 1 0 011.4.8l.1.61a1 1 0 002.98 0l.1-.6a1 1 0 011.4-.81l.55.25a1 1 0 001.27-1.42l-.32-.52a1 1 0 01.36-1.4l.53-.3a1 1 0 000-1.74l-.53-.3a1 1 0 01-.36-1.4l.32-.52a1 1 0 00-1.27-1.42l-.55.25a1 1 0 01-1.4-.8l-.1-.61zM10 13a3 3 0 110-6 3 3 0 010 6z" />
-          </svg>
+          <img src={settingsCogIcon} alt="Columns" className="h-4 w-4" />
         </button>
       ) : null}
 
@@ -377,27 +383,29 @@ export default function TimingTower({
         </>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-auto">
-        <div className="flex min-w-full flex-none items-center gap-2 px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-          {visible.map((col) => headerCell(col.id))}
+      <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent -ml-2 flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden pl-2">
+        <div className="flex min-h-0 w-max min-w-full flex-1 flex-col">
+          <div className="flex w-full flex-none items-center gap-2 px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+            {visible.map((col) => headerCell(col.id))}
+          </div>
+          <ul ref={listRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent relative flex min-h-0 w-full flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
+            {rows.map((row, idx) => {
+              const isSelected = selected === row.number
+              return (
+                <li key={row.number} data-driver={row.number} className="flex min-h-7 flex-1" style={{ maxHeight: 80 }}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect?.(row.number)}
+                    style={{ fontSize: fs }}
+                    className={['flex h-full w-full items-center gap-2 rounded-md px-2 transition', isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'].join(' ')}
+                  >
+                    {visible.map((col) => bodyCell(col.id, row, idx))}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
         </div>
-        <ul ref={listRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent relative flex min-h-0 min-w-full flex-1 flex-col gap-0.5 overflow-y-auto">
-          {rows.map((row, idx) => {
-            const isSelected = selected === row.number
-            return (
-              <li key={row.number} data-driver={row.number} className="flex min-h-7 flex-1" style={{ maxHeight: 80 }}>
-                <button
-                  type="button"
-                  onClick={() => onSelect?.(row.number)}
-                  style={{ fontSize: fs }}
-                  className={['flex h-full w-full items-center gap-2 rounded-md px-2 transition', isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'].join(' ')}
-                >
-                  {visible.map((col) => bodyCell(col.id, row, idx))}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
       </div>
     </div>
   )

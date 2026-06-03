@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 import { formatLapTime, teamColor } from '../../lib/format'
-import type { ReplayData, SessionBestRecord } from '../../lib/api/types'
+import type { ReplayData } from '../../lib/api/types'
 
-type Kind = SessionBestRecord['kind']
 type SectorKind = 's1' | 's2' | 's3'
 
 function formatSector(value: number): string {
@@ -28,7 +27,7 @@ export default function SessionBestsFeed({
     return map
   }, [replay.drivers])
 
-  const { fastestLap, sectorBest, trap } = useMemo(() => {
+  const { fastestLap, sectorBest } = useMemo(() => {
     const personal = new Map<string, number>()
     let fastestLap: { driver: string; value: number; sectors: (number | null)[] } | null = null
     for (const r of replay.session_bests ?? []) {
@@ -39,27 +38,22 @@ export default function SessionBestsFeed({
         }
         continue
       }
+      if (r.kind === 'st') continue
       const key = `${r.driver}|${r.kind}`
       const prev = personal.get(key)
-      const better = prev === undefined || (r.kind === 'st' ? r.value > prev : r.value < prev)
+      const better = prev === undefined || r.value < prev
       if (better) personal.set(key, r.value)
     }
 
     const sectorBest: Record<SectorKind, { driver: string; value: number } | null> = {
       s1: null, s2: null, s3: null,
     }
-    const trapList: { driver: string; value: number }[] = []
     for (const [key, value] of personal) {
-      const [driver, kind] = key.split('|') as [string, Kind]
-      if (kind === 'st') {
-        trapList.push({ driver, value })
-      } else if (kind !== 'lap') {
-        const cur = sectorBest[kind]
-        if (!cur || value < cur.value) sectorBest[kind] = { driver, value }
-      }
+      const [driver, kind] = key.split('|') as [string, SectorKind]
+      const cur = sectorBest[kind]
+      if (!cur || value < cur.value) sectorBest[kind] = { driver, value }
     }
-    trapList.sort((a, b) => b.value - a.value)
-    return { fastestLap, sectorBest, trap: trapList }
+    return { fastestLap, sectorBest }
   }, [replay.session_bests, currentTime])
 
   const tla = (num: string) => driverByNumber.get(num)?.abbreviation ?? num
@@ -113,26 +107,6 @@ export default function SessionBestsFeed({
               )
             })}
           </div>
-        </div>
-        <div>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Speed Trap</p>
-          {trap.length === 0 ? (
-            <p className="text-zinc-600">--</p>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {trap.map((row, idx) => (
-                <div key={row.driver} className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900/60 px-2 py-1">
-                  <span className="w-4 shrink-0 text-zinc-600">{idx + 1}</span>
-                  <span className="h-3 w-1 shrink-0 rounded-full" style={{ backgroundColor: colour(row.driver) }} />
-                  <span className="font-semibold text-zinc-200">{tla(row.driver)}</span>
-                  <span className={`ml-auto font-mono ${idx === 0 ? 'text-purple-400' : 'text-zinc-300'}`}>
-                    {Math.round(row.value)}
-                    <span className="ml-0.5 text-[9px] text-zinc-500">km/h</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -143,6 +143,7 @@ export interface TowerRow {
   last_lap: number | null
   live_sectors: SectorCell[]
   best_sectors: SectorCell[]
+  personal_best_sectors: SectorCell[]
 }
 
 interface SectorBests {
@@ -200,6 +201,11 @@ function liveSectorCells(lap: ReplayLap | null, time: number, driverNumber: stri
 function lapSectorCells(lap: ReplayLap | null, driverNumber: string, bests: SectorBests): SectorCell[] {
   const values = lap ? [lap.s1, lap.s2, lap.s3] : [null, null, null]
   return [0, 1, 2].map((i) => ({ value: values[i], tone: sectorTone(values[i], i, driverNumber, bests) }))
+}
+
+function personalBestSectorCells(driverNumber: string, bests: SectorBests): SectorCell[] {
+  const pb = bests.personal.get(driverNumber) ?? [null, null, null]
+  return [0, 1, 2].map((i) => ({ value: pb[i], tone: sectorTone(pb[i], i, driverNumber, bests) }))
 }
 
 function lastCompletedLap(laps: ReplayLap[], time: number): ReplayLap | null {
@@ -313,6 +319,7 @@ export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
       last_lap: last ? last.lap_time : null,
       live_sectors: liveSectorCells(entry.lap, time, entry.driver.number, bests),
       best_sectors: lapSectorCells(best, entry.driver.number, bests),
+      personal_best_sectors: personalBestSectorCells(entry.driver.number, bests),
     }
   })
 }
@@ -377,6 +384,7 @@ export function lapLeaderboard(
       last_lap: last ? last.lap_time : null,
       live_sectors: liveSectorCells(current, time, driver.number, bests),
       best_sectors: lapSectorCells(best, driver.number, bests),
+      personal_best_sectors: personalBestSectorCells(driver.number, bests),
     }
   })
 

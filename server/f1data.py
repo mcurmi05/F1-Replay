@@ -653,6 +653,7 @@ def build_replay(session, step=0.5):
             "full_name": _text(row.get("FullName")) if row is not None else None,
             "team_name": _text(row.get("TeamName")) if row is not None else None,
             "team_colour": _text(row.get("TeamColor")) if row is not None else None,
+            "headshot_url": _text(row.get("HeadshotUrl")) if row is not None else None,
         })
 
     lap_tel = session.laps.pick_fastest().get_telemetry()
