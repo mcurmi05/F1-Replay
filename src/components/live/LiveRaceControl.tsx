@@ -9,13 +9,13 @@ function getBg(msg: RaceControlMessage): string {
   return 'bg-zinc-800'
 }
 
-function formatUtc(utc: string | null): string {
-  if (!utc) return '—'
+function formatUtc(utc: number | string | null): string {
+  if (utc === null || utc === undefined) return '-'
   try {
-    const date = new Date(utc)
+    const date = typeof utc === 'number' ? new Date(utc * 1000) : new Date(utc)
     return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
   } catch {
-    return '—'
+    return '-'
   }
 }
 
@@ -32,7 +32,7 @@ export default function LiveRaceControl({ messages }: { messages: RaceControlMes
               key={idx}
               className={`rounded border border-zinc-700 ${getBg(msg)} px-2 py-1`}
             >
-              <p className="text-xs font-semibold text-white">{msg.message || '—'}</p>
+              <p className="text-xs font-semibold text-white">{msg.message || '-'}</p>
               <p className="text-xs text-zinc-400">{formatUtc(msg.time)}</p>
             </div>
           ))

@@ -656,7 +656,8 @@ def build_replay(session, step=0.5):
             "headshot_url": _text(row.get("HeadshotUrl")) if row is not None else None,
         })
 
-    lap_tel = session.laps.pick_fastest().get_telemetry()
+    fastest_lap = session.laps.pick_fastest()
+    lap_tel = fastest_lap.get_telemetry()
     tx = lap_tel["X"].to_numpy()
     ty = lap_tel["Y"].to_numpy()
     mask = ~(np.isnan(tx) | np.isnan(ty))
@@ -664,6 +665,22 @@ def build_replay(session, step=0.5):
         "x": [int(round(v)) for v in tx[mask]],
         "y": [int(round(v)) for v in ty[mask]],
     }
+
+    sector_markers = []
+    try:
+        if "SessionTime" in lap_tel:
+            sess_arr = lap_tel["SessionTime"].dt.total_seconds().to_numpy()
+            for col in ("Sector1SessionTime", "Sector2SessionTime"):
+                st = fastest_lap.get(col)
+                if st is None or not pd.notna(st):
+                    continue
+                target = pd.Timedelta(st).total_seconds()
+                j = int(np.nanargmin(np.abs(sess_arr - target)))
+                if not (np.isnan(tx[j]) or np.isnan(ty[j])):
+                    sector_markers.append({"x": int(round(tx[j])), "y": int(round(ty[j]))})
+    except Exception:
+        sector_markers = []
+    track["sector_markers"] = sector_markers
 
     corners = []
     info = session.get_circuit_info()

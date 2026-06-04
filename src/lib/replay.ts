@@ -140,6 +140,7 @@ export interface TowerRow {
   interval: string | null
   best_lap: number | null
   best_lap_compound: string | null
+  best_lap_tyre_age: number | null
   last_lap: number | null
   live_sectors: SectorCell[]
   best_sectors: SectorCell[]
@@ -188,9 +189,24 @@ function sectorTone(
   return 'set'
 }
 
-function liveSectorCells(lap: ReplayLap | null, time: number, driverNumber: string, bests: SectorBests): SectorCell[] {
-  const values = lap ? [lap.s1, lap.s2, lap.s3] : [null, null, null]
-  const times = lap ? [lap.s1_time, lap.s2_time, lap.s3_time] : [null, null, null]
+function liveSectorCells(
+  laps: ReplayLap[] | undefined,
+  lap: ReplayLap | null,
+  time: number,
+  driverNumber: string,
+  bests: SectorBests,
+): SectorCell[] {
+  // Until the current lap posts its first sector, keep showing the previous
+  // lap's sectors so the just-completed lap's final sector stays visible
+  // across the lap transition instead of flashing blank.
+  const s1Done = lap !== null && lap.s1 !== null && lap.s1_time !== null && lap.s1_time <= time
+  let source = lap
+  if (!s1Done && lap && laps) {
+    const idx = laps.indexOf(lap)
+    if (idx > 0) source = laps[idx - 1]
+  }
+  const values = source ? [source.s1, source.s2, source.s3] : [null, null, null]
+  const times = source ? [source.s1_time, source.s2_time, source.s3_time] : [null, null, null]
   return [0, 1, 2].map((i) => {
     const done = values[i] !== null && times[i] !== null && (times[i] as number) <= time
     const value = done ? values[i] : null
@@ -316,8 +332,9 @@ export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
       interval,
       best_lap: best ? best.lap_time : null,
       best_lap_compound: best ? best.compound : null,
+      best_lap_tyre_age: best ? best.tyre_age : null,
       last_lap: last ? last.lap_time : null,
-      live_sectors: liveSectorCells(entry.lap, time, entry.driver.number, bests),
+      live_sectors: liveSectorCells(laps, entry.lap, time, entry.driver.number, bests),
       best_sectors: lapSectorCells(best, entry.driver.number, bests),
       personal_best_sectors: personalBestSectorCells(entry.driver.number, bests),
     }
@@ -381,8 +398,9 @@ export function lapLeaderboard(
       interval: null,
       best_lap: best ? best.lap_time : null,
       best_lap_compound: best ? best.compound : null,
+      best_lap_tyre_age: best ? best.tyre_age : null,
       last_lap: last ? last.lap_time : null,
-      live_sectors: liveSectorCells(current, time, driver.number, bests),
+      live_sectors: liveSectorCells(laps, current, time, driver.number, bests),
       best_sectors: lapSectorCells(best, driver.number, bests),
       personal_best_sectors: personalBestSectorCells(driver.number, bests),
     }

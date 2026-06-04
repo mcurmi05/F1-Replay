@@ -153,7 +153,7 @@ export interface LiveState {
   rows: LiveRow[]
   race_control_messages: RaceControlMessage[]
   team_radio: TeamRadioClip[]
-  track: { x: number[]; y: number[] }
+  track: { x: number[]; y: number[]; sector_markers?: { x: number; y: number }[] }
   next_session: LiveNextSession | null
   updated_at: string
 }
@@ -248,7 +248,7 @@ export interface ReplayData {
   track_status: TrackStatusSegment[]
   total_laps: number | null
   time: number[]
-  track: { x: number[]; y: number[] }
+  track: { x: number[]; y: number[]; sector_markers?: { x: number; y: number }[] }
   corners: { number: number | null; letter: string | null; x: number | null; y: number | null }[]
   bounds: { min_x: number; max_x: number; min_y: number; max_y: number }
   drivers: ReplayDriver[]

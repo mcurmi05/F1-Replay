@@ -97,6 +97,41 @@ export default function TrackMap({
     }
   }, [track, bounds])
 
+  const sectorLines = useMemo(() => {
+    const markers = track.sector_markers
+    if (!markers || markers.length === 0 || track.x.length < 2) return []
+    const fy0 = bounds.min_y + bounds.max_y
+    const r = Math.max(bounds.max_x - bounds.min_x, bounds.max_y - bounds.min_y) / 95
+    const lineLen = r * 1.6
+    return markers.flatMap((m) => {
+      // Snap to nearest track point and use its tangent for the perpendicular.
+      let nearest = 0
+      let bestDist = Infinity
+      for (let i = 0; i < track.x.length; i += 1) {
+        const dx = track.x[i] - m.x
+        const dy = track.y[i] - m.y
+        const d = dx * dx + dy * dy
+        if (d < bestDist) {
+          bestDist = d
+          nearest = i
+        }
+      }
+      const j = nearest + 1 < track.x.length ? nearest + 1 : nearest - 1
+      if (j < 0) return []
+      const sx = track.x[nearest]
+      const sy = fy0 - track.y[nearest]
+      const tdx = track.x[j] - sx
+      const tdy = (fy0 - track.y[j]) - sy
+      const tLen = Math.sqrt(tdx * tdx + tdy * tdy) || 1
+      const pnx = -tdy / tLen
+      const pny = tdx / tLen
+      return [{
+        x1: sx + pnx * lineLen, y1: sy + pny * lineLen,
+        x2: sx - pnx * lineLen, y2: sy - pny * lineLen,
+      }]
+    })
+  }, [track, bounds])
+
   const length = time.length
   const ratio = step > 0 ? currentTime / step : 0
   const base = Math.floor(ratio)
@@ -122,6 +157,17 @@ export default function TrackMap({
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
       />
+      {sectorLines.map((s, i) => (
+        <line
+          key={`sector-${i}`}
+          x1={s.x1} y1={s.y1}
+          x2={s.x2} y2={s.y2}
+          stroke="rgba(255,255,255,0.5)"
+          strokeWidth={radius * 0.18}
+          strokeLinecap="round"
+          className="pointer-events-none"
+        />
+      ))}
       {startLine ? (
         <line
           x1={startLine.x1} y1={startLine.y1}

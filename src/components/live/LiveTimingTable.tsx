@@ -23,14 +23,6 @@ function SectorCell({ value, pb }: { value: string | null; pb: boolean }) {
   )
 }
 
-function SpeedCell({ value, pb }: { value: string | null; pb: boolean }) {
-  return (
-    <span className={pb ? 'font-semibold text-purple-400' : 'text-zinc-400'}>
-      {value || '-'}
-    </span>
-  )
-}
-
 export default function LiveTimingTable({ rows }: { rows: LiveRow[] }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-surface">

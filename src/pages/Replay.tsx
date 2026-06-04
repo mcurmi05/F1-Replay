@@ -18,7 +18,7 @@ function SessionView({
   event: string
   session: string
 }) {
-  const { summary, laps } = data
+  const { summary } = data
 
   return (
     <ReplayViewer

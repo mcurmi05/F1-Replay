@@ -1,19 +1,13 @@
 import type { TeamRadioClip, LiveRow } from '../../lib/api/types'
 
 function formatUtc(utc: string | null): string {
-  if (!utc) return '—'
+  if (!utc) return '-'
   try {
     const date = new Date(utc)
     return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
   } catch {
-    return '—'
+    return '-'
   }
-}
-
-function getDriverColor(driverNumber: string, rows: LiveRow[]): string {
-  const row = rows.find((r) => r.driver_number === driverNumber)
-  if (!row?.team_colour) return 'text-zinc-400'
-  return `text-[${row.team_colour}]` || 'text-zinc-400'
 }
 
 function getDriverInfo(driverNumber: string, rows: LiveRow[]): { abbr: string; color: string } {

@@ -160,9 +160,17 @@ function toTowerRows(rows: LiveRow[]): TimingTowerRow[] {
     team_colour: row.team_colour,
     position: row.position,
     compound: row.compound,
+    tyre_age: null,
     pitted: row.in_pit,
     interval: row.interval,
     gap_leader: row.gap,
+    best_lap: null,
+    best_lap_compound: null,
+    best_lap_tyre_age: null,
+    last_lap: null,
+    live_sectors: [],
+    best_sectors: [],
+    personal_best_sectors: [],
   }))
 }
 
@@ -211,6 +219,7 @@ function liveToReplayData(data: LiveState): ReplayData | null {
       full_name: r.full_name,
       team_name: r.team_name,
       team_colour: r.team_colour,
+      headshot_url: null,
     })),
     positions: Object.fromEntries(
       data.rows.map((r) => [
@@ -223,6 +232,11 @@ function liveToReplayData(data: LiveState): ReplayData | null {
     ),
     laps: {},
     race_control_messages: data.race_control_messages,
+    team_radio: [],
+    session_bests: [],
+    weather: [],
+    qualifying_segments: [],
+    session_window: null,
   }
 }
 

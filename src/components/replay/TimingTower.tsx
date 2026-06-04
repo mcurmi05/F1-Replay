@@ -182,27 +182,27 @@ export default function TimingTower({
     bestLap: Math.round(fs * 5.2),
     bestSectors: Math.round(fs * 9),
     pbSectors: Math.round(fs * 9),
-    tyre: Math.round(fs * 3.4),
-    bestTyre: Math.round(fs * 2.4),
+    tyre: Math.round(fs * 4.4),
+    bestTyre: Math.round(fs * 3.4),
   }
-  const driverWidth = Math.round(fs * 5) + 28
+  const driverWidth = Math.round(fs * 5) + 14
 
   function headerCell(id: TimingColumnId) {
     switch (id) {
       case 'pos':
-        return <span key={id} style={{ width: width.pos }} className="shrink-0 text-left">P</span>
+        return <span key={id} style={{ width: width.pos }} className="shrink-0 text-center">P</span>
       case 'driver':
         return <span key={id} style={{ width: driverWidth }} className="shrink-0">Driver</span>
       case 'interval':
-        return <span key={id} style={{ width: width.interval }} className="shrink-0 text-left">Interval</span>
+        return <span key={id} style={{ width: width.interval }} className="shrink-0 text-center">Interval</span>
       case 'leader':
-        return <span key={id} style={{ width: width.leader }} className="shrink-0 text-right">Leader</span>
+        return <span key={id} style={{ width: width.leader }} className="shrink-0 text-center">Leader</span>
       case 'lastLap':
-        return <span key={id} style={{ width: width.lastLap }} className="shrink-0 text-right">Last</span>
+        return <span key={id} style={{ width: width.lastLap }} className="shrink-0 text-center">Last</span>
       case 'sectors':
         return <span key={id} style={{ width: width.sectors }} className="shrink-0 text-center">Sectors</span>
       case 'bestLap':
-        return <span key={id} style={{ width: width.bestLap }} className="shrink-0 text-right">Best</span>
+        return <span key={id} style={{ width: width.bestLap }} className="shrink-0 text-center">Best</span>
       case 'bestSectors':
         return <span key={id} style={{ width: width.bestSectors }} className="shrink-0 text-center">Lap Sec</span>
       case 'pbSectors':
@@ -234,7 +234,7 @@ export default function TimingTower({
     switch (id) {
       case 'pos':
         return (
-          <span key={id} style={{ width: width.pos }} className="shrink-0 text-left font-mono text-zinc-400">
+          <span key={id} style={{ width: width.pos }} className="shrink-0 text-center font-mono text-zinc-400">
             {row.position ?? '-'}
           </span>
         )
@@ -257,7 +257,7 @@ export default function TimingTower({
                 </span>
               ) : null}
             </span>
-            <span className="ml-auto flex shrink-0 items-center justify-end overflow-hidden pl-[10px]" style={{ width: Math.round(fs * 2.2) + 10 }}>
+            <span className="ml-auto flex shrink-0 items-center justify-end overflow-hidden pl-[4px]" style={{ width: Math.round(fs * 2.2) + 4 }}>
               {row.pitted ? (
                 <span style={{ fontSize: moveSz }} className="shrink-0 rounded bg-amber-500/20 px-1 font-bold uppercase text-amber-400">pit</span>
               ) : null}
@@ -267,19 +267,19 @@ export default function TimingTower({
       }
       case 'interval':
         return (
-          <span key={id} style={{ width: width.interval, fontSize: fs * 0.82 }} className="shrink-0 text-left font-mono text-zinc-300">
+          <span key={id} style={{ width: width.interval, fontSize: fs * 0.82 }} className="shrink-0 text-center font-mono text-zinc-300">
             {idx === 0 ? '' : row.interval ?? '-'}
           </span>
         )
       case 'leader':
         return (
-          <span key={id} style={{ width: width.leader, fontSize: fs * 0.82 }} className="shrink-0 text-right font-mono text-zinc-500">
+          <span key={id} style={{ width: width.leader, fontSize: fs * 0.82 }} className="shrink-0 text-center font-mono text-zinc-500">
             {idx === 0 ? 'LEADER' : row.gap_leader ?? '-'}
           </span>
         )
       case 'lastLap':
         return (
-          <span key={id} style={{ width: width.lastLap, fontSize: fs * 0.82 }} className="shrink-0 text-right font-mono text-zinc-300">
+          <span key={id} style={{ width: width.lastLap, fontSize: fs * 0.82 }} className="shrink-0 text-center font-mono text-zinc-300">
             {row.last_lap !== null ? formatLapTime(row.last_lap) : '-'}
           </span>
         )
@@ -287,7 +287,7 @@ export default function TimingTower({
         return sectorTrio(row.live_sectors, id)
       case 'bestLap':
         return (
-          <span key={id} style={{ width: width.bestLap, fontSize: fs * 0.82 }} className="shrink-0 text-right font-mono text-zinc-200">
+          <span key={id} style={{ width: width.bestLap, fontSize: fs * 0.82 }} className="shrink-0 text-center font-mono text-zinc-200">
             {row.best_lap !== null ? formatLapTime(row.best_lap) : '-'}
           </span>
         )
@@ -298,16 +298,18 @@ export default function TimingTower({
       case 'tyre': {
         const icon = tyreIcon(row.compound)
         return (
-          <span key={id} style={{ width: width.tyre }} className="flex shrink-0 items-center justify-center gap-1.5">
+          <span key={id} style={{ width: width.tyre }} className="flex shrink-0 items-center justify-center gap-1">
             {icon ? <img src={icon} alt={row.compound ?? ''} style={{ width: iconPx, height: iconPx }} /> : <span style={{ width: iconPx, height: iconPx }} />}
+            <span style={{ fontSize: fs * 0.7 }} className="font-mono text-zinc-400">{row.tyre_age !== null ? `${row.tyre_age}L` : ''}</span>
           </span>
         )
       }
       case 'bestTyre': {
         const icon = tyreIcon(row.best_lap_compound)
         return (
-          <span key={id} style={{ width: width.bestTyre }} className="flex shrink-0 items-center justify-center">
+          <span key={id} style={{ width: width.bestTyre }} className="flex shrink-0 items-center justify-center gap-1">
             {icon ? <img src={icon} alt={row.best_lap_compound ?? ''} style={{ width: iconPx, height: iconPx }} /> : <span style={{ width: iconPx, height: iconPx }} />}
+            <span style={{ fontSize: fs * 0.7 }} className="font-mono text-zinc-400">{row.best_lap_tyre_age !== null ? `${row.best_lap_tyre_age}L` : ''}</span>
           </span>
         )
       }
@@ -328,7 +330,7 @@ export default function TimingTower({
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-2">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface px-1 py-2">
       {header ? <div className="mb-1 flex-none border-b border-zinc-800 pb-1.5 pr-7">{header}</div> : null}
       {onColumnsChange ? (
         <>
@@ -396,9 +398,9 @@ export default function TimingTower({
         </>
       ) : null}
 
-      <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent -ml-2 flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden pl-2">
+      <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent -ml-1 flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden pl-1">
         <div className="flex min-h-0 w-max min-w-full flex-1 flex-col">
-          <div className="flex w-full flex-none items-center gap-2 pl-1 pr-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+          <div className="flex w-full flex-none items-center gap-2 pl-0.5 pr-1 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
             {visible.map((col) => headerCell(col.id))}
           </div>
           <ul ref={listRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent relative flex min-h-0 w-full flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
@@ -410,7 +412,7 @@ export default function TimingTower({
                     type="button"
                     onClick={() => onSelect?.(row.number)}
                     style={{ fontSize: fs }}
-                    className={['flex h-full w-full items-center gap-2 rounded-md pl-1 pr-2 transition', isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'].join(' ')}
+                    className={['flex h-full w-full items-center gap-2 rounded-md pl-0.5 pr-1 transition', isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'].join(' ')}
                   >
                     {visible.map((col) => bodyCell(col.id, row, idx))}
                   </button>
