@@ -43,6 +43,8 @@ export default function TimingTower({
   onColumnsChange?: (next: TimingColumnState[]) => void
 }) {
   const listRef = useRef<HTMLUListElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const headRef = useRef<HTMLDivElement>(null)
   const tops = useRef<Map<string, number>>(new Map())
   const order = useRef<string>('')
 
@@ -127,14 +129,21 @@ export default function TimingTower({
   }, [])
 
   useEffect(() => {
-    const list = listRef.current
-    if (!list) return
+    // Derive per-row height (and thus the font size that sets column widths)
+    // from the stable outer container minus the header, not from the rows list.
+    // The list shrinks when a horizontal scrollbar appears, which would feed
+    // back into the column widths and oscillate the scrollbar on and off.
+    const wrap = wrapRef.current
+    if (!wrap) return
     const update = () => {
-      if (rows.length > 0) setRowH(list.offsetHeight / rows.length)
+      if (rows.length > 0) {
+        const headH = headRef.current?.offsetHeight ?? 0
+        setRowH((wrap.offsetHeight - headH) / rows.length)
+      }
     }
     update()
     const obs = new ResizeObserver(update)
-    obs.observe(list)
+    obs.observe(wrap)
     return () => obs.disconnect()
   }, [rows.length])
 
@@ -402,9 +411,9 @@ export default function TimingTower({
         </>
       ) : null}
 
-      <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent -ml-1 flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden pl-1">
+      <div ref={wrapRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent -ml-1 flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden pl-1">
         <div className="flex min-h-0 w-max min-w-full flex-1 flex-col">
-          <div className="flex w-full flex-none items-center gap-2 pl-0.5 pr-1 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+          <div ref={headRef} className="flex w-full flex-none items-center gap-2 pl-0.5 pr-1 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
             {visible.map((col) => headerCell(col.id))}
           </div>
           <ul ref={listRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent relative flex min-h-0 w-full flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">

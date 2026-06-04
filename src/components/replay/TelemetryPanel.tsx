@@ -104,7 +104,7 @@ function VerticalBar({ value, color }: { value: number | null; color: string }) 
           style={{ height: `${pct}%`, backgroundColor: color }}
         />
       </div>
-      <span className="font-mono text-xs font-semibold text-zinc-300">
+      <span className="w-9 text-center font-mono text-xs font-semibold tabular-nums text-zinc-300">
         {value === null ? '-' : Math.round(value)}%
       </span>
     </div>

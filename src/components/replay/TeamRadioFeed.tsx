@@ -213,6 +213,21 @@ export default function TeamRadioFeed({
     }
   }, [currentTime, activeUrl, teamRadio])
 
+  // Clicking anywhere outside a radio clip deselects the active one, but only
+  // while it is paused (a playing clip keeps its selection).
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null
+      if (target?.closest('[data-url]')) return
+      const audio = audioRef.current
+      if (audio && !audio.paused) return
+      queueRef.current = []
+      setActiveUrl(null)
+    }
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
+  }, [])
+
   useEffect(() => {
     const prev = lastTimeRef.current
     lastTimeRef.current = currentTime

@@ -27,6 +27,9 @@ export default function CommentaryAudio({
   const prevVolume = useRef(0.8)
   const [active, setActive] = useState(false)
   const [volume, setVolume] = useState(0.8)
+  const [delaySign, setDelaySign] = useState(1)
+  const [delayMag, setDelayMag] = useState('0')
+  const delay = delaySign * (parseInt(delayMag, 10) || 0)
   const [readyUrl, setReadyUrl] = useState<string | null>(null)
   const [errorUrl, setErrorUrl] = useState<string | null>(null)
 
@@ -103,7 +106,8 @@ export default function CommentaryAudio({
       return
     }
 
-    const target = currentTime - streamStart
+    // A positive delay makes the commentary play later relative to the action.
+    const target = currentTime - streamStart - delay
     const dur = audio.duration
     const inRange = target >= 0 && (Number.isNaN(dur) || target <= dur)
     const shouldPlay = active && playing && speed === 1 && inRange
@@ -117,7 +121,7 @@ export default function CommentaryAudio({
         audio.currentTime = target
       }
     }
-  }, [currentTime, playing, speed, active, ready, streamStart, live])
+  }, [currentTime, playing, speed, active, ready, streamStart, delay, live])
 
   const beforeStart = !live && currentTime < streamStart
   const status = !commentary
@@ -205,6 +209,31 @@ export default function CommentaryAudio({
               className="h-1 flex-1 cursor-pointer accent-f1-red"
               title="Volume"
             />
+            {!live ? (
+              <div className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500" title="Shift the commentary by seconds (+ = later, - = earlier)">
+                Delay
+                <button
+                  type="button"
+                  onClick={() => setDelaySign((s) => -s)}
+                  className="flex h-5 w-5 items-center justify-center rounded border border-zinc-700 bg-zinc-900/60 font-mono text-sm text-zinc-200 hover:border-f1-red"
+                  title={delaySign < 0 ? 'Earlier' : 'Later'}
+                >
+                  {delaySign < 0 ? '-' : '+'}
+                </button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={delayMag}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '' || /^\d+$/.test(v)) setDelayMag(v)
+                  }}
+                  onBlur={() => { if (delayMag === '') setDelayMag('0') }}
+                  className="w-10 rounded border border-zinc-700 bg-zinc-900/60 px-1 py-0.5 text-right font-mono text-xs text-zinc-200 focus:border-f1-red focus:outline-none"
+                />
+                s
+              </div>
+            ) : null}
           </div>
         </div>
       )}
