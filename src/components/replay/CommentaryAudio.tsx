@@ -14,11 +14,13 @@ export default function CommentaryAudio({
   currentTime,
   playing,
   speed,
+  live = false,
 }: {
   commentary: CommentaryStream | null
   currentTime: number
   playing: boolean
   speed: number
+  live?: boolean
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const hlsRef = useRef<{ destroy: () => void } | null>(null)
@@ -89,6 +91,18 @@ export default function CommentaryAudio({
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !ready) return
+
+    // Live commentary is a continuous broadcast, so just play/pause at the live
+    // edge instead of seeking to a replay-clock position.
+    if (live) {
+      if (active) {
+        if (audio.paused) void audio.play().catch(() => {})
+      } else if (!audio.paused) {
+        audio.pause()
+      }
+      return
+    }
+
     const target = currentTime - streamStart
     const dur = audio.duration
     const inRange = target >= 0 && (Number.isNaN(dur) || target <= dur)
@@ -103,24 +117,26 @@ export default function CommentaryAudio({
         audio.currentTime = target
       }
     }
-  }, [currentTime, playing, speed, active, ready, streamStart])
+  }, [currentTime, playing, speed, active, ready, streamStart, live])
 
-  const beforeStart = currentTime < streamStart
+  const beforeStart = !live && currentTime < streamStart
   const status = !commentary
     ? null
     : error
       ? 'Commentary stream could not be loaded.'
       : !active
         ? 'Off'
-        : beforeStart
-          ? `Starts in ${formatCountdown(streamStart - currentTime)}`
-          : !ready
-            ? 'Loading...'
-            : speed !== 1
-              ? 'Paused - plays at 1x'
-              : playing
-                ? 'Following playback'
-                : 'Paused'
+        : !ready
+          ? 'Loading...'
+          : live
+            ? 'Live'
+            : beforeStart
+              ? `Starts in ${formatCountdown(streamStart - currentTime)}`
+              : speed !== 1
+                ? 'Paused - plays at 1x'
+                : playing
+                  ? 'Following playback'
+                  : 'Paused'
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
@@ -152,7 +168,7 @@ export default function CommentaryAudio({
           <div className="flex items-center gap-2">
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                active && ready && playing && speed === 1 && !beforeStart ? 'bg-f1-red text-white' : 'bg-zinc-800 text-zinc-500'
+                active && ready && !beforeStart && (live || (playing && speed === 1)) ? 'bg-f1-red text-white' : 'bg-zinc-800 text-zinc-500'
               }`}
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">

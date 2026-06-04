@@ -1,32 +1,48 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import CommentaryAudio from '../components/replay/CommentaryAudio'
 import PanelGrid from '../components/replay/PanelGrid'
+import RaceControlFeed from '../components/replay/RaceControlFeed'
 import ReplayClock from '../components/replay/ReplayClock'
+import SessionBestsFeed from '../components/replay/SessionBestsFeed'
+import SpeedTrapFeed from '../components/replay/SpeedTrapFeed'
+import TeamRadioFeed from '../components/replay/TeamRadioFeed'
 import TimingTower from '../components/replay/TimingTower'
 import type { TimingTowerRow } from '../components/replay/TimingTower'
 import TrackMap from '../components/replay/TrackMap'
-import LiveRaceControl from '../components/live/LiveRaceControl'
-import LiveTeamRadio from '../components/live/LiveTeamRadio'
 import LivePitStops from '../components/live/LivePitStops'
-import LiveSpeedTrap from '../components/live/LiveSpeedTrap'
 import LiveTelemetry from '../components/live/LiveTelemetry'
 import { useLive } from '../hooks/useApi'
 import { useReplayLayout } from '../hooks/useReplayLayout'
 import type { PanelDef } from '../hooks/useReplayLayout'
-import { LIVE, liveCategoryFor, sessionCategory } from '../lib/defaultLayouts'
+import { liveDefaultsFor, liveCategoryFor, sessionCategory } from '../lib/defaultLayouts'
 import { trackStatusInfo } from '../lib/replay'
 import type { SectorCell } from '../lib/replay'
-import type { LiveRow, LiveState, LiveWeather, ReplayData, WeatherSample } from '../lib/api/types'
+import type {
+  LiveRow,
+  LiveState,
+  LiveWeather,
+  RaceControlMessage,
+  ReplayData,
+  SessionBestRecord,
+  WeatherSample,
+} from '../lib/api/types'
+
+// Everything in the live snapshot is point-in-time, so the replay feeds (which
+// reveal records as a clock advances) are fed a clock that is always "now".
+const LIVE_NOW = Number.MAX_SAFE_INTEGER
 
 const LIVE_PANEL_DEFS: PanelDef[] = [
   { id: 'trackmap', label: 'Track Map' },
   { id: 'telemetry', label: 'Telemetry' },
   { id: 'timingTower', label: 'Timing Tower' },
   { id: 'raceControl', label: 'Race Control' },
+  { id: 'sessionBests', label: 'Session Bests' },
   { id: 'pitStops', label: 'Pit Stops' },
   { id: 'speedTrap', label: 'Speed Trap' },
   { id: 'teamRadio', label: 'Team Radio' },
+  { id: 'commentary', label: 'Commentary' },
 ]
 
 function parseNum(value: string | null | undefined): number | null {
@@ -42,30 +58,52 @@ function parseLapTime(value: string | null | undefined): number | null {
   return Number.isFinite(seconds) ? seconds : null
 }
 
+function relSeconds(value: string | number | null | undefined, startMs: number): number | null {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'number') return value
+  const t = Date.parse(value)
+  if (!Number.isFinite(t) || !Number.isFinite(startMs)) return null
+  return (t - startMs) / 1000
+}
+
 function countdown(startUtc: string): string {
   const diff = new Date(startUtc).getTime() - Date.now()
-  if (diff <= 0) {
-    return 'starting soon'
-  }
+  if (diff <= 0) return 'starting soon'
   const minutes = Math.floor(diff / 60000)
   const days = Math.floor(minutes / (60 * 24))
   const hours = Math.floor((minutes % (60 * 24)) / 60)
   const mins = minutes % 60
-  if (days > 0) {
-    return `in ${days}d ${hours}h`
-  }
-  if (hours > 0) {
-    return `in ${hours}h ${mins}m`
-  }
+  if (days > 0) return `in ${days}d ${hours}h`
+  if (hours > 0) return `in ${hours}h ${mins}m`
   return `in ${mins}m`
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
+function EmptyPanel({ title }: { title: string }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/60 px-3 py-1 text-xs font-medium uppercase tracking-wider text-zinc-400">
-      {children}
-    </span>
+    <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{title}</p>
+      <div className="flex flex-1 items-center justify-center text-center text-sm text-zinc-500">
+        No current session
+      </div>
+    </div>
   )
+}
+
+function blankLive(data: LiveState): LiveState {
+  return {
+    ...data,
+    available: false,
+    live: false,
+    session: null,
+    weather: null,
+    rows: [],
+    race_control_messages: [],
+    team_radio: [],
+    pit_times: [],
+    timing_stats: {},
+    commentary: null,
+    track: { x: [], y: [] },
+  }
 }
 
 function liveWeatherToSample(weather: LiveWeather | null): WeatherSample | null {
@@ -83,8 +121,6 @@ function liveWeatherToSample(weather: LiveWeather | null): WeatherSample | null 
 }
 
 function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingTowerRow[] {
-  // Fastest current sector and fastest personal-best sector across the field,
-  // so the leading cell in each can be highlighted purple.
   const liveMin = [Infinity, Infinity, Infinity]
   const pbMin = [Infinity, Infinity, Infinity]
   for (const r of rows) {
@@ -115,6 +151,8 @@ function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingT
       compound: row.compound,
       tyre_age: row.tyre_age,
       pitted: row.in_pit,
+      retired: row.retired && row.status !== 'DNS',
+      dns: row.status === 'DNS',
       interval: row.interval,
       gap_leader: row.gap,
       best_lap: parseLapTime(stats?.[row.driver_number]?.best_lap ?? row.best_lap),
@@ -128,30 +166,58 @@ function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingT
   })
 }
 
-function liveToReplayData(data: LiveState): ReplayData | null {
-  if (!data.rows.length) return null
+// Adapt the live snapshot into the ReplayData shape so the replay feeds can be
+// reused directly. hasMap reports whether there is geometry to draw a track.
+function buildLiveReplay(data: LiveState): { replay: ReplayData; hasMap: boolean } {
+  const startMs = data.session?.started_at ? Date.parse(data.session.started_at) : NaN
+
+  const raceControl: RaceControlMessage[] = (data.race_control_messages ?? []).map((m) => ({
+    ...m,
+    time: relSeconds(m.time as unknown as string | number | null, startMs),
+  }))
+
+  const teamRadio = (data.team_radio ?? []).map((c) => ({
+    utc: c.utc ?? null,
+    driver_number: c.driver_number,
+    url: c.url,
+    time: relSeconds(c.utc ?? null, startMs),
+    driver_code: null,
+    racing_number: c.driver_number ?? null,
+  }))
+
+  const sessionBests: SessionBestRecord[] = []
+  for (const [num, stat] of Object.entries(data.timing_stats ?? {})) {
+    const lap = parseLapTime(stat.best_lap)
+    if (lap !== null) {
+      sessionBests.push({ time: 0, driver: num, kind: 'lap', value: lap, sectors: stat.best_sectors.map(parseNum) })
+    }
+    ;(['s1', 's2', 's3'] as const).forEach((kind, i) => {
+      const v = parseNum(stat.best_sectors[i])
+      if (v !== null) sessionBests.push({ time: 0, driver: num, kind, value: v })
+    })
+    const st = parseNum(stat.best_speeds?.st ?? null)
+    if (st !== null) sessionBests.push({ time: 0, driver: num, kind: 'st', value: st })
+  }
 
   const positions = data.rows.filter((r) => r.x !== null && r.y !== null)
-  if (!positions.length) return null
+  const allX = positions.map((r) => r.x as number).concat(data.track?.x ?? [])
+  const allY = positions.map((r) => r.y as number).concat(data.track?.y ?? [])
+  const hasMap = allX.length > 0 && allY.length > 0
 
-  const carX = positions.map((r) => r.x as number)
-  const carY = positions.map((r) => r.y as number)
-  const allX = carX.concat(data.track?.x || [])
-  const allY = carY.concat(data.track?.y || [])
-
-  if (!allX.length || !allY.length) return null
-
-  const min_x = Math.min(...allX)
-  const max_x = Math.max(...allX)
-  const min_y = Math.min(...allY)
-  const max_y = Math.max(...allY)
-
-  const margin_x = (max_x - min_x) * 0.15 || 100
-  const margin_y = (max_y - min_y) * 0.15 || 100
+  let bounds = { min_x: 0, max_x: 1, min_y: 0, max_y: 1 }
+  if (hasMap) {
+    const min_x = Math.min(...allX)
+    const max_x = Math.max(...allX)
+    const min_y = Math.min(...allY)
+    const max_y = Math.max(...allY)
+    const mx = (max_x - min_x) * 0.15 || 100
+    const my = (max_y - min_y) * 0.15 || 100
+    bounds = { min_x: min_x - mx, max_x: max_x + mx, min_y: min_y - my, max_y: max_y + my }
+  }
 
   const tsCode = data.session?.track_status.code ?? null
 
-  return {
+  const replay: ReplayData = {
     available: true,
     step: 1,
     duration: 0,
@@ -161,12 +227,7 @@ function liveToReplayData(data: LiveState): ReplayData | null {
     time: [0],
     track: data.track,
     corners: [],
-    bounds: {
-      min_x: min_x - margin_x,
-      max_x: max_x + margin_x,
-      min_y: min_y - margin_y,
-      max_y: max_y + margin_y,
-    },
+    bounds,
     drivers: data.rows.map((r) => ({
       number: r.driver_number,
       abbreviation: r.abbreviation,
@@ -176,81 +237,66 @@ function liveToReplayData(data: LiveState): ReplayData | null {
       headshot_url: null,
     })),
     positions: Object.fromEntries(
-      data.rows.map((r) => [
-        r.driver_number,
-        {
-          x: r.x !== null ? [r.x] : [],
-          y: r.y !== null ? [r.y] : [],
-        },
-      ]),
+      data.rows.map((r) => [r.driver_number, { x: r.x !== null ? [r.x] : [], y: r.y !== null ? [r.y] : [] }]),
     ),
     laps: {},
-    race_control_messages: data.race_control_messages,
-    team_radio: [],
-    session_bests: [],
+    race_control_messages: raceControl,
+    team_radio: teamRadio,
+    session_bests: sessionBests,
     weather: [],
     qualifying_segments: [],
     session_window: null,
   }
-}
 
-function EmptyState({ state }: { state: LiveState }) {
-  const next = state.next_session
-  return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-      <Pill>
-        <span className="h-1.5 w-1.5 rounded-full bg-f1-red" />
-        Live
-      </Pill>
-      <h1 className="mt-5 text-3xl font-bold text-white">No live session right now</h1>
-      <p className="mt-3 max-w-md text-zinc-400">
-        When a session is running, live timing, tyre strategy and the timing tower will appear here
-        in real time.
-      </p>
-      {next ? (
-        <div className="mt-6 rounded-xl border border-zinc-800 bg-surface px-6 py-4">
-          <p className="text-xs uppercase tracking-wider text-zinc-500">Next session</p>
-          <p className="mt-1 text-lg font-semibold text-white">
-            {next.event_name} · {next.session_name}
-          </p>
-          <p className="mt-1 text-sm text-f1-red">{countdown(next.start_utc)}</p>
-        </div>
-      ) : null}
-    </div>
-  )
+  return { replay, hasMap }
 }
 
 function LiveBoard({ data }: { data: LiveState }) {
   const [selected, setSelected] = useState<string | null>(null)
   const { setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
 
-  const session = data.session
+  const isLive = data.live
+  const view = useMemo(() => (isLive ? data : blankLive(data)), [isLive, data])
+
+  const session = view.session
   const sessionType = session?.session_type ?? 'FP1'
   const lapMode = sessionType !== 'R' && sessionType !== 'Sprint'
   const scopeKey = `live-${sessionCategory(sessionType)}`
   const category = liveCategoryFor(sessionType)
+  const sessionDefault = useMemo(() => liveDefaultsFor(sessionType), [sessionType])
 
-  const board = useMemo(() => toTowerRows(data.rows, data.timing_stats), [data.rows, data.timing_stats])
-  const replayData = useMemo(() => liveToReplayData(data), [data])
-  const weatherSample = useMemo(() => liveWeatherToSample(data.weather), [data.weather])
+  const board = useMemo(() => toTowerRows(view.rows, view.timing_stats), [view.rows, view.timing_stats])
+  const { replay, hasMap } = useMemo(() => buildLiveReplay(view), [view])
+  const weatherSample = useMemo(() => liveWeatherToSample(view.weather), [view.weather])
 
+  const next = data.next_session
   useEffect(() => {
-    if (!session) return
-    setTitleInfo({ eventName: session.event_name, sessionName: session.session_name, location: session.location })
+    if (isLive && session) {
+      setTitleInfo({ eventName: session.event_name, sessionName: session.session_name, location: session.location })
+    } else {
+      setTitleInfo({
+        eventName: 'No current session',
+        sessionName: next ? `Next: ${next.event_name} · ${next.session_name}` : null,
+        location: next ? countdown(next.start_utc) : null,
+      })
+    }
     setSessionNav(null)
     return () => {
       setTitleInfo(null)
       setSessionNav(null)
     }
-  }, [session, setTitleInfo, setSessionNav])
+  }, [isLive, session, next, setTitleInfo, setSessionNav])
 
-  const flag = session?.track_status.code ?? null
   useEffect(() => {
-    setStatusInfo({ status: trackStatusInfo(flag), weather: weatherSample })
+    if (isLive) {
+      setStatusInfo({ status: trackStatusInfo(session?.track_status.code ?? null), weather: weatherSample })
+    } else {
+      setStatusInfo(null)
+    }
     return () => setStatusInfo(null)
-  }, [flag, weatherSample, setStatusInfo])
+  }, [isLive, session, weatherSample, setStatusInfo])
 
-  const liveHeader = (
+  const liveHeader = isLive ? (
     <ReplayClock
       relative={parseLapTime(session?.time_remaining)}
       lap={session?.current_lap ?? 0}
@@ -258,30 +304,28 @@ function LiveBoard({ data }: { data: LiveState }) {
       label={session && !session.total_laps ? session.session_name : null}
       hideHours={sessionType === 'Q' || sessionType === 'SQ'}
     />
-  )
+  ) : undefined
+
+  const selectedRow = selected ? view.rows.find((r) => r.driver_number === selected) ?? null : null
 
   const panels: Record<string, ReactNode> = {
-    trackmap: (
+    trackmap: !isLive ? (
+      <EmptyPanel title="Track Map" />
+    ) : (
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
         <div className="absolute inset-0 overflow-hidden p-3">
-          {replayData ? (
-            <TrackMap replay={replayData} currentTime={0} selected={selected} onSelect={setSelected} />
-          ) : data.live ? (
+          {hasMap ? (
+            <TrackMap replay={replay} currentTime={0} selected={selected} onSelect={setSelected} />
+          ) : (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <div className="h-12 w-12 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
               <p className="mt-4 text-sm text-zinc-400">Waiting for car positions...</p>
-            </div>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-              <p className="text-sm font-medium text-zinc-400">No live session</p>
-              <p className="mt-1 text-xs leading-snug text-zinc-600">
-                The track map appears here once a session is running and cars are on track.
-              </p>
             </div>
           )}
         </div>
       </div>
     ),
+    telemetry: <LiveTelemetry row={selectedRow} />,
     timingTower: (
       <TimingTower
         rows={board}
@@ -293,18 +337,19 @@ function LiveBoard({ data }: { data: LiveState }) {
         header={liveHeader}
       />
     ),
-    telemetry: <LiveTelemetry row={selected ? data.rows.find((r) => r.driver_number === selected) ?? null : null} />,
-    raceControl: <LiveRaceControl messages={data.race_control_messages} />,
-    pitStops: <LivePitStops times={data.pit_times ?? []} drivers={data.rows} />,
-    speedTrap: <LiveSpeedTrap rows={data.rows} />,
-    teamRadio: <LiveTeamRadio clips={data.team_radio} drivers={data.rows} />,
+    raceControl: isLive ? <RaceControlFeed messages={replay.race_control_messages} currentTime={LIVE_NOW} /> : <EmptyPanel title="Race Control" />,
+    sessionBests: <SessionBestsFeed replay={replay} currentTime={LIVE_NOW} />,
+    pitStops: isLive ? <LivePitStops times={view.pit_times ?? []} drivers={view.rows} /> : <EmptyPanel title="Pit Stops" />,
+    speedTrap: isLive ? <SpeedTrapFeed replay={replay} currentTime={LIVE_NOW} /> : <EmptyPanel title="Speed Trap" />,
+    teamRadio: isLive ? <TeamRadioFeed replay={replay} currentTime={LIVE_NOW} /> : <EmptyPanel title="Team Radio" />,
+    commentary: isLive ? <CommentaryAudio commentary={view.commentary ?? null} currentTime={0} playing speed={1} live /> : <EmptyPanel title="Commentary" />,
   }
 
   return (
     <PanelGrid
       scopeKey={scopeKey}
       category={category}
-      sessionDefault={LIVE}
+      sessionDefault={sessionDefault}
       panelDefs={LIVE_PANEL_DEFS}
       panels={panels}
     />
@@ -333,10 +378,6 @@ export default function Live() {
 
   if (!data) {
     return null
-  }
-
-  if (data.source === 'none' || (data.rows.length === 0 && !data.live)) {
-    return <EmptyState state={data} />
   }
 
   return <LiveBoard data={data} />

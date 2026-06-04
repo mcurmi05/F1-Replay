@@ -258,7 +258,11 @@ export default function TimingTower({
               ) : null}
             </span>
             <span className="-mr-1.5 ml-auto flex shrink-0 items-center justify-end overflow-hidden pl-[4px]" style={{ width: Math.round(fs * 2.2) + 4 }}>
-              {row.pitted ? (
+              {row.dns ? (
+                <span style={{ fontSize: moveSz }} className="shrink-0 rounded bg-zinc-600/30 px-1 font-bold uppercase text-zinc-400">dns</span>
+              ) : row.retired ? (
+                <span style={{ fontSize: moveSz }} className="shrink-0 rounded bg-f1-red/20 px-1 font-bold uppercase text-f1-red">dnf</span>
+              ) : row.pitted ? (
                 <span style={{ fontSize: moveSz }} className="shrink-0 rounded bg-amber-500/20 px-1 font-bold uppercase text-amber-400">pit</span>
               ) : null}
             </span>

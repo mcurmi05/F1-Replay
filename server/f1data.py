@@ -719,6 +719,50 @@ def _commentary(session, start):
         return None
 
 
+def _result_is_dns(row):
+    if row is None:
+        return False
+    classified = _text(row.get("ClassifiedPosition"))
+    if classified and classified.strip().upper() == "W":
+        return True
+    return (_text(row.get("Status")) or "").strip().lower() == "did not start"
+
+
+def _result_is_dnf(row):
+    if row is None or _result_is_dns(row):
+        return False
+    classified = _text(row.get("ClassifiedPosition"))
+    if classified:
+        c = classified.strip().upper()
+        if c.isdigit():
+            return False
+        return c == "R"
+    status = (_text(row.get("Status")) or "").strip().lower()
+    if not status or status == "finished" or status.startswith("+") or "lap" in status:
+        return False
+    if status in ("did not qualify", "withdrew", "disqualified", "not classified"):
+        return False
+    return True
+
+
+def _retired_time(session, number, start):
+    try:
+        laps = session.laps.pick_drivers(number)
+    except Exception:
+        return None
+    if laps is None or len(laps) == 0:
+        return None
+    last = laps.iloc[-1]
+    lap_start = last.get("LapStartTime")
+    if lap_start is None or not pd.notna(lap_start):
+        return None
+    end = pd.Timedelta(lap_start).total_seconds()
+    lap_time = last.get("LapTime")
+    if lap_time is not None and pd.notna(lap_time):
+        end += pd.Timedelta(lap_time).total_seconds()
+    return round(end - start, 2)
+
+
 def build_replay(session, step=0.5):
     results_by_number = {
         str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
@@ -796,7 +840,27 @@ def build_replay(session, step=0.5):
             "team_name": _text(row.get("TeamName")) if row is not None else None,
             "team_colour": _driver_colour(row, colour_map),
             "headshot_url": _text(row.get("HeadshotUrl")) if row is not None else None,
+            "retired_at": _retired_time(session, number, start) if _result_is_dnf(row) else None,
+            "dns": _result_is_dns(row),
         })
+
+    # Drivers who never started have no position data, so add them from the
+    # results so they still appear (at the back) with a DNS badge.
+    existing = {d["number"] for d in drivers}
+    for number, row in results_by_number.items():
+        if number in existing or not _result_is_dns(row):
+            continue
+        drivers.append({
+            "number": number,
+            "abbreviation": _text(row.get("Abbreviation")),
+            "full_name": _text(row.get("FullName")),
+            "team_name": _text(row.get("TeamName")),
+            "team_colour": _driver_colour(row, colour_map),
+            "headshot_url": _text(row.get("HeadshotUrl")),
+            "retired_at": None,
+            "dns": True,
+        })
+        positions[number] = {"x": [], "y": []}
 
     fastest_lap = session.laps.pick_fastest()
     lap_tel = fastest_lap.get_telemetry()

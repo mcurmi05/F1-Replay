@@ -136,6 +136,8 @@ export interface TowerRow {
   compound: string | null
   tyre_age: number | null
   pitted: boolean
+  retired: boolean
+  dns: boolean
   gap_leader: string | null
   interval: string | null
   best_lap: number | null
@@ -325,6 +327,8 @@ export function leaderboard(replay: ReplayData, time: number): TowerRow[] {
             time >= entry.lap.pit_in &&
             (entry.lap.pit_out === null || time <= entry.lap.pit_out))
         : false,
+      retired: entry.driver.retired_at != null && time >= entry.driver.retired_at,
+      dns: !!entry.driver.dns,
       gap_leader,
       interval,
       best_lap: best ? best.lap_time : null,
@@ -391,6 +395,8 @@ export function lapLeaderboard(
             time >= current.pit_in &&
             (current.pit_out === null || time <= current.pit_out))
         : false,
+      retired: driver.retired_at != null && time >= driver.retired_at,
+      dns: !!driver.dns,
       gap_leader: null,
       interval: null,
       best_lap: best ? best.lap_time : null,

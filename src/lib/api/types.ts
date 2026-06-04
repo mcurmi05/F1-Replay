@@ -155,6 +155,7 @@ export interface LiveState {
   team_radio: TeamRadioClip[]
   pit_times?: LivePitTime[]
   timing_stats?: Record<string, LiveTimingStat>
+  commentary?: CommentaryStream | null
   track: { x: number[]; y: number[]; sector_markers?: { x: number; y: number }[] }
   next_session: LiveNextSession | null
   updated_at: string
@@ -180,6 +181,8 @@ export interface ReplayDriver {
   team_name: string | null
   team_colour: string | null
   headshot_url: string | null
+  retired_at?: number | null
+  dns?: boolean
 }
 
 export interface ReplayLap {

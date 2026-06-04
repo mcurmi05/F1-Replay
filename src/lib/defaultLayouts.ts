@@ -102,32 +102,6 @@ export type LayoutCategory =
   | 'live-qualifying'
   | 'live-race'
 
-export const LIVE: SessionDefault = {
-  layout: [
-    { i: 'trackmap', x: 0, y: 0, w: 50, h: 48, minW: 20, minH: 20 },
-    { i: 'telemetry', x: 0, y: 48, w: 50, h: 22, minW: 18, minH: 12 },
-    { i: 'raceControl', x: 50, y: 0, w: 55, h: 22, minW: 15, minH: 10 },
-    { i: 'pitStops', x: 50, y: 22, w: 27, h: 24, minW: 12, minH: 10 },
-    { i: 'speedTrap', x: 77, y: 22, w: 28, h: 24, minW: 12, minH: 10 },
-    { i: 'teamRadio', x: 50, y: 46, w: 55, h: 24, minW: 15, minH: 10 },
-    { i: 'timingTower', x: 105, y: 0, w: 55, h: 70, minW: 30, minH: 30 },
-  ],
-  hiddenPanels: [],
-  timingColumns: [
-    { id: 'pos', visible: true },
-    { id: 'driver', visible: true },
-    { id: 'interval', visible: true },
-    { id: 'leader', visible: true },
-    { id: 'bestLap', visible: true },
-    { id: 'pbSectors', visible: true },
-    { id: 'sectors', visible: true },
-    { id: 'lastLap', visible: true },
-    { id: 'tyre', visible: true },
-    { id: 'bestSectors', visible: false },
-    { id: 'bestTyre', visible: false },
-  ],
-}
-
 export function sessionCategory(session: string): 'practice' | 'qualifying' | 'race' {
   if (session === 'R' || session === 'Sprint') return 'race'
   if (session === 'Q' || session === 'SQ') return 'qualifying'
@@ -142,4 +116,15 @@ export function defaultsFor(session: string): SessionDefault {
   if (session === 'R' || session === 'Sprint') return RACE
   if (session === 'Q' || session === 'SQ') return QUALIFYING
   return PRACTICE
+}
+
+// The live screen mirrors the replay layout for the session type, minus the
+// playback bar (there is no scrubbing in a live session).
+export function liveDefaultsFor(session: string): SessionDefault {
+  const base = defaultsFor(session)
+  return {
+    layout: base.layout.filter((item) => item.i !== 'playback'),
+    hiddenPanels: base.hiddenPanels,
+    timingColumns: base.timingColumns,
+  }
 }

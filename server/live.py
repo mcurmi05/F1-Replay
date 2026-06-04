@@ -433,6 +433,23 @@ def _team_radio_live(topics):
     return result
 
 
+def _commentary_live(topics):
+    audio = topics.get("AudioStreams", {})
+    if not isinstance(audio, dict):
+        return None
+    streams = audio.get("Streams")
+    if not isinstance(streams, list) or not streams:
+        return None
+    stream = next(
+        (s for s in streams if isinstance(s, dict) and str(s.get("Language", "")).lower() == "en"),
+        None,
+    ) or (streams[0] if isinstance(streams[0], dict) else None)
+    uri = stream.get("Uri") if isinstance(stream, dict) else None
+    if not uri:
+        return None
+    return {"url": uri, "start": None, "language": stream.get("Language") or "en"}
+
+
 def _pit_times_live(topics):
     coll = topics.get("PitLaneTimeCollection", {})
     if not isinstance(coll, dict):
@@ -580,7 +597,10 @@ def _live_snapshot(current, topics):
 
         in_pit = bool(line.get("InPit"))
         retired = bool(line.get("Retired")) or bool(line.get("Stopped"))
-        if retired:
+        laps_done = _to_int(line.get("NumberOfLaps"))
+        if retired and (laps_done is None or laps_done == 0):
+            status = "DNS"
+        elif retired:
             status = "OUT"
         elif in_pit:
             status = "PIT"
@@ -672,6 +692,7 @@ def _live_snapshot(current, topics):
         "team_radio": _team_radio_live(topics),
         "pit_times": _pit_times_live(topics),
         "timing_stats": _timing_stats_live(topics),
+        "commentary": _commentary_live(topics),
         "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -690,6 +711,7 @@ def _empty_snapshot(current, session_meta=None):
         "team_radio": [],
         "pit_times": [],
         "timing_stats": {},
+        "commentary": None,
         "track": {"x": [], "y": []},
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -710,6 +732,7 @@ def _connecting_snapshot(current):
         "team_radio": [],
         "pit_times": [],
         "timing_stats": {},
+        "commentary": None,
         "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -786,6 +809,7 @@ def _historical_snapshot(current):
         "team_radio": [],
         "pit_times": [],
         "timing_stats": {},
+        "commentary": None,
         "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -819,7 +843,8 @@ def _historical_rows(session):
         time_value = f1data._seconds(row.get("Time"))
         position = f1data._int(row.get("Position"))
         status = f1data._text(row.get("Status")) or "Finished"
-        gap = _result_gap(position, time_value, status)
+        code = _result_code(f1data._text(row.get("ClassifiedPosition")), status)
+        gap = _result_gap(position, time_value, status, code)
 
         rows.append({
             "position": position,
@@ -836,8 +861,8 @@ def _historical_rows(session):
             "tyre_age": tyre_age,
             "stint": None,
             "in_pit": False,
-            "retired": bool(status and status not in ("Finished",) and not status.startswith("+")),
-            "status": None if (status == "Finished" or (status or "").startswith("+")) else _abbrev_status(status),
+            "retired": code is not None,
+            "status": code,
         })
 
     rows.sort(key=lambda item: item["position"] if item["position"] is not None else 999)
@@ -878,21 +903,32 @@ STATUS_ABBREV = {
     "not classified": "NC",
 }
 
+# FastF1's ClassifiedPosition letters are the canonical signal for whether a
+# driver was classified (a number, including lapped finishers) or not.
+CLASSIFIED_CODES = {"R": "DNF", "D": "DSQ", "E": "DSQ", "W": "DNS", "F": "DNQ", "N": "NC"}
 
-def _abbrev_status(status):
-    if not status:
-        return status
-    low = status.strip().lower()
+
+def _result_code(classified, status):
+    cls = (classified or "").strip().upper()
+    if cls.isdigit():
+        return None
+    if cls in CLASSIFIED_CODES:
+        return CLASSIFIED_CODES[cls]
+    low = (status or "").strip().lower()
+    if low == "did not start":
+        return "DNS"
+    if not low or low == "finished" or low.startswith("+") or "lap" in low:
+        return None
     if low in STATUS_ABBREV:
         return STATUS_ABBREV[low]
-    if low == "finished" or low.startswith("+"):
-        return status
     return "DNF"
 
 
-def _result_gap(position, time_value, status):
-    if status and status != "Finished" and not status.startswith("+"):
-        return _abbrev_status(status)
+def _result_gap(position, time_value, status, code):
+    if code:
+        return code
+    if status and status.startswith("+"):
+        return status
     if position == 1:
         return "Leader"
     if time_value is None:
