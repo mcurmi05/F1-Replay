@@ -670,9 +670,6 @@ def _qualifying_segments(session, start):
 
 
 def _commentary(session, start):
-    """The world-feed English commentary is published as a single continuous HLS
-    stream per session. Return its URL plus the replay-axis offset of where the
-    stream begins so the UI can seek it in lock-step with playback."""
     try:
         import fastf1._api as ff1_api
         import requests

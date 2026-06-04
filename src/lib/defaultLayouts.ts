@@ -1,12 +1,6 @@
 import type { Layout } from 'react-grid-layout'
 import type { TimingColumnState } from './timingColumns'
 
-// Built-in default panel arrangements per session type. Layouts are expressed in
-// COLS (160) grid units, matching what the "Save layout" export produces, so they
-// are used as-is without rescaling. defaultsFor() maps a session code to one of
-// these. ReplayViewer seeds these on first open of a session type; user edits
-// persist per type and "Default" restores the relevant bundle here.
-
 export interface SessionDefault {
   layout: Layout
   hiddenPanels: string[]

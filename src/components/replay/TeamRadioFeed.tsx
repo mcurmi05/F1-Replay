@@ -66,8 +66,6 @@ export default function TeamRadioFeed({
   const qSegments = replay.qualifying_segments ?? []
   const isQuali = qSegments.length > 0
 
-  // Qualifying clips read as "Q1 15:32" (segment + elapsed time within it);
-  // everything else stays relative to the session/race start.
   function radioTime(t: number): string {
     if (isQuali) {
       let seg = qSegments.find((s) => t >= s.start && t <= s.end)
@@ -309,9 +307,6 @@ export default function TeamRadioFeed({
         ) : (
           relevant.map((clip, idx) => {
             const flagged = flaggedUrls.has(clip.url)
-            // Older sessions encode a surname (e.g. "VERSTAPPEN") in the clip
-            // path instead of the modern 3-letter TLA; slice to the first three
-            // letters so the lookup and label both stay as initials.
             const initials = clip.driver_code ? clip.driver_code.slice(0, 3).toUpperCase() : null
             const driver = flagged
               ? undefined

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { teamColor } from '../../lib/format'
+import { flagOverlay } from '../../lib/replay'
 import type { ReplayData } from '../../lib/api/types'
 import { useReplayLayout } from '../../hooks/useReplayLayout'
 import trackIcon from '../../assets/follow_target.png'
 
 const FOLLOW_ZOOM = 1.5
+const FLAG_COLORS = { red: '#ef4444', sc: '#facc15', vsc: '#f59e0b', yellow: '#facc15' } as const
 
 function lerp(values: (number | null)[], i0: number, i1: number, frac: number): number | null {
   const a = values[i0]
@@ -197,6 +199,33 @@ export default function TrackMap({
     })
   }, [track, bounds])
 
+  const cumLen = useMemo(() => {
+    const xs = track.x
+    const ys = track.y
+    const cum = new Float64Array(xs.length)
+    for (let i = 1; i < xs.length; i += 1) {
+      cum[i] = cum[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1])
+    }
+    return cum
+  }, [track])
+
+  const overlay = useMemo(() => flagOverlay(replay, currentTime), [replay, currentTime])
+
+  function sectorPoints(n: number, total: number): string {
+    const totalLen = cumLen[cumLen.length - 1]
+    if (!totalLen || total <= 0) return ''
+    const startD = ((n - 1) / total) * totalLen
+    const endD = (n / total) * totalLen
+    const fy0 = bounds.min_y + bounds.max_y
+    const pts: string[] = []
+    for (let i = 0; i < track.x.length; i += 1) {
+      if (cumLen[i] >= startD && cumLen[i] <= endD) {
+        pts.push(`${track.x[i]},${fy0 - track.y[i]}`)
+      }
+    }
+    return pts.join(' ')
+  }
+
   const length = time.length
   const ratio = step > 0 ? currentTime / step : 0
   const base = Math.floor(ratio)
@@ -235,6 +264,38 @@ export default function TrackMap({
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
       />
+      {overlay.whole ? (
+        <polyline
+          points={trackPoints}
+          fill="none"
+          stroke={FLAG_COLORS[overlay.whole]}
+          strokeWidth={4}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+          opacity={0.9}
+          className="pointer-events-none"
+        />
+      ) : (
+        overlay.yellowSectors.map((n) => {
+          const pts = sectorPoints(n, overlay.totalSectors)
+          if (!pts) return null
+          return (
+            <polyline
+              key={`yellow-${n}`}
+              points={pts}
+              fill="none"
+              stroke={FLAG_COLORS.yellow}
+              strokeWidth={4}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+              opacity={0.95}
+              className="pointer-events-none"
+            />
+          )
+        })
+      )}
       {sectorLines.map((s, i) => (
         <line
           key={`sector-${i}`}

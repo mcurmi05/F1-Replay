@@ -409,8 +409,6 @@ export function lapLeaderboard(
     if (b.best_lap === null) return -1
     return a.best_lap - b.best_lap
   })
-  // In lap-mode sessions (practice/qualifying) the interval/leader gaps are the
-  // difference between best laps rather than on-track gaps.
   rows.forEach((row, idx) => {
     row.position = idx + 1
     if (row.best_lap === null) return
@@ -522,6 +520,62 @@ export function currentRaceControlFlag(
     return '2'
   }
   return '1'
+}
+
+export interface FlagOverlay {
+  whole: 'red' | 'sc' | 'vsc' | 'yellow' | null
+  yellowSectors: number[]
+  totalSectors: number
+}
+
+export function flagOverlay(replay: ReplayData, time: number): FlagOverlay {
+  const messages = replay.race_control_messages ?? []
+
+  let totalSectors = 0
+  for (const m of messages) {
+    if (m.sector !== null && m.sector > totalSectors) totalSectors = m.sector
+  }
+
+  const ordered = messages
+    .filter((m) => m.time !== null && (m.flag !== null || m.category === 'Flag'))
+    .sort((a, b) => (a.time ?? 0) - (b.time ?? 0))
+
+  let trackYellow = false
+  let red = false
+  const yellowSectors = new Set<number>()
+  for (const msg of ordered) {
+    if (msg.time === null || msg.time > time) break
+    const flag = (msg.flag ?? '').trim().toUpperCase()
+    const scope = (msg.scope ?? '').trim().toUpperCase()
+    if (!flag) continue
+    if (flag === 'YELLOW' || flag === 'DOUBLE YELLOW') {
+      if (scope === 'SECTOR' && msg.sector !== null) yellowSectors.add(msg.sector)
+      else trackYellow = true
+    } else if (flag === 'CLEAR' || flag === 'GREEN') {
+      if (scope === 'SECTOR' && msg.sector !== null) yellowSectors.delete(msg.sector)
+      else {
+        trackYellow = false
+        yellowSectors.clear()
+        red = false
+      }
+    } else if (flag === 'RED') {
+      red = true
+    }
+  }
+
+  const tsCode = currentTrackStatus(replay.track_status, time)?.code ?? null
+
+  let whole: FlagOverlay['whole'] = null
+  if (red || tsCode === '5') whole = 'red'
+  else if (tsCode === '4') whole = 'sc'
+  else if (tsCode === '6' || tsCode === '7') whole = 'vsc'
+  else if (trackYellow) whole = 'yellow'
+
+  return {
+    whole,
+    yellowSectors: whole ? [] : [...yellowSectors],
+    totalSectors,
+  }
 }
 
 export function mergeFlagCodes(a: string | null, b: string | null): string | null {

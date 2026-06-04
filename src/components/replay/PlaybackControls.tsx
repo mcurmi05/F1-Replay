@@ -35,13 +35,9 @@ export default function PlaybackControls({
     }
   }
 
-  // Keep the label text inside the track bounds at the extremes.
   const markerTransform = (pct: number): string =>
     pct <= 1 ? 'translateX(0)' : pct >= 99 ? 'translateX(-100%)' : 'translateX(-50%)'
 
-  // The range thumb travels inset by half its width at each end, so the thumb
-  // centre at a given fraction is `frac*W + THUMB*(0.5 - frac)`. Offsetting the
-  // markers by the same amount keeps each tick aligned with the thumb centre.
   const THUMB = 14
   const markerLeft = (pct: number): string =>
     `calc(${pct}% + ${(0.5 - pct / 100) * THUMB}px)`

@@ -85,8 +85,6 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
   const [sessionNav, setSessionNav] = useState<SessionNav | null>(null)
   const [trackRotation, setTrackRotation] = useState(0)
   const [panelDefs, setPanelDefs] = useState<PanelDef[]>([])
-  // hiddenPanels and timingColumns are scoped per session type. They are seeded
-  // from the active session's built-in default and persisted under a per-type key.
   const [hiddenPanels, setHiddenPanels] = useState<Set<string>>(new Set())
   const [timingColumns, setTimingColumnsState] = useState<TimingColumnState[] | null>(null)
   const [category, setCategory] = useState<LayoutCategory | null>(null)
@@ -368,8 +366,6 @@ export function ReplayLayoutControls() {
   if (!active) return null
 
   const hiddenDefs = panelDefs.filter((p) => hiddenPanels.has(p.id))
-  // The built-in default entry adopts the category name (e.g. "Practice Default"),
-  // and the matching seeded file is hidden so it isn't listed twice.
   const defaultName = category ? `${category[0].toUpperCase()}${category.slice(1)} Default` : 'Default'
   const customLayouts = layouts.filter((l) => l.name !== defaultName)
 

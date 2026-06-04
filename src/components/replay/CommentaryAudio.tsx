@@ -25,8 +25,6 @@ export default function CommentaryAudio({
   const prevVolume = useRef(0.8)
   const [active, setActive] = useState(false)
   const [volume, setVolume] = useState(0.8)
-  // Track readiness/error by URL so switching sessions resets them without a
-  // synchronous setState inside the attach effect.
   const [readyUrl, setReadyUrl] = useState<string | null>(null)
   const [errorUrl, setErrorUrl] = useState<string | null>(null)
 
@@ -34,7 +32,6 @@ export default function CommentaryAudio({
   const ready = !!commentary && readyUrl === commentary.url
   const error = !!commentary && errorUrl === commentary.url
 
-  // Attach the HLS stream to the audio element (native on Safari, hls.js elsewhere).
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !commentary) return
@@ -89,8 +86,6 @@ export default function CommentaryAudio({
     }
   }
 
-  // Follow the replay clock: play at 1x while replaying, otherwise stay paused
-  // but keep the playhead aligned so it resumes in sync.
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !ready) return

@@ -10,8 +10,6 @@ button:not(:disabled) {
   cursor: pointer;
 }
 
-/* Playback scrubber: a deterministic 14px thumb on a 6px track so the timeline
-   markers (positioned with the same thumb width) line up with the thumb centre. */
 .playback-range {
   -webkit-appearance: none;
   appearance: none;

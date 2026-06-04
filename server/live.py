@@ -62,8 +62,6 @@ def _merge(target, source):
 
 
 def _inflate(data):
-    """Decode the zlib raw-deflate + base64 payload used by the ``.z`` feeds
-    (CarData.z, Position.z). Also tolerates already-JSON or quoted payloads."""
     if not isinstance(data, str):
         return data if isinstance(data, dict) else None
     s = data.strip()
@@ -160,7 +158,6 @@ class LiveManager:
     def _start_recorder(self, session_key, filename):
         from fastf1.livetiming.client import SignalRClient
 
-        # FastF1's default subscription omits some feeds we want to capture.
         class _ExtendedClient(SignalRClient):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
@@ -476,8 +473,6 @@ def _timing_stats_live(topics):
 
 
 def _position_data_live(topics):
-    # Position.z decodes to {"Position": [{"Timestamp": ..,
-    #   "Entries": {"44": {"Status", "X", "Y", "Z"}}}, ...]}; take the latest.
     pos = topics.get("Position.z")
     if not isinstance(pos, dict):
         return {}
@@ -508,13 +503,10 @@ def _position_data_live(topics):
     return result
 
 
-# CarData.z telemetry channel ids.
 _CAR_CHANNELS = {"rpm": "0", "speed": "2", "gear": "3", "throttle": "4", "brake": "5", "drs": "45"}
 
 
 def _car_data_live(topics):
-    # CarData.z decodes to {"Entries": [{"Utc": .., "Cars": {"44":
-    #   {"Channels": {"0": rpm, "2": speed, "3": gear, ...}}}}, ...]}; latest wins.
     car = topics.get("CarData.z")
     if not isinstance(car, dict):
         return {}
