@@ -13,7 +13,7 @@ import TeamRadioFeed from './TeamRadioFeed'
 import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
 import TrackMap from './TrackMap'
-import { useReplay } from '../../hooks/useApi'
+import { useReplay, useSchedule } from '../../hooks/useApi'
 import { usePlayback } from '../../hooks/usePlayback'
 import { usePersistedLayout } from '../../hooks/usePersistedLayout'
 import { useReplayLayout } from '../../hooks/useReplayLayout'
@@ -171,7 +171,8 @@ export default function ReplayViewer({
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  const { editMode, setActive, setEditMode, setTitleInfo, setStatusInfo, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors, timingColumns, setTimingColumns } = useReplayLayout()
+  const { editMode, setActive, setEditMode, setTitleInfo, setStatusInfo, setSessionNav, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors, timingColumns, setTimingColumns } = useReplayLayout()
+  const { data: schedule } = useSchedule(year)
 
   useEffect(() => {
     setActive(true)
@@ -187,6 +188,31 @@ export default function ReplayViewer({
     setTitleInfo({ eventName: summary.event_name, sessionName: summary.session_name, location: summary.location })
     return () => setTitleInfo(null)
   }, [summary.event_name, summary.session_name, summary.location, setTitleInfo])
+
+  useEffect(() => {
+    if (!schedule) return
+    const SESSION_ORDER = ['FP1', 'FP2', 'FP3', 'SQ', 'Sprint', 'Q', 'R']
+    const ev = schedule.find((e) => String(e.round) === String(event) || (e.event_name === summary.event_name && e.location === summary.location))
+    if (!ev) { setSessionNav(null); return }
+    const available = ev.sessions
+      .map((s) => {
+        if (s.name === 'Practice 1') return 'FP1'
+        if (s.name === 'Practice 2') return 'FP2'
+        if (s.name === 'Practice 3') return 'FP3'
+        if (s.name === 'Sprint Qualifying' || s.name === 'Sprint Shootout') return 'SQ'
+        if (s.name === 'Sprint') return 'Sprint'
+        if (s.name === 'Qualifying') return 'Q'
+        if (s.name === 'Race') return 'R'
+        return null
+      })
+      .filter(Boolean) as string[]
+    const ordered = SESSION_ORDER.filter((s) => available.includes(s))
+    const idx = ordered.indexOf(session)
+    const prev = idx > 0 ? `/replay/${year}/${event}/${ordered[idx - 1]}` : null
+    const next = idx >= 0 && idx < ordered.length - 1 ? `/replay/${year}/${event}/${ordered[idx + 1]}` : null
+    setSessionNav({ prev, next })
+    return () => setSessionNav(null)
+  }, [schedule, year, event, session, summary.event_name, summary.location, setSessionNav])
 
   useEffect(() => {
     registerPanelDefs(PANEL_DEFS)

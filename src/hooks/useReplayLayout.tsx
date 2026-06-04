@@ -1,10 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import type { Layout } from 'react-grid-layout'
 
 import editPencilIcon from '../assets/edit_pencil.png'
 import binDeleteIcon from '../assets/bin_delete.png'
+import skipBackwardIcon from '../assets/skip_backward.png'
+import skipForwardIcon from '../assets/skip_forward.png'
 import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 import { BASE_COLS, COLS, scaleLayout } from '../lib/layoutGrid'
@@ -30,11 +33,18 @@ export interface PanelDef {
   label: string
 }
 
+interface SessionNav {
+  prev: string | null
+  next: string | null
+}
+
 interface ReplayLayoutContextValue {
   active: boolean
   editMode: boolean
   titleInfo: TitleInfo | null
   statusInfo: StatusInfo | null
+  sessionNav: SessionNav | null
+  setSessionNav: (nav: SessionNav | null) => void
   trackRotation: number
   panelDefs: PanelDef[]
   hiddenPanels: Set<string>
@@ -66,6 +76,7 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
   const [editMode, setEditMode] = useState(false)
   const [titleInfo, setTitleInfo] = useState<TitleInfo | null>(null)
   const [statusInfo, setStatusInfo] = useState<StatusInfo | null>(null)
+  const [sessionNav, setSessionNav] = useState<SessionNav | null>(null)
   const [trackRotation, setTrackRotation] = useState(0)
   const [panelDefs, setPanelDefs] = useState<PanelDef[]>([])
   const [hiddenPanels, setHiddenPanels] = useState<Set<string>>(() => {
@@ -174,14 +185,14 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      active, editMode, titleInfo, statusInfo, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
+      active, editMode, titleInfo, statusInfo, sessionNav, setSessionNav, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
       setActive, setEditMode, setTitleInfo, setStatusInfo, setTrackRotation, toggleEditMode,
       registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
     }),
     [
-      active, editMode, titleInfo, statusInfo, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
+      active, editMode, titleInfo, statusInfo, sessionNav, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
       toggleEditMode, registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
@@ -200,11 +211,26 @@ export function useReplayLayout() {
 }
 
 export function ReplayTitleBadge() {
-  const { active, titleInfo } = useReplayLayout()
+  const { active, titleInfo, sessionNav } = useReplayLayout()
+  const navigate = useNavigate()
   if (!active || !titleInfo) return null
   return (
     <>
       <span className="mx-2 h-5 w-px bg-zinc-800" />
+      {sessionNav?.prev ? (
+        <button
+          type="button"
+          onClick={() => navigate(sessionNav.prev!)}
+          title="Previous session"
+          className="flex items-center justify-center rounded p-1 text-zinc-400 hover:bg-zinc-800/60 hover:text-white transition-colors"
+        >
+          <img src={skipBackwardIcon} alt="Previous session" className="h-5 w-5 opacity-70" />
+        </button>
+      ) : (
+        <span className="flex h-7 w-7 items-center justify-center rounded p-1 opacity-20">
+          <img src={skipBackwardIcon} alt="" className="h-5 w-5" />
+        </span>
+      )}
       <div className="flex items-center gap-2 text-sm">
         <span className="font-semibold text-white">{titleInfo.eventName}</span>
         {titleInfo.sessionName ? (
@@ -220,6 +246,20 @@ export function ReplayTitleBadge() {
           </>
         ) : null}
       </div>
+      {sessionNav?.next ? (
+        <button
+          type="button"
+          onClick={() => navigate(sessionNav.next!)}
+          title="Next session"
+          className="flex items-center justify-center rounded p-1 text-zinc-400 hover:bg-zinc-800/60 hover:text-white transition-colors"
+        >
+          <img src={skipForwardIcon} alt="Next session" className="h-5 w-5 opacity-70" />
+        </button>
+      ) : (
+        <span className="flex h-7 w-7 items-center justify-center rounded p-1 opacity-20">
+          <img src={skipForwardIcon} alt="" className="h-5 w-5" />
+        </span>
+      )}
     </>
   )
 }

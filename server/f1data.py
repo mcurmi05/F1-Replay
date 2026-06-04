@@ -25,6 +25,90 @@ _cache_deleted = False
 
 CACHE_FOLDER_NAME = "f1replaycache"
 
+TEAM_COLORS = {
+    "mclaren": "FF8000",
+    "ferrari": "E80020",
+    "red_bull": "3671C6",
+    "mercedes": "27F4D2",
+    "aston_martin": "229971",
+    "alpine": "0093CC",
+    "williams": "64C4FF",
+    "rb": "6692FF",
+    "racing_bulls": "6692FF",
+    "alphatauri": "6692FF",
+    "haas": "B6BABD",
+    "audi": "52E252",
+    "sauber": "52E252",
+    "kick_sauber": "52E252",
+    "cadillac": "D4AF37",
+}
+
+
+_event_colour_cache = {}
+
+
+def _colours_from_session(year, rnd, ident, skip_name=None):
+    try:
+        sib = fastf1.get_session(year, rnd, ident)
+        if skip_name is not None and getattr(sib, "name", None) == skip_name:
+            return {}
+        with _load_lock:
+            sib.load(laps=False, telemetry=False, weather=False, messages=False)
+        colours = {}
+        for _, row in sib.results.iterrows():
+            tid = _text(row.get("TeamId"))
+            tc = _text(row.get("TeamColor"))
+            if tid and tc:
+                colours.setdefault(tid.lower(), tc)
+        return colours
+    except Exception:
+        return {}
+
+
+def _event_colour_map(session):
+    try:
+        year = getattr(session.event, "year", None)
+        rnd = session.event.get("RoundNumber")
+    except Exception:
+        return {}
+    if year is None:
+        return {}
+    if year in _event_colour_cache:
+        return _event_colour_cache[year]
+    current = getattr(session, "name", None)
+    colours = {}
+    if rnd is not None:
+        for ident in ("R", "Sprint", "Q", "SQ", "FP3", "FP2", "FP1"):
+            colours = _colours_from_session(year, rnd, ident, skip_name=current)
+            if colours:
+                break
+    if not colours and rnd is not None:
+        for r in range(int(rnd) - 1, 0, -1):
+            for ident in ("R", "Sprint", "Q"):
+                colours = _colours_from_session(year, r, ident)
+                if colours:
+                    break
+            if colours:
+                break
+    if colours:
+        _event_colour_cache[year] = colours
+    return colours
+
+
+def _driver_colour(row, colour_map=None):
+    if row is None:
+        return None
+    tc = _text(row.get("TeamColor"))
+    if tc:
+        return tc
+    team_id = _text(row.get("TeamId"))
+    if not team_id:
+        return None
+    key = team_id.lower()
+    if colour_map and key in colour_map:
+        return colour_map[key]
+    return TEAM_COLORS.get(key)
+
 
 def set_cache(directory):
     global _cache_dir, _cache_deleted
@@ -172,13 +256,16 @@ def session_summary(session):
 
 def results(session):
     rows = []
+    colour_map = None
     for _, row in session.results.iterrows():
+        if colour_map is None and not _text(row.get("TeamColor")):
+            colour_map = _event_colour_map(session)
         rows.append({
             "driver_number": _text(row.get("DriverNumber")),
             "abbreviation": _text(row.get("Abbreviation")),
             "full_name": _text(row.get("FullName")),
             "team_name": _text(row.get("TeamName")),
-            "team_colour": _text(row.get("TeamColor")),
+            "team_colour": _driver_colour(row, colour_map),
             "position": _int(row.get("Position")),
             "grid_position": _int(row.get("GridPosition")),
             "points": _float(row.get("Points")),
@@ -626,6 +713,7 @@ def build_replay(session, step=0.5):
 
     positions = {}
     drivers = []
+    colour_map = None
     for number, (times, pos) in samples.items():
         entry = {
             "x": _grid_values(grid, times, pos["X"].to_numpy()),
@@ -647,12 +735,14 @@ def build_replay(session, step=0.5):
         positions[number] = entry
 
         row = results_by_number.get(number)
+        if colour_map is None and (row is None or not _text(row.get("TeamColor"))):
+            colour_map = _event_colour_map(session)
         drivers.append({
             "number": number,
             "abbreviation": _text(row.get("Abbreviation")) if row is not None else None,
             "full_name": _text(row.get("FullName")) if row is not None else None,
             "team_name": _text(row.get("TeamName")) if row is not None else None,
-            "team_colour": _text(row.get("TeamColor")) if row is not None else None,
+            "team_colour": _driver_colour(row, colour_map),
             "headshot_url": _text(row.get("HeadshotUrl")) if row is not None else None,
         })
 

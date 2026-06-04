@@ -279,7 +279,16 @@ export default function TeamRadioFeed({
       />
       <div ref={scrollRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto text-xs">
         {relevant.length === 0 ? (
-          <p className="text-zinc-500">No team radio</p>
+          (replay.team_radio ?? []).length === 0 ? (
+            <div>
+              <p className="font-medium text-zinc-400">Team radio isn't public for this session.</p>
+              <p className="mt-1 text-[11px] leading-snug text-zinc-600">
+                F1 only publishes team radio for some sessions, usually the Sprint, Qualifying and Race, along with FP2 and FP3. It is often missing for FP1 and Sprint Qualifying.
+              </p>
+            </div>
+          ) : (
+            <p className="text-zinc-500">No team radio yet</p>
+          )
         ) : (
           relevant.map((clip, idx) => {
             const flagged = flaggedUrls.has(clip.url)
