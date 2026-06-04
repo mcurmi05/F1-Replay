@@ -38,6 +38,7 @@ class SaveLayoutRequest(BaseModel):
     layout: list
     hidden_panels: list[str] = []
     timing_columns: list | None = None
+    cols: int | None = None
 
 
 class UpdateLayoutRequest(BaseModel):
@@ -45,6 +46,7 @@ class UpdateLayoutRequest(BaseModel):
     layout: list | None = None
     hidden_panels: list[str] | None = None
     timing_columns: list | None = None
+    cols: int | None = None
 
 
 def _layouts_dir():
@@ -211,6 +213,7 @@ def save_layout(request: SaveLayoutRequest):
         "layout": request.layout,
         "hiddenPanels": request.hidden_panels,
         "timingColumns": request.timing_columns,
+        "cols": request.cols,
     }
     f.write_text(json.dumps(data), encoding="utf-8")
     return {"id": name, "name": name}
@@ -226,6 +229,8 @@ def update_layout(layout_name: str, request: UpdateLayoutRequest):
     data = json.loads(old_file.read_text(encoding="utf-8"))
     if request.layout is not None:
         data["layout"] = request.layout
+    if request.cols is not None:
+        data["cols"] = request.cols
     if request.hidden_panels is not None:
         data["hiddenPanels"] = request.hidden_panels
     if request.timing_columns is not None:

@@ -196,9 +196,6 @@ function liveSectorCells(
   driverNumber: string,
   bests: SectorBests,
 ): SectorCell[] {
-  // Until the current lap posts its first sector, keep showing the previous
-  // lap's sectors so the just-completed lap's final sector stays visible
-  // across the lap transition instead of flashing blank.
   const s1Done = lap !== null && lap.s1 !== null && lap.s1_time !== null && lap.s1_time <= time
   let source = lap
   if (!s1Done && lap && laps) {

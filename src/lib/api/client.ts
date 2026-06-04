@@ -75,6 +75,7 @@ export interface SavedLayoutFull extends SavedLayoutMeta {
   layout: unknown[]
   hiddenPanels: string[]
   timingColumns?: unknown[] | null
+  cols?: number | null
 }
 
 export const api = {
@@ -117,20 +118,22 @@ export const api = {
     ),
   listLayouts: (signal?: AbortSignal) => get<SavedLayoutMeta[]>('/layouts', signal),
   getLayout: (id: string, signal?: AbortSignal) => get<SavedLayoutFull>(`/layouts/${encodeURIComponent(id)}`, signal),
-  saveLayout: (name: string, layout: unknown[], hiddenPanels: string[], timingColumns?: unknown[] | null) =>
-    post<SavedLayoutMeta>('/layouts', { name, layout, hidden_panels: hiddenPanels, timing_columns: timingColumns ?? null }),
+  saveLayout: (name: string, layout: unknown[], hiddenPanels: string[], timingColumns?: unknown[] | null, cols?: number) =>
+    post<SavedLayoutMeta>('/layouts', { name, layout, hidden_panels: hiddenPanels, timing_columns: timingColumns ?? null, cols: cols ?? null }),
   updateLayout: (
     id: string,
     name?: string,
     layout?: unknown[],
     hiddenPanels?: string[],
     timingColumns?: unknown[] | null,
+    cols?: number,
   ) =>
     put<SavedLayoutMeta>(`/layouts/${encodeURIComponent(id)}`, {
       ...(name !== undefined ? { name } : {}),
       ...(layout !== undefined ? { layout } : {}),
       ...(hiddenPanels !== undefined ? { hidden_panels: hiddenPanels } : {}),
       ...(timingColumns !== undefined ? { timing_columns: timingColumns } : {}),
+      ...(cols !== undefined ? { cols } : {}),
     }),
   deleteLayout: (id: string) => del<{ ok: boolean }>(`/layouts/${encodeURIComponent(id)}`),
 }

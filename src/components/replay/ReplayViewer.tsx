@@ -17,6 +17,7 @@ import { useReplay } from '../../hooks/useApi'
 import { usePlayback } from '../../hooks/usePlayback'
 import { usePersistedLayout } from '../../hooks/usePersistedLayout'
 import { useReplayLayout } from '../../hooks/useReplayLayout'
+import { BASE_COLS, COLS, FINE, scaleLayout } from '../../lib/layoutGrid'
 import {
   currentLapNumber,
   currentRaceControlFlag,
@@ -30,9 +31,8 @@ import {
 } from '../../lib/replay'
 import type { SessionSummary } from '../../lib/api/types'
 
-const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v8'
+const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v9'
 const GRID_MARGIN = 8
-const COLS = 32
 const HEADER_H = 64
 const PAD_TOP = 16
 const PAD_H = 32
@@ -131,10 +131,11 @@ function mergeMissingPanels(current: Layout, defaults: Layout): Layout {
 
 function calcGrid(windowW: number, windowH: number) {
   const gridW = windowW - PAD_H
-  const colWidth = Math.max(16, Math.floor((gridW - (COLS - 1) * GRID_MARGIN) / COLS))
+  const baseColWidth = Math.max(16, Math.floor((gridW - (BASE_COLS - 1) * GRID_MARGIN) / BASE_COLS))
   const availH = windowH - HEADER_H - PAD_TOP
-  const totalRows = Math.max(1, Math.floor(availH / (colWidth + GRID_MARGIN)))
-  const rowHeight = availH / totalRows - GRID_MARGIN
+  const baseRows = Math.max(1, Math.floor(availH / (baseColWidth + GRID_MARGIN)))
+  const totalRows = baseRows * FINE
+  const rowHeight = Math.max(2, availH / totalRows - GRID_MARGIN)
   return { gridWidth: gridW, rowHeight, totalRows }
 }
 
@@ -161,7 +162,7 @@ export default function ReplayViewer({
   const { data, error, loading } = useReplay(year, event, session)
   const playback = usePlayback(data?.duration ?? 0)
   const [selected, setSelected] = useState<string | null>(null)
-  const defaultLayout = useMemo(() => buildDefaultLayout(), [])
+  const defaultLayout = useMemo(() => scaleLayout(buildDefaultLayout(), FINE), [])
   const { layout, setLayout, reset } = usePersistedLayout(LAYOUT_STORAGE_KEY, defaultLayout)
   const [grid, setGrid] = useState(() => calcGrid(window.innerWidth, window.innerHeight))
 

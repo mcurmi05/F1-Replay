@@ -7,6 +7,7 @@ import editPencilIcon from '../assets/edit_pencil.png'
 import binDeleteIcon from '../assets/bin_delete.png'
 import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
+import { BASE_COLS, COLS, scaleLayout } from '../lib/layoutGrid'
 import type { TimingColumnState } from '../lib/timingColumns'
 import type { WeatherSample } from '../lib/api/types'
 
@@ -323,7 +324,7 @@ export function ReplayLayoutControls() {
     setSaving(true)
     setSaveError(null)
     try {
-      await api.saveLayout(name, callGetLayout() as unknown[], [...hiddenPanels], timingColumns)
+      await api.saveLayout(name, callGetLayout() as unknown[], [...hiddenPanels], timingColumns, COLS)
       setShowSave(false)
     } catch {
       setSaveError('Failed to save layout.')
@@ -350,7 +351,8 @@ export function ReplayLayoutControls() {
     setModalError(null)
     try {
       const full: SavedLayoutFull = await api.getLayout(id)
-      callSetLayout(full.layout as unknown as Layout)
+      const savedCols = full.cols ?? BASE_COLS
+      callSetLayout(scaleLayout(full.layout as unknown as Layout, COLS / savedCols))
       replaceHiddenPanels(full.hiddenPanels)
       setTimingColumns((full.timingColumns as TimingColumnState[] | null | undefined) ?? null)
       setShowLayouts(false)
@@ -379,7 +381,7 @@ export function ReplayLayoutControls() {
   async function doOverwrite(id: string) {
     setBusyId(id)
     try {
-      await api.updateLayout(id, undefined, callGetLayout() as unknown[], [...hiddenPanels], timingColumns)
+      await api.updateLayout(id, undefined, callGetLayout() as unknown[], [...hiddenPanels], timingColumns, COLS)
       setEditingId(null)
     } catch {
       setModalError('Could not update layout.')

@@ -104,7 +104,6 @@ export default function TrackMap({
     const r = Math.max(bounds.max_x - bounds.min_x, bounds.max_y - bounds.min_y) / 95
     const lineLen = r * 1.6
     return markers.flatMap((m) => {
-      // Snap to nearest track point and use its tangent for the perpendicular.
       let nearest = 0
       let bestDist = Infinity
       for (let i = 0; i < track.x.length; i += 1) {
