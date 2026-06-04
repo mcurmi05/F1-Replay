@@ -403,7 +403,7 @@ def _timing_streams(session):
         raise ReplayTimingError(f"FastF1 timing API failed: {exc}") from exc
 
 
-def _race_control_messages(session, first_sample_time_offset):
+def _race_control_messages(session, start):
     try:
         import fastf1._api as ff1_api
 
@@ -415,21 +415,26 @@ def _race_control_messages(session, first_sample_time_offset):
         if not times or len(times) == 0:
             return []
 
-        first_msg_ts = None
-        if hasattr(times[0], "timestamp"):
-            try:
-                first_msg_ts = times[0].timestamp()
-            except (TypeError, AttributeError):
-                pass
+        # Convert each message's UTC timestamp to the replay axis via the
+        # session's t0 (same anchoring as team radio), so they line up with
+        # race_start regardless of when the first message was issued.
+        t0 = getattr(session, "t0_date", None)
+        if t0 is not None:
+            t0 = pd.Timestamp(t0)
+            if t0.tzinfo is not None:
+                t0 = t0.tz_convert("UTC").tz_localize(None)
 
         result = []
-        for i, t in enumerate(msgs["Time"]):
+        for i, t in enumerate(times):
             msg_time = None
-            if hasattr(t, "timestamp") and first_msg_ts is not None:
+            if t0 is not None and t is not None:
                 try:
-                    msg_time = round(t.timestamp() - first_msg_ts + first_sample_time_offset, 1)
-                except (TypeError, AttributeError):
-                    pass
+                    ts = pd.Timestamp(t)
+                    if ts.tzinfo is not None:
+                        ts = ts.tz_convert("UTC").tz_localize(None)
+                    msg_time = round((ts - t0).total_seconds() - start, 1)
+                except Exception:
+                    msg_time = None
 
             msg = {
                 "time": msg_time,

@@ -365,6 +365,7 @@ export default function TeamRadioFeed({
                         {radioTime(clip.time)}
                       </span>
                       {(() => {
+                        if (isQuali) return null
                         if (origin !== null && clip.time < origin) return null
                         const lap = currentLapNumber(replay, clip.time)
                         return lap > 0 ? (

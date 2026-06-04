@@ -144,6 +144,10 @@ export default function ReplayViewer({
     }
   } else {
     clockRelative = relative
+    if (sessionWindow) {
+      markers.push({ time: sessionWindow.start, label: 'Start' })
+      markers.push({ time: sessionWindow.end, label: 'End' })
+    }
   }
   const board = lapMode ? lapLeaderboard(data, time, qStatus.segment) : leaderboard(data, time)
   const pitLabel = session === 'R' || session === 'Sprint' ? 'Race' : isQualifying ? 'Qualifying' : 'Practice'
