@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { teamColor } from '../../lib/format'
 import type { ReplayData } from '../../lib/api/types'
 import { useReplayLayout } from '../../hooks/useReplayLayout'
+import trackIcon from '../../assets/follow_target.png'
+
+const FOLLOW_ZOOM = 1.5
 
 function lerp(values: (number | null)[], i0: number, i1: number, frac: number): number | null {
   const a = values[i0]
@@ -32,16 +35,44 @@ export default function TrackMap({
   const [rotation, setRotation] = useState(0)
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
   const [showZoom, setShowZoom] = useState(false)
+  const [follow, setFollow] = useState(false)
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const followRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerAspect, setContainerAspect] = useState(1)
   const { setTrackRotation } = useReplayLayout()
   const vWRef = useRef(0)
   const vHRef = useRef(0)
 
+  followRef.current = follow
+
   useEffect(() => {
     setTrackRotation(rotation)
   }, [rotation, setTrackRotation])
+
+  useEffect(() => () => {
+    if (zoomTimerRef.current !== null) clearTimeout(zoomTimerRef.current)
+  }, [])
+
+  function pingZoom() {
+    setShowZoom(true)
+    if (zoomTimerRef.current !== null) clearTimeout(zoomTimerRef.current)
+    zoomTimerRef.current = setTimeout(() => setShowZoom(false), 2000)
+  }
+
+  function toggleFollow() {
+    if (!follow && !selected) return
+    setFollow((f) => {
+      const next = !f
+      if (next) {
+        pingZoom()
+        setView((v) => (v.zoom === 1 ? { zoom: FOLLOW_ZOOM, panX: 0, panY: 0 } : v))
+      } else {
+        setView({ zoom: 1, panX: 0, panY: 0 })
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     const el = containerRef.current
@@ -64,12 +95,11 @@ export default function TrackMap({
       const fy = (e.clientY - rect.top) / rect.height
       const vW = vWRef.current
       const vH = vHRef.current
-      setShowZoom(true)
-      if (zoomTimerRef.current !== null) clearTimeout(zoomTimerRef.current)
-      zoomTimerRef.current = setTimeout(() => setShowZoom(false), 2000)
+      pingZoom()
       setView((prev) => {
         const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
         const nextZoom = Math.max(1, Math.min(20, prev.zoom * factor))
+        if (followRef.current) return { ...prev, zoom: nextZoom }
         if (nextZoom === 1) return { zoom: 1, panX: 0, panY: 0 }
         const dPanX = vW * (fx - 0.5) * (1 / prev.zoom - 1 / nextZoom)
         const dPanY = vH * (fy - 0.5) * (1 / prev.zoom - 1 / nextZoom)
@@ -99,7 +129,6 @@ export default function TrackMap({
   const { zoom, panX, panY } = view
   const vwZ = vW / zoom
   const vhZ = vH / zoom
-  const viewBox = `${cx + panX - vwZ / 2} ${cy + panY - vhZ / 2} ${vwZ} ${vhZ}`
   const radius = Math.max(width, height) / 95
   const flipY = (y: number) => bounds.min_y + bounds.max_y - y
 
@@ -181,6 +210,17 @@ export default function TrackMap({
   const selY = selectedPath ? lerp(selectedPath.y, i0, i1, frac) : null
 
   const zoomPct = Math.round(zoom * 100)
+
+  let centerX = cx + panX
+  let centerY = cy + panY
+  if (follow && selX !== null && selY !== null) {
+    const px = selX
+    const py = flipY(selY)
+    const rr = (rotation * Math.PI) / 180
+    centerX = cx + (px - cx) * Math.cos(rr) - (py - cy) * Math.sin(rr)
+    centerY = cy + (px - cx) * Math.sin(rr) + (py - cy) * Math.cos(rr)
+  }
+  const viewBox = `${centerX - vwZ / 2} ${centerY - vhZ / 2} ${vwZ} ${vhZ}`
 
   return (
     <div ref={containerRef} className="relative h-full w-full">
@@ -294,18 +334,27 @@ export default function TrackMap({
       ) : null}
       </g>
     </svg>
-    {showZoom && zoomPct !== 100 ? (
-      <div className="pointer-events-none absolute bottom-10 left-1/2 z-10 -translate-x-1/2 font-mono text-[10px] tabular-nums text-zinc-400">
+    {showZoom ? (
+      <div className="pointer-events-none absolute right-2 top-2 z-10 rounded-full bg-zinc-900/80 px-2 py-0.5 font-mono text-[10px] tabular-nums text-zinc-300">
         {zoomPct}%
       </div>
     ) : null}
+    {!editMode ? (
+      <button
+        type="button"
+        onClick={toggleFollow}
+        disabled={!follow && !selected}
+        title={!selected ? 'Select a driver to follow' : follow ? 'Stop following driver' : 'Follow selected driver'}
+        className={`absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+          follow ? 'border-f1-red/50 bg-f1-red/20 text-red-300' : 'border-zinc-700 bg-zinc-900/80 text-zinc-400 hover:text-zinc-200'
+        }`}
+      >
+        <img src={trackIcon} alt="" className="h-5 w-5 opacity-80" />
+        <span className="whitespace-nowrap">Track driver</span>
+      </button>
+    ) : null}
     {editMode ? (
       <div onMouseDown={(e) => e.stopPropagation()} className="absolute bottom-2 left-2 right-2 z-10 flex flex-col gap-1">
-        {showZoom && zoomPct !== 100 ? (
-          <div className="flex justify-center">
-            <span className="font-mono text-[10px] tabular-nums text-zinc-500">{zoomPct}%</span>
-          </div>
-        ) : null}
         <div className="flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1">
           <input
             type="range"

@@ -330,6 +330,7 @@ export default function TeamRadioFeed({
                       src={driver.headshot_url}
                       alt=""
                       className="h-6 w-6 shrink-0 rounded-full bg-zinc-800 object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                     />
                   ) : null}
                   <span className={`font-semibold ${flagged ? 'text-zinc-500' : 'text-zinc-200'}`}>{label}</span>
