@@ -1,35 +1,45 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+
+import PanelGrid from '../components/replay/PanelGrid'
+import ReplayClock from '../components/replay/ReplayClock'
 import TimingTower from '../components/replay/TimingTower'
 import type { TimingTowerRow } from '../components/replay/TimingTower'
 import TrackMap from '../components/replay/TrackMap'
 import LiveRaceControl from '../components/live/LiveRaceControl'
 import LiveTeamRadio from '../components/live/LiveTeamRadio'
 import LivePitStops from '../components/live/LivePitStops'
+import LiveSpeedTrap from '../components/live/LiveSpeedTrap'
+import LiveTelemetry from '../components/live/LiveTelemetry'
 import { useLive } from '../hooks/useApi'
-import type { LiveRow, LiveState, ReplayData } from '../lib/api/types'
+import { useReplayLayout } from '../hooks/useReplayLayout'
+import type { PanelDef } from '../hooks/useReplayLayout'
+import { LIVE, liveCategoryFor, sessionCategory } from '../lib/defaultLayouts'
+import { trackStatusInfo } from '../lib/replay'
+import type { SectorCell } from '../lib/replay'
+import type { LiveRow, LiveState, LiveWeather, ReplayData, WeatherSample } from '../lib/api/types'
+
+const LIVE_PANEL_DEFS: PanelDef[] = [
+  { id: 'trackmap', label: 'Track Map' },
+  { id: 'telemetry', label: 'Telemetry' },
+  { id: 'timingTower', label: 'Timing Tower' },
+  { id: 'raceControl', label: 'Race Control' },
+  { id: 'pitStops', label: 'Pit Stops' },
+  { id: 'speedTrap', label: 'Speed Trap' },
+  { id: 'teamRadio', label: 'Team Radio' },
+]
+
+function parseNum(value: string | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = parseFloat(value)
+  return Number.isFinite(n) ? n : null
+}
 
 function parseLapTime(value: string | null | undefined): number | null {
   if (!value) return null
   let seconds = 0
   for (const part of value.split(':')) seconds = seconds * 60 + parseFloat(part)
   return Number.isFinite(seconds) ? seconds : null
-}
-
-function trackStatusStyle(message: string): string {
-  const text = message.toLowerCase()
-  if (text.includes('red')) {
-    return 'border-red-500/40 bg-red-500/15 text-red-400'
-  }
-  if (text.includes('safety') || text.includes('vsc')) {
-    return 'border-amber-500/40 bg-amber-500/15 text-amber-400'
-  }
-  if (text.includes('yellow')) {
-    return 'border-yellow-500/40 bg-yellow-500/15 text-yellow-300'
-  }
-  if (text.includes('clear')) {
-    return 'border-emerald-500/40 bg-emerald-500/15 text-emerald-400'
-  }
-  return 'border-zinc-700 bg-zinc-900/60 text-zinc-400'
 }
 
 function countdown(startUtc: string): string {
@@ -58,134 +68,69 @@ function Pill({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Header({ state }: { state: LiveState }) {
-  const session = state.session
-  if (!session) {
-    return null
+function liveWeatherToSample(weather: LiveWeather | null): WeatherSample | null {
+  if (!weather) return null
+  return {
+    time: 0,
+    air_temp: weather.air_temp,
+    track_temp: weather.track_temp,
+    humidity: weather.humidity,
+    pressure: weather.pressure,
+    wind_speed: weather.wind_speed,
+    wind_direction: weather.wind_direction,
+    rainfall: weather.rainfall,
   }
-  const isLive = state.live
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-surface p-6">
-      <div className="flex flex-wrap items-center gap-3">
-        {isLive ? (
-          <span className="inline-flex items-center gap-2 rounded-full border border-f1-red/40 bg-f1-red/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-f1-red">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-f1-red" />
-            Live
-          </span>
-        ) : (
-          <Pill>{state.source === 'historical' ? 'Latest result' : 'Session'}</Pill>
-        )}
-        {session.track_status.message ? (
-          <span
-            className={[
-              'inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider',
-              trackStatusStyle(session.track_status.message),
-            ].join(' ')}
-          >
-            {session.track_status.message}
-          </span>
-        ) : null}
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">{session.event_name}</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            {session.session_name}
-            {session.location ? ` · ${session.location}` : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-6">
-          {session.total_laps ? (
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wider text-zinc-500">Lap</p>
-              <p className="font-mono text-lg font-semibold text-white">
-                {session.current_lap ?? '-'}
-                <span className="text-zinc-600"> / {session.total_laps}</span>
-              </p>
-            </div>
-          ) : null}
-          {session.time_remaining ? (
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wider text-zinc-500">Remaining</p>
-              <p className="font-mono text-lg font-semibold text-white">{session.time_remaining}</p>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {state.weather ? (
-        <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-t border-zinc-800 pt-4 text-sm">
-          {state.weather.air_temp !== null ? (
-            <span className="text-zinc-400">
-              Air <span className="font-mono text-zinc-200">{state.weather.air_temp.toFixed(1)}°C</span>
-            </span>
-          ) : null}
-          {state.weather.track_temp !== null ? (
-            <span className="text-zinc-400">
-              Track{' '}
-              <span className="font-mono text-zinc-200">{state.weather.track_temp.toFixed(1)}°C</span>
-            </span>
-          ) : null}
-          {state.weather.humidity !== null ? (
-            <span className="text-zinc-400">
-              Humidity{' '}
-              <span className="font-mono text-zinc-200">{state.weather.humidity.toFixed(0)}%</span>
-            </span>
-          ) : null}
-          {state.weather.wind_speed !== null ? (
-            <span className="text-zinc-400">
-              Wind{' '}
-              <span className="font-mono text-zinc-200">{state.weather.wind_speed.toFixed(1)} m/s</span>
-            </span>
-          ) : null}
-          {state.weather.wind_direction !== null ? (
-            <span className="text-zinc-400">
-              Direction{' '}
-              <span className="font-mono text-zinc-200">{state.weather.wind_direction.toFixed(0)}°</span>
-            </span>
-          ) : null}
-          {state.weather.pressure !== null ? (
-            <span className="text-zinc-400">
-              Pressure{' '}
-              <span className="font-mono text-zinc-200">{state.weather.pressure.toFixed(1)} mb</span>
-            </span>
-          ) : null}
-          {state.weather.rainfall ? (
-            <span className="font-semibold text-blue-400">Rain</span>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  )
 }
 
-
 function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingTowerRow[] {
-  return rows.map((row) => ({
-    number: row.driver_number,
-    abbreviation: row.abbreviation,
-    team_colour: row.team_colour,
-    position: row.position,
-    compound: row.compound,
-    tyre_age: null,
-    pitted: row.in_pit,
-    interval: row.interval,
-    gap_leader: row.gap,
-    best_lap: parseLapTime(stats?.[row.driver_number]?.best_lap ?? row.best_lap),
-    best_lap_compound: null,
-    best_lap_tyre_age: null,
-    last_lap: parseLapTime(row.last_lap),
-    live_sectors: [],
-    best_sectors: [],
-    personal_best_sectors: [],
-  }))
+  // Fastest current sector and fastest personal-best sector across the field,
+  // so the leading cell in each can be highlighted purple.
+  const liveMin = [Infinity, Infinity, Infinity]
+  const pbMin = [Infinity, Infinity, Infinity]
+  for (const r of rows) {
+    const live = [parseNum(r.sector_1), parseNum(r.sector_2), parseNum(r.sector_3)]
+    live.forEach((v, i) => { if (v !== null && v < liveMin[i]) liveMin[i] = v })
+    const bs = stats?.[r.driver_number]?.best_sectors ?? []
+    bs.forEach((val, i) => { const v = parseNum(val); if (v !== null && v < pbMin[i]) pbMin[i] = v })
+  }
+
+  return rows.map((row) => {
+    const liveVals = [parseNum(row.sector_1), parseNum(row.sector_2), parseNum(row.sector_3)]
+    const livePb = [row.sector_1_pb, row.sector_2_pb, row.sector_3_pb]
+    const live_sectors: SectorCell[] = liveVals.map((v, i) => ({
+      value: v,
+      tone: v === null ? null : v === liveMin[i] ? 'best' : livePb[i] ? 'pb' : 'set',
+    }))
+    const bestSectorVals = (stats?.[row.driver_number]?.best_sectors ?? []).map(parseNum)
+    const personal_best_sectors: SectorCell[] = [0, 1, 2].map((i) => {
+      const v = bestSectorVals[i] ?? null
+      return { value: v, tone: v === null ? null : v === pbMin[i] ? 'best' : 'pb' }
+    })
+
+    return {
+      number: row.driver_number,
+      abbreviation: row.abbreviation,
+      team_colour: row.team_colour,
+      position: row.position,
+      compound: row.compound,
+      tyre_age: row.tyre_age,
+      pitted: row.in_pit,
+      interval: row.interval,
+      gap_leader: row.gap,
+      best_lap: parseLapTime(stats?.[row.driver_number]?.best_lap ?? row.best_lap),
+      best_lap_compound: null,
+      best_lap_tyre_age: null,
+      last_lap: parseLapTime(row.last_lap),
+      live_sectors,
+      best_sectors: [],
+      personal_best_sectors,
+    }
+  })
 }
 
 function liveToReplayData(data: LiveState): ReplayData | null {
   if (!data.rows.length) return null
 
-  // Calculate bounds from current car positions and track
   const positions = data.rows.filter((r) => r.x !== null && r.y !== null)
   if (!positions.length) return null
 
@@ -201,16 +146,17 @@ function liveToReplayData(data: LiveState): ReplayData | null {
   const min_y = Math.min(...allY)
   const max_y = Math.max(...allY)
 
-  // Add margin
   const margin_x = (max_x - min_x) * 0.15 || 100
   const margin_y = (max_y - min_y) * 0.15 || 100
+
+  const tsCode = data.session?.track_status.code ?? null
 
   return {
     available: true,
     step: 1,
     duration: 0,
     race_start: null,
-    track_status: [],
+    track_status: tsCode ? [{ start: 0, code: tsCode, message: data.session?.track_status.message || null }] : [],
     total_laps: data.session?.total_laps ?? null,
     time: [0],
     track: data.track,
@@ -274,11 +220,99 @@ function EmptyState({ state }: { state: LiveState }) {
   )
 }
 
+function LiveBoard({ data }: { data: LiveState }) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const { setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
+
+  const session = data.session
+  const sessionType = session?.session_type ?? 'FP1'
+  const lapMode = sessionType !== 'R' && sessionType !== 'Sprint'
+  const scopeKey = `live-${sessionCategory(sessionType)}`
+  const category = liveCategoryFor(sessionType)
+
+  const board = useMemo(() => toTowerRows(data.rows, data.timing_stats), [data.rows, data.timing_stats])
+  const replayData = useMemo(() => liveToReplayData(data), [data])
+  const weatherSample = useMemo(() => liveWeatherToSample(data.weather), [data.weather])
+
+  useEffect(() => {
+    if (!session) return
+    setTitleInfo({ eventName: session.event_name, sessionName: session.session_name, location: session.location })
+    setSessionNav(null)
+    return () => {
+      setTitleInfo(null)
+      setSessionNav(null)
+    }
+  }, [session, setTitleInfo, setSessionNav])
+
+  const flag = session?.track_status.code ?? null
+  useEffect(() => {
+    setStatusInfo({ status: trackStatusInfo(flag), weather: weatherSample })
+    return () => setStatusInfo(null)
+  }, [flag, weatherSample, setStatusInfo])
+
+  const liveHeader = (
+    <ReplayClock
+      relative={parseLapTime(session?.time_remaining)}
+      lap={session?.current_lap ?? 0}
+      totalLaps={session?.total_laps ?? null}
+      label={session && !session.total_laps ? session.session_name : null}
+      hideHours={sessionType === 'Q' || sessionType === 'SQ'}
+    />
+  )
+
+  const panels: Record<string, ReactNode> = {
+    trackmap: (
+      <div className="relative h-full w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
+        <div className="absolute inset-0 overflow-hidden p-3">
+          {replayData ? (
+            <TrackMap replay={replayData} currentTime={0} selected={selected} onSelect={setSelected} />
+          ) : data.live ? (
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <div className="h-12 w-12 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
+              <p className="mt-4 text-sm text-zinc-400">Waiting for car positions...</p>
+            </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+              <p className="text-sm font-medium text-zinc-400">No live session</p>
+              <p className="mt-1 text-xs leading-snug text-zinc-600">
+                The track map appears here once a session is running and cars are on track.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    ),
+    timingTower: (
+      <TimingTower
+        rows={board}
+        selected={selected}
+        onSelect={setSelected}
+        mode={lapMode ? 'lap' : 'race'}
+        columns={timingColumns}
+        onColumnsChange={setTimingColumns}
+        header={liveHeader}
+      />
+    ),
+    telemetry: <LiveTelemetry row={selected ? data.rows.find((r) => r.driver_number === selected) ?? null : null} />,
+    raceControl: <LiveRaceControl messages={data.race_control_messages} />,
+    pitStops: <LivePitStops times={data.pit_times ?? []} drivers={data.rows} />,
+    speedTrap: <LiveSpeedTrap rows={data.rows} />,
+    teamRadio: <LiveTeamRadio clips={data.team_radio} drivers={data.rows} />,
+  }
+
+  return (
+    <PanelGrid
+      scopeKey={scopeKey}
+      category={category}
+      sessionDefault={LIVE}
+      panelDefs={LIVE_PANEL_DEFS}
+      panels={panels}
+    />
+  )
+}
+
 export default function Live() {
   const { data, error, loading } = useLive()
-  const [selected, setSelected] = useState<string | null>(null)
-  const board = useMemo(() => (data ? toTowerRows(data.rows, data.timing_stats) : []), [data])
-  const replayData = useMemo(() => (data ? liveToReplayData(data) : null), [data])
 
   if (loading && !data) {
     return (
@@ -305,38 +339,5 @@ export default function Live() {
     return <EmptyState state={data} />
   }
 
-  return (
-    <div className="space-y-4">
-      <Header state={data} />
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1fr_300px] min-h-[500px]">
-        <div className="relative w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
-          <div className="absolute inset-0 p-3">
-            {replayData ? (
-              <TrackMap replay={replayData} currentTime={0} selected={selected} onSelect={setSelected} />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center text-center">
-                <div className="h-12 w-12 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
-                <p className="mt-4 text-sm text-zinc-400">Loading track map...</p>
-              </div>
-            )}
-          </div>
-        </div>
-        <div>
-          {data.rows.length > 0 ? (
-            <TimingTower rows={board} selected={selected} onSelect={setSelected} />
-          ) : (
-            <div className="flex items-center justify-center gap-3 rounded-2xl border border-zinc-800 bg-surface py-16 text-zinc-400">
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
-              Connecting...
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <LiveRaceControl messages={data.race_control_messages} />
-        <LivePitStops times={data.pit_times ?? []} drivers={data.rows} />
-        <LiveTeamRadio clips={data.team_radio} drivers={data.rows} />
-      </div>
-    </div>
-  )
+  return <LiveBoard data={data} />
 }

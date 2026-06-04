@@ -154,7 +154,7 @@ export interface LiveState {
   race_control_messages: RaceControlMessage[]
   team_radio: TeamRadioClip[]
   pit_times?: LivePitTime[]
-  timing_stats?: Record<string, { best_lap: string | null; best_lap_position: number | null }>
+  timing_stats?: Record<string, LiveTimingStat>
   track: { x: number[]; y: number[]; sector_markers?: { x: number; y: number }[] }
   next_session: LiveNextSession | null
   updated_at: string
@@ -164,6 +164,13 @@ export interface LivePitTime {
   driver_number: string
   duration: string | null
   lap: number | null
+}
+
+export interface LiveTimingStat {
+  best_lap: string | null
+  best_lap_position: number | null
+  best_sectors: (string | null)[]
+  best_speeds: { i1?: string | null; i2?: string | null; fl?: string | null; st?: string | null }
 }
 
 export interface ReplayDriver {

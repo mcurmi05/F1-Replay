@@ -465,9 +465,26 @@ def _timing_stats_live(topics):
             continue
         pb = line.get("PersonalBestLapTime")
         pb = pb if isinstance(pb, dict) else {}
+
+        best_sectors = [None, None, None]
+        sectors = line.get("BestSectors")
+        if isinstance(sectors, list):
+            for i, sec in enumerate(sectors[:3]):
+                if isinstance(sec, dict):
+                    best_sectors[i] = _clean(sec.get("Value"))
+
+        best_speeds = {}
+        speeds = line.get("BestSpeeds")
+        if isinstance(speeds, dict):
+            for key, short in [("I1", "i1"), ("I2", "i2"), ("FL", "fl"), ("ST", "st")]:
+                sp = speeds.get(key)
+                best_speeds[short] = _clean(sp.get("Value")) if isinstance(sp, dict) else None
+
         result[str(number)] = {
             "best_lap": _clean(pb.get("Value")),
             "best_lap_position": _to_int(pb.get("Position")),
+            "best_sectors": best_sectors,
+            "best_speeds": best_speeds,
         }
     return result
 
@@ -820,7 +837,7 @@ def _historical_rows(session):
             "stint": None,
             "in_pit": False,
             "retired": bool(status and status not in ("Finished",) and not status.startswith("+")),
-            "status": None if (status == "Finished" or (status or "").startswith("+")) else status,
+            "status": None if (status == "Finished" or (status or "").startswith("+")) else _abbrev_status(status),
         })
 
     rows.sort(key=lambda item: item["position"] if item["position"] is not None else 999)
@@ -853,9 +870,29 @@ def _historical_rows_with_new_fields(rows):
     return rows
 
 
+STATUS_ABBREV = {
+    "did not start": "DNS",
+    "did not qualify": "DNQ",
+    "disqualified": "DSQ",
+    "withdrew": "WD",
+    "not classified": "NC",
+}
+
+
+def _abbrev_status(status):
+    if not status:
+        return status
+    low = status.strip().lower()
+    if low in STATUS_ABBREV:
+        return STATUS_ABBREV[low]
+    if low == "finished" or low.startswith("+"):
+        return status
+    return "DNF"
+
+
 def _result_gap(position, time_value, status):
     if status and status != "Finished" and not status.startswith("+"):
-        return status
+        return _abbrev_status(status)
     if position == 1:
         return "Leader"
     if time_value is None:

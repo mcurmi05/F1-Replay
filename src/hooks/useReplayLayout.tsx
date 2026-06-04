@@ -12,7 +12,6 @@ import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 import { BASE_COLS, COLS, scaleLayout } from '../lib/layoutGrid'
 import type { TimingColumnState } from '../lib/timingColumns'
-import { sessionCategory } from '../lib/defaultLayouts'
 import type { SessionDefault, LayoutCategory } from '../lib/defaultLayouts'
 import type { WeatherSample } from '../lib/api/types'
 
@@ -55,7 +54,7 @@ interface ReplayLayoutContextValue {
   timingColumns: TimingColumnState[] | null
   setTimingColumns: (next: TimingColumnState[] | null) => void
   category: LayoutCategory | null
-  applyScope: (session: string, def: SessionDefault) => void
+  applyScope: (scope: string, def: SessionDefault, category: LayoutCategory) => void
   setActive: (value: boolean) => void
   setEditMode: (value: boolean) => void
   setTitleInfo: (info: TitleInfo | null) => void
@@ -111,18 +110,18 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const applyScope = useCallback((session: string, def: SessionDefault) => {
-    scopeRef.current = session
+  const applyScope = useCallback((scope: string, def: SessionDefault, cat: LayoutCategory) => {
+    scopeRef.current = scope
     defaultRef.current = def
-    setCategory(sessionCategory(session))
+    setCategory(cat)
     try {
-      const rawHidden = localStorage.getItem(keyFor(HIDDEN_PANELS_KEY, session))
+      const rawHidden = localStorage.getItem(keyFor(HIDDEN_PANELS_KEY, scope))
       setHiddenPanels(new Set<string>(rawHidden ? JSON.parse(rawHidden) : def.hiddenPanels))
     } catch {
       setHiddenPanels(new Set(def.hiddenPanels))
     }
     try {
-      const rawCols = localStorage.getItem(keyFor(TIMING_COLUMNS_KEY, session))
+      const rawCols = localStorage.getItem(keyFor(TIMING_COLUMNS_KEY, scope))
       setTimingColumnsState(rawCols ? (JSON.parse(rawCols) as TimingColumnState[]) : def.timingColumns)
     } catch {
       setTimingColumnsState(def.timingColumns)
@@ -232,20 +231,22 @@ export function ReplayTitleBadge() {
   return (
     <>
       <span className="mx-2 h-5 w-px bg-zinc-800" />
-      {sessionNav?.prev ? (
-        <button
-          type="button"
-          onClick={() => navigate(sessionNav.prev!)}
-          title="Previous session"
-          className="flex items-center justify-center rounded p-1 text-zinc-400 hover:bg-zinc-800/60 hover:text-white transition-colors"
-        >
-          <img src={skipBackwardIcon} alt="Previous session" className="h-5 w-5 opacity-70" />
-        </button>
-      ) : (
-        <span className="flex h-7 w-7 items-center justify-center rounded p-1 opacity-20">
-          <img src={skipBackwardIcon} alt="" className="h-5 w-5" />
-        </span>
-      )}
+      {sessionNav ? (
+        sessionNav.prev ? (
+          <button
+            type="button"
+            onClick={() => navigate(sessionNav.prev!)}
+            title="Previous session"
+            className="flex items-center justify-center rounded p-1 text-zinc-400 hover:bg-zinc-800/60 hover:text-white transition-colors"
+          >
+            <img src={skipBackwardIcon} alt="Previous session" className="h-5 w-5 opacity-70" />
+          </button>
+        ) : (
+          <span className="flex h-7 w-7 items-center justify-center rounded p-1 opacity-20">
+            <img src={skipBackwardIcon} alt="" className="h-5 w-5" />
+          </span>
+        )
+      ) : null}
       <div className="flex items-center gap-2 text-sm">
         <span className="font-semibold text-white">{titleInfo.eventName}</span>
         {titleInfo.sessionName ? (
@@ -261,20 +262,22 @@ export function ReplayTitleBadge() {
           </>
         ) : null}
       </div>
-      {sessionNav?.next ? (
-        <button
-          type="button"
-          onClick={() => navigate(sessionNav.next!)}
-          title="Next session"
-          className="flex items-center justify-center rounded p-1 text-zinc-400 hover:bg-zinc-800/60 hover:text-white transition-colors"
-        >
-          <img src={skipForwardIcon} alt="Next session" className="h-5 w-5 opacity-70" />
-        </button>
-      ) : (
-        <span className="flex h-7 w-7 items-center justify-center rounded p-1 opacity-20">
-          <img src={skipForwardIcon} alt="" className="h-5 w-5" />
-        </span>
-      )}
+      {sessionNav ? (
+        sessionNav.next ? (
+          <button
+            type="button"
+            onClick={() => navigate(sessionNav.next!)}
+            title="Next session"
+            className="flex items-center justify-center rounded p-1 text-zinc-400 hover:bg-zinc-800/60 hover:text-white transition-colors"
+          >
+            <img src={skipForwardIcon} alt="Next session" className="h-5 w-5 opacity-70" />
+          </button>
+        ) : (
+          <span className="flex h-7 w-7 items-center justify-center rounded p-1 opacity-20">
+            <img src={skipForwardIcon} alt="" className="h-5 w-5" />
+          </span>
+        )
+      ) : null}
     </>
   )
 }
@@ -366,7 +369,8 @@ export function ReplayLayoutControls() {
   if (!active) return null
 
   const hiddenDefs = panelDefs.filter((p) => hiddenPanels.has(p.id))
-  const defaultName = category ? `${category[0].toUpperCase()}${category.slice(1)} Default` : 'Default'
+  const leaf = category ? category.split('-').pop()! : ''
+  const defaultName = leaf ? `${leaf[0].toUpperCase()}${leaf.slice(1)} Default` : 'Default'
   const customLayouts = layouts.filter((l) => l.name !== defaultName)
 
   function openSaveModal() {

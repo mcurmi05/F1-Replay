@@ -524,40 +524,25 @@ export function currentRaceControlFlag(
 
 export interface FlagOverlay {
   whole: 'red' | 'sc' | 'vsc' | 'yellow' | null
-  yellowSectors: number[]
-  totalSectors: number
 }
 
 export function flagOverlay(replay: ReplayData, time: number): FlagOverlay {
   const messages = replay.race_control_messages ?? []
-
-  let totalSectors = 0
-  for (const m of messages) {
-    if (m.sector !== null && m.sector > totalSectors) totalSectors = m.sector
-  }
-
   const ordered = messages
     .filter((m) => m.time !== null && (m.flag !== null || m.category === 'Flag'))
     .sort((a, b) => (a.time ?? 0) - (b.time ?? 0))
 
   let trackYellow = false
   let red = false
-  const yellowSectors = new Set<number>()
   for (const msg of ordered) {
     if (msg.time === null || msg.time > time) break
     const flag = (msg.flag ?? '').trim().toUpperCase()
     const scope = (msg.scope ?? '').trim().toUpperCase()
-    if (!flag) continue
-    if (flag === 'YELLOW' || flag === 'DOUBLE YELLOW') {
-      if (scope === 'SECTOR' && msg.sector !== null) yellowSectors.add(msg.sector)
-      else trackYellow = true
-    } else if (flag === 'CLEAR' || flag === 'GREEN') {
-      if (scope === 'SECTOR' && msg.sector !== null) yellowSectors.delete(msg.sector)
-      else {
-        trackYellow = false
-        yellowSectors.clear()
-        red = false
-      }
+    if (!flag || scope === 'SECTOR') continue
+    if (flag === 'YELLOW' || flag === 'DOUBLE YELLOW') trackYellow = true
+    else if (flag === 'CLEAR' || flag === 'GREEN') {
+      trackYellow = false
+      red = false
     } else if (flag === 'RED') {
       red = true
     }
@@ -571,11 +556,7 @@ export function flagOverlay(replay: ReplayData, time: number): FlagOverlay {
   else if (tsCode === '6' || tsCode === '7') whole = 'vsc'
   else if (trackYellow) whole = 'yellow'
 
-  return {
-    whole,
-    yellowSectors: whole ? [] : [...yellowSectors],
-    totalSectors,
-  }
+  return { whole }
 }
 
 export function mergeFlagCodes(a: string | null, b: string | null): string | null {

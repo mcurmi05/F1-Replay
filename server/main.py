@@ -49,21 +49,24 @@ class UpdateLayoutRequest(BaseModel):
     cols: int | None = None
 
 
-LAYOUT_CATEGORIES = ("practice", "qualifying", "race")
-
-
-def _layout_category(category: str) -> str:
-    cat = (category or "").lower()
-    if cat not in LAYOUT_CATEGORIES:
-        raise HTTPException(status_code=400, detail="Invalid layout category")
-    return cat
+LAYOUT_CATEGORY_DIRS = {
+    "practice": ("practice",),
+    "qualifying": ("qualifying",),
+    "race": ("race",),
+    "live-practice": ("live", "practice"),
+    "live-qualifying": ("live", "qualifying"),
+    "live-race": ("live", "race"),
+}
 
 
 def _layouts_dir(category: str):
     cache = f1data.get_cache()
     if not cache:
         raise HTTPException(status_code=409, detail="No cache folder selected")
-    d = Path(cache) / "layouts" / _layout_category(category)
+    parts = LAYOUT_CATEGORY_DIRS.get((category or "").lower())
+    if not parts:
+        raise HTTPException(status_code=400, detail="Invalid layout category")
+    d = Path(cache, "layouts", *parts)
     d.mkdir(parents=True, exist_ok=True)
     return d
 

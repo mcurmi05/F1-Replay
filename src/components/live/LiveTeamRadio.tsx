@@ -26,9 +26,9 @@ export default function LiveTeamRadio({
   drivers: LiveRow[]
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-surface p-3">
+    <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Team Radio</p>
-      <div className="mt-2 flex max-h-60 flex-col gap-2 overflow-y-auto">
+      <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {clips.length === 0 ? (
           <p className="text-xs text-zinc-500">No radio transmissions</p>
         ) : (
