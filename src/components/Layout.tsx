@@ -2,7 +2,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import homeIcon from '../assets/home.png'
 import CacheSettings from './CacheSettings'
-import { ReplayLayoutControls, ReplayLayoutProvider, ReplayTitleBadge } from '../hooks/useReplayLayout'
+import { ReplayLayoutControls, ReplayLayoutProvider, ReplayStatusBar, ReplayTitleBadge } from '../hooks/useReplayLayout'
 
 const navItems: { to: string; label: string; live?: boolean }[] = [
   { to: '/live', label: 'Live', live: true },
@@ -36,6 +36,7 @@ export default function Layout() {
               <img src={homeIcon} alt="Home" className="h-6 w-6" />
             </NavLink>
             <ReplayTitleBadge />
+            <ReplayStatusBar />
           </div>
           <nav className="flex items-center gap-1">
             {navItems.map((item) => (

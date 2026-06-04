@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { teamColor } from '../../lib/format'
 import type { ReplayData } from '../../lib/api/types'
@@ -20,17 +20,25 @@ export default function TrackMap({
   currentTime,
   selected,
   onSelect,
+  editMode = false,
 }: {
   replay: ReplayData
   currentTime: number
   selected: string | null
   onSelect: (driver: string) => void
+  editMode?: boolean
 }) {
+  const [rotation, setRotation] = useState(0)
   const { bounds, track, step, time } = replay
   const width = bounds.max_x - bounds.min_x
   const height = bounds.max_y - bounds.min_y
-  const pad = Math.max(width, height) * 0.06
-  const viewBox = `${bounds.min_x - pad} ${bounds.min_y - pad} ${width + 2 * pad} ${height + 2 * pad}`
+  const cx = (bounds.min_x + bounds.max_x) / 2
+  const cy = (bounds.min_y + bounds.max_y) / 2
+  const rad = (rotation * Math.PI) / 180
+  const rotW = Math.abs(width * Math.cos(rad)) + Math.abs(height * Math.sin(rad))
+  const rotH = Math.abs(width * Math.sin(rad)) + Math.abs(height * Math.cos(rad))
+  const pad = Math.max(rotW, rotH) * 0.06
+  const viewBox = `${cx - rotW / 2 - pad} ${cy - rotH / 2 - pad} ${rotW + 2 * pad} ${rotH + 2 * pad}`
   const radius = Math.max(width, height) / 95
   const flipY = (y: number) => bounds.min_y + bounds.max_y - y
 
@@ -52,7 +60,9 @@ export default function TrackMap({
   const selY = selectedPath ? lerp(selectedPath.y, i0, i1, frac) : null
 
   return (
+    <div className="relative h-full w-full">
     <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" className="h-full w-full pointer-events-none" style={{ overflowAnchor: 'none' }}>
+      <g transform={`rotate(${rotation} ${cx} ${cy})`}>
       <polyline
         points={trackPoints}
         fill="none"
@@ -91,6 +101,7 @@ export default function TrackMap({
         <text
           x={selX + radius * 1.8}
           y={flipY(selY) - radius}
+          transform={`rotate(${-rotation} ${selX + radius * 1.8} ${flipY(selY) - radius})`}
           fontSize={radius * 2.6}
           fill="#ffffff"
           stroke="#000000"
@@ -101,6 +112,31 @@ export default function TrackMap({
           {selectedDriver.abbreviation ?? selectedDriver.number}
         </text>
       ) : null}
+      </g>
     </svg>
+      {editMode ? <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1">
+        <button
+          type="button"
+          onClick={() => setRotation(0)}
+          title="Reset rotation"
+          className="shrink-0 text-zinc-400 hover:text-white"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 1 1-3-6.7" />
+            <path d="M21 3v5h-5" />
+          </svg>
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={359}
+          value={rotation}
+          onChange={(e) => setRotation(Number(e.target.value))}
+          title={`Rotate ${rotation}°`}
+          className="h-1 w-28 cursor-pointer accent-f1-red"
+        />
+        <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums text-zinc-400">{rotation}°</span>
+      </div> : null}
+    </div>
   )
 }

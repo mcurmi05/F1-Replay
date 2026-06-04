@@ -35,16 +35,28 @@ const CANONICAL_ORDER: TimingColumnId[] = [
   'driver',
   'interval',
   'leader',
+  'bestSectors',
+  'bestLap',
+  'bestTyre',
+  'pbSectors',
   'lastLap',
   'sectors',
-  'bestLap',
-  'bestSectors',
-  'pbSectors',
   'tyre',
-  'bestTyre',
 ]
 
-const RACE_VISIBLE: TimingColumnId[] = ['pos', 'driver', 'interval', 'leader', 'sectors', 'bestLap', 'tyre']
+const RACE_VISIBLE: TimingColumnId[] = [
+  'pos',
+  'driver',
+  'interval',
+  'leader',
+  'bestSectors',
+  'bestLap',
+  'bestTyre',
+  'pbSectors',
+  'lastLap',
+  'sectors',
+  'tyre',
+]
 const LAP_VISIBLE: TimingColumnId[] = ['pos', 'driver', 'bestLap', 'pbSectors', 'sectors', 'tyre']
 
 export function defaultColumns(mode: 'race' | 'lap'): TimingColumnState[] {

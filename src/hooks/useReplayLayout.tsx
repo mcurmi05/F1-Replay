@@ -8,6 +8,7 @@ import binDeleteIcon from '../assets/bin_delete.png'
 import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 import type { TimingColumnState } from '../lib/timingColumns'
+import type { WeatherSample } from '../lib/api/types'
 
 const HIDDEN_PANELS_KEY = 'f1replay.hiddenPanels.v1'
 const TIMING_COLUMNS_KEY = 'f1replay.timingColumns.v1'
@@ -16,6 +17,11 @@ interface TitleInfo {
   eventName: string | null
   sessionName: string | null
   location: string | null
+}
+
+interface StatusInfo {
+  status: { color: string; background: string; flag: string; label: string }
+  weather: WeatherSample | null
 }
 
 export interface PanelDef {
@@ -27,6 +33,7 @@ interface ReplayLayoutContextValue {
   active: boolean
   editMode: boolean
   titleInfo: TitleInfo | null
+  statusInfo: StatusInfo | null
   panelDefs: PanelDef[]
   hiddenPanels: Set<string>
   timingColumns: TimingColumnState[] | null
@@ -34,6 +41,7 @@ interface ReplayLayoutContextValue {
   setActive: (value: boolean) => void
   setEditMode: (value: boolean) => void
   setTitleInfo: (info: TitleInfo | null) => void
+  setStatusInfo: (info: StatusInfo | null) => void
   toggleEditMode: () => void
   registerReset: (fn: (() => void) | null) => void
   reset: () => void
@@ -54,6 +62,7 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
   const [active, setActive] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [titleInfo, setTitleInfo] = useState<TitleInfo | null>(null)
+  const [statusInfo, setStatusInfo] = useState<StatusInfo | null>(null)
   const [panelDefs, setPanelDefs] = useState<PanelDef[]>([])
   const [hiddenPanels, setHiddenPanels] = useState<Set<string>>(() => {
     try {
@@ -161,14 +170,14 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      active, editMode, titleInfo, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
-      setActive, setEditMode, setTitleInfo, toggleEditMode,
+      active, editMode, titleInfo, statusInfo, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
+      setActive, setEditMode, setTitleInfo, setStatusInfo, toggleEditMode,
       registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
     }),
     [
-      active, editMode, titleInfo, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
+      active, editMode, titleInfo, statusInfo, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
       toggleEditMode, registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
@@ -208,6 +217,68 @@ export function ReplayTitleBadge() {
         ) : null}
       </div>
     </>
+  )
+}
+
+function formatStat(value: number | null, suffix: string, digits = 0): string {
+  if (value === null) return '-'
+  return `${value.toFixed(digits)}${suffix}`
+}
+
+function StatItem({ label, value, dir }: { label: string; value: string; dir?: number }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">{label}</span>
+      {dir !== undefined ? (
+        <svg
+          viewBox="0 0 24 24"
+          className="h-3 w-3 shrink-0 text-white"
+          style={{ transform: `rotate(${dir}deg)` }}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 21V4M12 4l-5 6M12 4l5 6" />
+        </svg>
+      ) : null}
+      <span className="font-mono font-semibold text-white">{value}</span>
+    </span>
+  )
+}
+
+export function ReplayStatusBar() {
+  const { active, statusInfo } = useReplayLayout()
+  if (!active || !statusInfo) return null
+  const { status, weather } = statusInfo
+  return (
+    <div className="flex items-center gap-2">
+      <span className="mx-1 h-5 w-px bg-zinc-800" />
+      <span
+        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-bold"
+        style={{ color: status.color, backgroundColor: status.background }}
+      >
+        <img src={status.flag} alt="" className="h-4 w-4" />
+        {status.label}
+      </span>
+      {weather ? (
+        <div className="flex items-center gap-2.5 rounded-md bg-zinc-900/60 px-2.5 py-1 text-xs">
+          {weather.rainfall ? (
+            <span className="inline-flex items-center gap-1 rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-blue-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+              Rain
+            </span>
+          ) : null}
+          <StatItem label="Track" value={formatStat(weather.track_temp, '°', 1)} />
+          <StatItem label="Air" value={formatStat(weather.air_temp, '°', 1)} />
+          <StatItem label="Hum" value={formatStat(weather.humidity, '%', 0)} />
+          <StatItem label="Pres" value={formatStat(weather.pressure, '', 0)} />
+          <StatItem label="Wind" value={formatStat(weather.wind_speed, '', 1)} dir={weather.wind_direction ?? 0} />
+        </div>
+      ) : null}
+    </div>
   )
 }
 

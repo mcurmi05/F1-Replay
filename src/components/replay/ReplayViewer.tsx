@@ -13,7 +13,6 @@ import TeamRadioFeed from './TeamRadioFeed'
 import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
 import TrackMap from './TrackMap'
-import WeatherPanel from './WeatherPanel'
 import { useReplay } from '../../hooks/useApi'
 import { usePlayback } from '../../hooks/usePlayback'
 import { usePersistedLayout } from '../../hooks/usePersistedLayout'
@@ -99,15 +98,15 @@ function HidePanelButton({ onHide }: { onHide: () => void }) {
 
 function buildDefaultLayout(): Layout {
   return [
-    { i: 'trackmap',     x: 0,  y: 0,  w: 10, h: 9,  minW: 4, minH: 4 },
-    { i: 'teamRadio',    x: 0,  y: 9,  w: 10, h: 3,  minW: 3, minH: 2 },
-    { i: 'telemetry',    x: 10, y: 0,  w: 14, h: 4,  minW: 4, minH: 2 },
-    { i: 'raceControl',  x: 10, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
-    { i: 'pitStops',     x: 17, y: 4,  w: 7,  h: 8,  minW: 2, minH: 2 },
-    { i: 'timingTower',  x: 24, y: 0,  w: 8,  h: 9,  minW: 6, minH: 6 },
-    { i: 'sessionBests', x: 24, y: 9,  w: 8,  h: 3,  minW: 4, minH: 2 },
-    { i: 'speedTrap',    x: 24, y: 12, w: 8,  h: 2,  minW: 3, minH: 2 },
-    { i: 'playback',     x: 0,  y: 12, w: 24, h: 2,  minW: 6, minH: 2 },
+    { i: 'trackmap',     x: 0,  y: 0,  w: 7,  h: 12, minW: 4, minH: 4 },
+    { i: 'telemetry',    x: 7,  y: 0,  w: 9,  h: 4,  minW: 4, minH: 2 },
+    { i: 'sessionBests', x: 7,  y: 4,  w: 5,  h: 4,  minW: 4, minH: 2 },
+    { i: 'teamRadio',    x: 7,  y: 8,  w: 5,  h: 4,  minW: 3, minH: 2 },
+    { i: 'raceControl',  x: 12, y: 4,  w: 4,  h: 3,  minW: 2, minH: 2 },
+    { i: 'pitStops',     x: 12, y: 7,  w: 4,  h: 3,  minW: 2, minH: 2 },
+    { i: 'speedTrap',    x: 12, y: 10, w: 4,  h: 2,  minW: 3, minH: 2 },
+    { i: 'timingTower',  x: 16, y: 0,  w: 16, h: 14, minW: 6, minH: 6 },
+    { i: 'playback',     x: 0,  y: 12, w: 16, h: 2,  minW: 6, minH: 2 },
   ]
 }
 
@@ -171,7 +170,7 @@ export default function ReplayViewer({
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  const { editMode, setActive, setEditMode, setTitleInfo, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors, timingColumns, setTimingColumns } = useReplayLayout()
+  const { editMode, setActive, setEditMode, setTitleInfo, setStatusInfo, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors, timingColumns, setTimingColumns } = useReplayLayout()
 
   useEffect(() => {
     setActive(true)
@@ -225,6 +224,19 @@ export default function ReplayViewer({
 
   const visibleLayout = fullLayout.filter((item) => !hiddenPanels.has(item.i))
 
+  const time = playback.currentTime
+  const effectiveFlag = data ? mergeFlagCodes(
+    currentTrackStatus(data.track_status, time)?.code ?? null,
+    currentRaceControlFlag(data.race_control_messages, time),
+  ) : null
+  const weather = data ? currentWeather(data.weather, time) : null
+
+  useEffect(() => {
+    if (!data) return
+    setStatusInfo({ status: trackStatusInfo(effectiveFlag), weather })
+    return () => setStatusInfo(null)
+  }, [data, effectiveFlag, weather, setStatusInfo])
+
   if (loading || error || !data || !data.available) {
     return (
       <div className="space-y-4">
@@ -237,7 +249,6 @@ export default function ReplayViewer({
     )
   }
 
-  const time = playback.currentTime
   const relative = data.race_start === null ? null : time - data.race_start
   const lap = currentLapNumber(data, time)
   const lapMode = session !== 'R' && session !== 'Sprint'
@@ -267,12 +278,6 @@ export default function ReplayViewer({
   }
   const board = lapMode ? lapLeaderboard(data, time, qStatus.segment) : leaderboard(data, time)
   const pitLabel = session === 'R' || session === 'Sprint' ? 'Race' : isQualifying ? 'Qualifying' : 'Practice'
-  const effectiveFlag = mergeFlagCodes(
-    currentTrackStatus(data.track_status, time)?.code ?? null,
-    currentRaceControlFlag(data.race_control_messages, time),
-  )
-  const status = trackStatusInfo(effectiveFlag)
-  const weather = currentWeather(data.weather, time)
 
   const panelOutline = editMode ? 'relative h-full cursor-move select-none' : 'relative h-full'
   const panelZ = (id: string): React.CSSProperties | undefined =>
@@ -297,17 +302,7 @@ export default function ReplayViewer({
             {editMode ? <HidePanelButton onHide={() => hidePanel('trackmap')} /> : null}
             <div className="relative h-full w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
               <div className="absolute inset-0 overflow-hidden p-3">
-                <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} />
-              </div>
-              <div className="absolute right-3 top-3 z-10 flex w-32 flex-col gap-2">
-                <div
-                  className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
-                  style={{ color: status.color, backgroundColor: status.background }}
-                >
-                  <img src={status.flag} alt="" className="h-5 w-5" />
-                  {status.label}
-                </div>
-                <WeatherPanel weather={weather} />
+                <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} editMode={editMode} />
               </div>
             </div>
           </div>
