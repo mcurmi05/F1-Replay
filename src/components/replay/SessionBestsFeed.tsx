@@ -8,6 +8,14 @@ function formatSector(value: number): string {
   return value.toFixed(3)
 }
 
+function sectorClass(value: number | null, sessionBest: number | null, personalBest: number | null): string {
+  if (value === null) return 'text-zinc-600'
+  const eps = 1e-4
+  if (sessionBest !== null && Math.abs(value - sessionBest) < eps) return 'text-purple-400'
+  if (personalBest !== null && Math.abs(value - personalBest) < eps) return 'text-emerald-400'
+  return 'text-yellow-400'
+}
+
 const SECTOR_ROWS: { kind: SectorKind; label: string }[] = [
   { kind: 's1', label: 'S1' },
   { kind: 's2', label: 'S2' },
@@ -27,7 +35,7 @@ export default function SessionBestsFeed({
     return map
   }, [replay.drivers])
 
-  const { fastestLap, sectorBest } = useMemo(() => {
+  const { fastestLap, sectorBest, personalSectors } = useMemo(() => {
     const personal = new Map<string, number>()
     let fastestLap: { driver: string; value: number; sectors: (number | null)[] } | null = null
     for (const r of replay.session_bests ?? []) {
@@ -41,8 +49,7 @@ export default function SessionBestsFeed({
       if (r.kind === 'st') continue
       const key = `${r.driver}|${r.kind}`
       const prev = personal.get(key)
-      const better = prev === undefined || r.value < prev
-      if (better) personal.set(key, r.value)
+      if (prev === undefined || r.value < prev) personal.set(key, r.value)
     }
 
     const sectorBest: Record<SectorKind, { driver: string; value: number } | null> = {
@@ -53,7 +60,13 @@ export default function SessionBestsFeed({
       const cur = sectorBest[kind]
       if (!cur || value < cur.value) sectorBest[kind] = { driver, value }
     }
-    return { fastestLap, sectorBest }
+
+    const kinds: SectorKind[] = ['s1', 's2', 's3']
+    const personalSectors: (number | null)[] = fastestLap
+      ? kinds.map((k) => personal.get(`${fastestLap!.driver}|${k}`) ?? null)
+      : [null, null, null]
+
+    return { fastestLap, sectorBest, personalSectors }
   }, [replay.session_bests, currentTime])
 
   const tla = (num: string) => driverByNumber.get(num)?.abbreviation ?? num
@@ -72,12 +85,16 @@ export default function SessionBestsFeed({
                 <span className="font-semibold text-zinc-200">{tla(fastestLap.driver)}</span>
                 <span className="ml-auto font-mono text-purple-400">{formatLapTime(fastestLap.value)}</span>
               </div>
-              <div className="mt-1 flex items-center gap-1 font-mono text-[10px] text-zinc-400">
-                {fastestLap.sectors.map((s, i) => (
-                  <span key={i} className="flex-1 rounded bg-zinc-800/60 px-1 py-0.5 text-center">
-                    {s !== null ? formatSector(s) : '--'}
-                  </span>
-                ))}
+              <div className="mt-1 flex items-center gap-1 font-mono text-[10px]">
+                {fastestLap.sectors.map((s, i) => {
+                  const kinds: SectorKind[] = ['s1', 's2', 's3']
+                  const cls = sectorClass(s, sectorBest[kinds[i]]?.value ?? null, personalSectors[i])
+                  return (
+                    <span key={i} className={`flex-1 rounded bg-zinc-800/60 px-1 py-0.5 text-center ${cls}`}>
+                      {s !== null ? formatSector(s) : '--'}
+                    </span>
+                  )
+                })}
               </div>
             </div>
           ) : (

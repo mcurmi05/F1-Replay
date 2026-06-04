@@ -125,6 +125,12 @@ export default function TeamRadioFeed({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [relevant.length])
 
+  useEffect(() => {
+    if (!activeUrl || !scrollRef.current) return
+    const el = scrollRef.current.querySelector<HTMLElement>(`[data-url="${CSS.escape(activeUrl)}"]`)
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [activeUrl])
+
   function toggle(url: string) {
     const audio = audioRef.current
     if (!audio) return
@@ -181,6 +187,16 @@ export default function TeamRadioFeed({
       setPaused(true)
     }
   }
+
+  useEffect(() => {
+    if (activeUrl === null) return
+    const activeClip = teamRadio.find((c) => c.url === activeUrl)
+    if (!activeClip || activeClip.time === null) return
+    if (currentTime < activeClip.time) {
+      audioRef.current?.pause()
+      queueRef.current = []
+    }
+  }, [currentTime, activeUrl, teamRadio])
 
   useEffect(() => {
     const prev = lastTimeRef.current
@@ -277,6 +293,7 @@ export default function TeamRadioFeed({
             return (
               <div
                 key={idx}
+                data-url={clip.url}
                 onClick={() => (isActive ? toggle(clip.url) : select(clip.url))}
                 className="cursor-pointer rounded border border-zinc-700 bg-zinc-900/60 px-2 py-1.5 transition-colors hover:border-zinc-600"
               >

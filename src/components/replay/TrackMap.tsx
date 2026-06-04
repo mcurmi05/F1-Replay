@@ -30,9 +30,14 @@ export default function TrackMap({
   editMode?: boolean
 }) {
   const [rotation, setRotation] = useState(0)
+  const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
+  const [showZoom, setShowZoom] = useState(false)
+  const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerAspect, setContainerAspect] = useState(1)
   const { setTrackRotation } = useReplayLayout()
+  const vWRef = useRef(0)
+  const vHRef = useRef(0)
 
   useEffect(() => {
     setTrackRotation(rotation)
@@ -49,6 +54,32 @@ export default function TrackMap({
     return () => obs.disconnect()
   }, [])
 
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    function onWheel(e: WheelEvent) {
+      e.preventDefault()
+      const rect = el!.getBoundingClientRect()
+      const fx = (e.clientX - rect.left) / rect.width
+      const fy = (e.clientY - rect.top) / rect.height
+      const vW = vWRef.current
+      const vH = vHRef.current
+      setShowZoom(true)
+      if (zoomTimerRef.current !== null) clearTimeout(zoomTimerRef.current)
+      zoomTimerRef.current = setTimeout(() => setShowZoom(false), 2000)
+      setView((prev) => {
+        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
+        const nextZoom = Math.max(1, Math.min(20, prev.zoom * factor))
+        if (nextZoom === 1) return { zoom: 1, panX: 0, panY: 0 }
+        const dPanX = vW * (fx - 0.5) * (1 / prev.zoom - 1 / nextZoom)
+        const dPanY = vH * (fy - 0.5) * (1 / prev.zoom - 1 / nextZoom)
+        return { zoom: nextZoom, panX: prev.panX + dPanX, panY: prev.panY + dPanY }
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   const { bounds, track, corners, step, time } = replay
   const width = bounds.max_x - bounds.min_x
   const height = bounds.max_y - bounds.min_y
@@ -62,7 +93,13 @@ export default function TrackMap({
   const tightH = rotH + 2 * pad
   const vW = tightW / tightH > containerAspect ? tightW : tightH * containerAspect
   const vH = tightW / tightH > containerAspect ? tightW / containerAspect : tightH
-  const viewBox = `${cx - vW / 2} ${cy - vH / 2} ${vW} ${vH}`
+  vWRef.current = vW
+  vHRef.current = vH
+
+  const { zoom, panX, panY } = view
+  const vwZ = vW / zoom
+  const vhZ = vH / zoom
+  const viewBox = `${cx + panX - vwZ / 2} ${cy + panY - vhZ / 2} ${vwZ} ${vhZ}`
   const radius = Math.max(width, height) / 95
   const flipY = (y: number) => bounds.min_y + bounds.max_y - y
 
@@ -142,6 +179,8 @@ export default function TrackMap({
   const selectedPath = selected ? replay.positions[selected] : undefined
   const selX = selectedPath ? lerp(selectedPath.x, i0, i1, frac) : null
   const selY = selectedPath ? lerp(selectedPath.y, i0, i1, frac) : null
+
+  const zoomPct = Math.round(zoom * 100)
 
   return (
     <div ref={containerRef} className="relative h-full w-full">
@@ -255,29 +294,43 @@ export default function TrackMap({
       ) : null}
       </g>
     </svg>
-      {editMode ? <div onMouseDown={(e) => e.stopPropagation()} className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1">
-        <button
-          type="button"
-          onClick={() => setRotation(0)}
-          title="Reset rotation"
-          className="shrink-0 text-zinc-400 hover:text-white"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 1 1-3-6.7" />
-            <path d="M21 3v5h-5" />
-          </svg>
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={359}
-          value={rotation}
-          onChange={(e) => setRotation(Number(e.target.value))}
-          title={`Rotate ${rotation}°`}
-          className="h-1 w-28 cursor-pointer accent-f1-red"
-        />
-        <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums text-zinc-400">{rotation}°</span>
-      </div> : null}
+    {showZoom && zoomPct !== 100 ? (
+      <div className="pointer-events-none absolute bottom-10 left-1/2 z-10 -translate-x-1/2 font-mono text-[10px] tabular-nums text-zinc-400">
+        {zoomPct}%
+      </div>
+    ) : null}
+    {editMode ? (
+      <div onMouseDown={(e) => e.stopPropagation()} className="absolute bottom-2 left-2 right-2 z-10 flex flex-col gap-1">
+        {showZoom && zoomPct !== 100 ? (
+          <div className="flex justify-center">
+            <span className="font-mono text-[10px] tabular-nums text-zinc-500">{zoomPct}%</span>
+          </div>
+        ) : null}
+        <div className="flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1">
+          <input
+            type="range"
+            min={0}
+            max={359}
+            value={rotation}
+            onChange={(e) => setRotation(Number(e.target.value))}
+            title={`Rotate ${rotation}°`}
+            className="h-1 flex-1 cursor-pointer accent-f1-red"
+          />
+          <input
+            type="number"
+            min={0}
+            max={359}
+            value={rotation}
+            onChange={(e) => {
+              const v = Math.round(Number(e.target.value))
+              if (!Number.isNaN(v)) setRotation(((v % 360) + 360) % 360)
+            }}
+            className="w-10 shrink-0 bg-transparent text-right font-mono text-[10px] tabular-nums text-zinc-400 focus:text-white focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+          <span className="shrink-0 font-mono text-[10px] text-zinc-400">°</span>
+        </div>
+      </div>
+    ) : null}
     </div>
   )
 }
