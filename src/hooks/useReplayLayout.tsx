@@ -278,7 +278,7 @@ export function ReplayStatusBar() {
           <StatItem label="Air" value={formatStat(weather.air_temp, '°', 1)} />
           <StatItem label="Hum" value={formatStat(weather.humidity, '%', 0)} />
           <StatItem label="Pres" value={formatStat(weather.pressure, '', 0)} />
-          <StatItem label="Wind (Relative to trackmap)" value={formatStat(weather.wind_speed, '', 1)} dir={(weather.wind_direction ?? 0) - trackRotation} />
+          <StatItem label="Wind (Relative to trackmap)" value={formatStat(weather.wind_speed, '', 1)} dir={(weather.wind_direction ?? 0) + trackRotation} />
         </div>
       ) : null}
     </div>
