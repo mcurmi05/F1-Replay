@@ -34,6 +34,7 @@ interface ReplayLayoutContextValue {
   editMode: boolean
   titleInfo: TitleInfo | null
   statusInfo: StatusInfo | null
+  trackRotation: number
   panelDefs: PanelDef[]
   hiddenPanels: Set<string>
   timingColumns: TimingColumnState[] | null
@@ -42,6 +43,7 @@ interface ReplayLayoutContextValue {
   setEditMode: (value: boolean) => void
   setTitleInfo: (info: TitleInfo | null) => void
   setStatusInfo: (info: StatusInfo | null) => void
+  setTrackRotation: (n: number) => void
   toggleEditMode: () => void
   registerReset: (fn: (() => void) | null) => void
   reset: () => void
@@ -63,6 +65,7 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
   const [editMode, setEditMode] = useState(false)
   const [titleInfo, setTitleInfo] = useState<TitleInfo | null>(null)
   const [statusInfo, setStatusInfo] = useState<StatusInfo | null>(null)
+  const [trackRotation, setTrackRotation] = useState(0)
   const [panelDefs, setPanelDefs] = useState<PanelDef[]>([])
   const [hiddenPanels, setHiddenPanels] = useState<Set<string>>(() => {
     try {
@@ -170,14 +173,14 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      active, editMode, titleInfo, statusInfo, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
-      setActive, setEditMode, setTitleInfo, setStatusInfo, toggleEditMode,
+      active, editMode, titleInfo, statusInfo, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
+      setActive, setEditMode, setTitleInfo, setStatusInfo, setTrackRotation, toggleEditMode,
       registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
     }),
     [
-      active, editMode, titleInfo, statusInfo, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
+      active, editMode, titleInfo, statusInfo, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
       toggleEditMode, registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
@@ -250,7 +253,7 @@ function StatItem({ label, value, dir }: { label: string; value: string; dir?: n
 }
 
 export function ReplayStatusBar() {
-  const { active, statusInfo } = useReplayLayout()
+  const { active, statusInfo, trackRotation } = useReplayLayout()
   if (!active || !statusInfo) return null
   const { status, weather } = statusInfo
   return (
@@ -275,7 +278,7 @@ export function ReplayStatusBar() {
           <StatItem label="Air" value={formatStat(weather.air_temp, '°', 1)} />
           <StatItem label="Hum" value={formatStat(weather.humidity, '%', 0)} />
           <StatItem label="Pres" value={formatStat(weather.pressure, '', 0)} />
-          <StatItem label="Wind" value={formatStat(weather.wind_speed, '', 1)} dir={weather.wind_direction ?? 0} />
+          <StatItem label="Wind (Relative to trackmap)" value={formatStat(weather.wind_speed, '', 1)} dir={(weather.wind_direction ?? 0) - trackRotation} />
         </div>
       ) : null}
     </div>

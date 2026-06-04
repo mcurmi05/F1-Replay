@@ -671,6 +671,7 @@ def build_replay(session, step=0.5):
         for _, corner in info.corners.iterrows():
             corners.append({
                 "number": _int(corner.get("Number")),
+                "letter": _text(corner.get("Letter")),
                 "x": _float(corner.get("X")),
                 "y": _float(corner.get("Y")),
             })

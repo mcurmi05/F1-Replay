@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { teamColor } from '../../lib/format'
 import type { ReplayData } from '../../lib/api/types'
+import { useReplayLayout } from '../../hooks/useReplayLayout'
 
 function lerp(values: (number | null)[], i0: number, i1: number, frac: number): number | null {
   const a = values[i0]
@@ -29,7 +30,26 @@ export default function TrackMap({
   editMode?: boolean
 }) {
   const [rotation, setRotation] = useState(0)
-  const { bounds, track, step, time } = replay
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerAspect, setContainerAspect] = useState(1)
+  const { setTrackRotation } = useReplayLayout()
+
+  useEffect(() => {
+    setTrackRotation(rotation)
+  }, [rotation, setTrackRotation])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      if (height > 0) setContainerAspect(width / height)
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  const { bounds, track, corners, step, time } = replay
   const width = bounds.max_x - bounds.min_x
   const height = bounds.max_y - bounds.min_y
   const cx = (bounds.min_x + bounds.max_x) / 2
@@ -37,8 +57,12 @@ export default function TrackMap({
   const rad = (rotation * Math.PI) / 180
   const rotW = Math.abs(width * Math.cos(rad)) + Math.abs(height * Math.sin(rad))
   const rotH = Math.abs(width * Math.sin(rad)) + Math.abs(height * Math.cos(rad))
-  const pad = Math.max(rotW, rotH) * 0.06
-  const viewBox = `${cx - rotW / 2 - pad} ${cy - rotH / 2 - pad} ${rotW + 2 * pad} ${rotH + 2 * pad}`
+  const pad = Math.max(rotW, rotH) * 0.02
+  const tightW = rotW + 2 * pad
+  const tightH = rotH + 2 * pad
+  const vW = tightW / tightH > containerAspect ? tightW : tightH * containerAspect
+  const vH = tightW / tightH > containerAspect ? tightW / containerAspect : tightH
+  const viewBox = `${cx - vW / 2} ${cy - vH / 2} ${vW} ${vH}`
   const radius = Math.max(width, height) / 95
   const flipY = (y: number) => bounds.min_y + bounds.max_y - y
 
@@ -46,6 +70,32 @@ export default function TrackMap({
     () => track.x.map((x, i) => `${x},${bounds.min_y + bounds.max_y - track.y[i]}`).join(' '),
     [track, bounds],
   )
+
+  const validCorners = useMemo(() => {
+    const fy0 = bounds.min_y + bounds.max_y
+    return corners.flatMap((c) => {
+      if (c.x === null || c.y === null || c.number === null) return []
+      return [{ label: c.letter ? `${c.number}${c.letter}` : String(c.number), fx: c.x, fy: fy0 - c.y }]
+    })
+  }, [corners, bounds])
+
+  const startLine = useMemo(() => {
+    if (track.x.length < 2) return null
+    const fy0 = bounds.min_y + bounds.max_y
+    const r = Math.max(bounds.max_x - bounds.min_x, bounds.max_y - bounds.min_y) / 95
+    const sx = track.x[0]
+    const sy = fy0 - track.y[0]
+    const tdx = track.x[1] - track.x[0]
+    const tdy = (fy0 - track.y[1]) - sy
+    const tLen = Math.sqrt(tdx * tdx + tdy * tdy) || 1
+    const pnx = -tdy / tLen
+    const pny = tdx / tLen
+    const lineLen = r * 2.6
+    return {
+      x1: sx + pnx * lineLen, y1: sy + pny * lineLen,
+      x2: sx - pnx * lineLen, y2: sy - pny * lineLen,
+    }
+  }, [track, bounds])
 
   const length = time.length
   const ratio = step > 0 ? currentTime / step : 0
@@ -60,7 +110,7 @@ export default function TrackMap({
   const selY = selectedPath ? lerp(selectedPath.y, i0, i1, frac) : null
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full">
     <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" className="h-full w-full pointer-events-none" style={{ overflowAnchor: 'none' }}>
       <g transform={`rotate(${rotation} ${cx} ${cy})`}>
       <polyline
@@ -72,6 +122,16 @@ export default function TrackMap({
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
       />
+      {startLine ? (
+        <line
+          x1={startLine.x1} y1={startLine.y1}
+          x2={startLine.x2} y2={startLine.y2}
+          stroke="rgba(255,255,255,0.8)"
+          strokeWidth={radius * 0.4}
+          strokeLinecap="round"
+          className="pointer-events-none"
+        />
+      ) : null}
       {replay.drivers.map((driver) => {
         const path = replay.positions[driver.number]
         if (!path) {
@@ -97,6 +157,29 @@ export default function TrackMap({
           />
         )
       })}
+      {validCorners.map((c) => (
+        <g key={c.label} className="pointer-events-none">
+          <circle
+            cx={c.fx} cy={c.fy}
+            r={radius * 1.1}
+            fill="rgba(20,20,28,0.75)"
+            stroke="rgba(255,255,255,0.3)"
+            strokeWidth={radius * 0.1}
+          />
+          <text
+            x={c.fx}
+            y={c.fy}
+            transform={`rotate(${-rotation} ${c.fx} ${c.fy})`}
+            fontSize={radius * 0.95}
+            dominantBaseline="central"
+            textAnchor="middle"
+            fill="rgba(255,255,255,0.85)"
+            className="font-semibold"
+          >
+            {c.label}
+          </text>
+        </g>
+      ))}
       {selectedDriver && selX !== null && selY !== null ? (
         <text
           x={selX + radius * 1.8}
@@ -112,9 +195,22 @@ export default function TrackMap({
           {selectedDriver.abbreviation ?? selectedDriver.number}
         </text>
       ) : null}
+      {editMode ? (
+        <rect
+          x={bounds.min_x}
+          y={flipY(bounds.max_y)}
+          width={width}
+          height={height}
+          fill="none"
+          stroke="rgba(255,255,255,0.18)"
+          strokeWidth={radius * 0.25}
+          strokeDasharray={`${radius * 2} ${radius}`}
+          className="pointer-events-none"
+        />
+      ) : null}
       </g>
     </svg>
-      {editMode ? <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1">
+      {editMode ? <div onMouseDown={(e) => e.stopPropagation()} className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1">
         <button
           type="button"
           onClick={() => setRotation(0)}

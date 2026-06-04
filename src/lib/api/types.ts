@@ -249,7 +249,7 @@ export interface ReplayData {
   total_laps: number | null
   time: number[]
   track: { x: number[]; y: number[] }
-  corners: { number: number | null; x: number | null; y: number | null }[]
+  corners: { number: number | null; letter: string | null; x: number | null; y: number | null }[]
   bounds: { min_x: number; max_x: number; min_y: number; max_y: number }
   drivers: ReplayDriver[]
   positions: Record<
