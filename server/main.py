@@ -49,12 +49,22 @@ class UpdateLayoutRequest(BaseModel):
     cols: int | None = None
 
 
-def _layouts_dir():
+LAYOUT_CATEGORIES = ("practice", "qualifying", "race")
+
+
+def _layout_category(category: str) -> str:
+    cat = (category or "").lower()
+    if cat not in LAYOUT_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Invalid layout category")
+    return cat
+
+
+def _layouts_dir(category: str):
     cache = f1data.get_cache()
     if not cache:
         raise HTTPException(status_code=409, detail="No cache folder selected")
-    d = Path(cache) / "layouts"
-    d.mkdir(exist_ok=True)
+    d = Path(cache) / "layouts" / _layout_category(category)
+    d.mkdir(parents=True, exist_ok=True)
     return d
 
 
@@ -178,9 +188,9 @@ def replay(year: int, event: str, session_type: str, step: float = 0.5):
         raise HTTPException(status_code=502, detail=str(exc))
 
 
-@api.get("/layouts")
-def list_layouts():
-    d = _layouts_dir()
+@api.get("/layouts/{category}")
+def list_layouts(category: str):
+    d = _layouts_dir(category)
     results = []
     for f in sorted(d.glob("*.json"), key=lambda p: p.stat().st_mtime):
         try:
@@ -191,19 +201,19 @@ def list_layouts():
     return results
 
 
-@api.get("/layouts/{layout_name:path}")
-def get_layout(layout_name: str):
+@api.get("/layouts/{category}/{layout_name:path}")
+def get_layout(category: str, layout_name: str):
     name = _sanitize_name(layout_name)
-    d = _layouts_dir()
+    d = _layouts_dir(category)
     f = d / f"{name}.json"
     if not f.exists():
         raise HTTPException(status_code=404, detail="Layout not found")
     return json.loads(f.read_text(encoding="utf-8"))
 
 
-@api.post("/layouts")
-def save_layout(request: SaveLayoutRequest):
-    d = _layouts_dir()
+@api.post("/layouts/{category}")
+def save_layout(category: str, request: SaveLayoutRequest):
+    d = _layouts_dir(category)
     name = _sanitize_name(request.name)
     f = d / f"{name}.json"
     if f.exists():
@@ -219,10 +229,10 @@ def save_layout(request: SaveLayoutRequest):
     return {"id": name, "name": name}
 
 
-@api.put("/layouts/{layout_name:path}")
-def update_layout(layout_name: str, request: UpdateLayoutRequest):
+@api.put("/layouts/{category}/{layout_name:path}")
+def update_layout(category: str, layout_name: str, request: UpdateLayoutRequest):
     old_name = _sanitize_name(layout_name)
-    d = _layouts_dir()
+    d = _layouts_dir(category)
     old_file = d / f"{old_name}.json"
     if not old_file.exists():
         raise HTTPException(status_code=404, detail="Layout not found")
@@ -251,10 +261,10 @@ def update_layout(layout_name: str, request: UpdateLayoutRequest):
     return {"id": old_name, "name": old_name}
 
 
-@api.delete("/layouts/{layout_name:path}")
-def delete_layout(layout_name: str):
+@api.delete("/layouts/{category}/{layout_name:path}")
+def delete_layout(category: str, layout_name: str):
     name = _sanitize_name(layout_name)
-    d = _layouts_dir()
+    d = _layouts_dir(category)
     f = d / f"{name}.json"
     if f.exists():
         f.unlink()

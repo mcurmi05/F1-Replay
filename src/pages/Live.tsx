@@ -4,8 +4,16 @@ import type { TimingTowerRow } from '../components/replay/TimingTower'
 import TrackMap from '../components/replay/TrackMap'
 import LiveRaceControl from '../components/live/LiveRaceControl'
 import LiveTeamRadio from '../components/live/LiveTeamRadio'
+import LivePitStops from '../components/live/LivePitStops'
 import { useLive } from '../hooks/useApi'
 import type { LiveRow, LiveState, ReplayData } from '../lib/api/types'
+
+function parseLapTime(value: string | null | undefined): number | null {
+  if (!value) return null
+  let seconds = 0
+  for (const part of value.split(':')) seconds = seconds * 60 + parseFloat(part)
+  return Number.isFinite(seconds) ? seconds : null
+}
 
 function trackStatusStyle(message: string): string {
   const text = message.toLowerCase()
@@ -153,7 +161,7 @@ function Header({ state }: { state: LiveState }) {
 }
 
 
-function toTowerRows(rows: LiveRow[]): TimingTowerRow[] {
+function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingTowerRow[] {
   return rows.map((row) => ({
     number: row.driver_number,
     abbreviation: row.abbreviation,
@@ -164,10 +172,10 @@ function toTowerRows(rows: LiveRow[]): TimingTowerRow[] {
     pitted: row.in_pit,
     interval: row.interval,
     gap_leader: row.gap,
-    best_lap: null,
+    best_lap: parseLapTime(stats?.[row.driver_number]?.best_lap ?? row.best_lap),
     best_lap_compound: null,
     best_lap_tyre_age: null,
-    last_lap: null,
+    last_lap: parseLapTime(row.last_lap),
     live_sectors: [],
     best_sectors: [],
     personal_best_sectors: [],
@@ -269,7 +277,7 @@ function EmptyState({ state }: { state: LiveState }) {
 export default function Live() {
   const { data, error, loading } = useLive()
   const [selected, setSelected] = useState<string | null>(null)
-  const board = useMemo(() => (data ? toTowerRows(data.rows) : []), [data])
+  const board = useMemo(() => (data ? toTowerRows(data.rows, data.timing_stats) : []), [data])
   const replayData = useMemo(() => (data ? liveToReplayData(data) : null), [data])
 
   if (loading && !data) {
@@ -324,8 +332,9 @@ export default function Live() {
           )}
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <LiveRaceControl messages={data.race_control_messages} />
+        <LivePitStops times={data.pit_times ?? []} drivers={data.rows} />
         <LiveTeamRadio clips={data.team_radio} drivers={data.rows} />
       </div>
     </div>

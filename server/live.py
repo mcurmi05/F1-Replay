@@ -1,8 +1,10 @@
 import ast
+import base64
 import json
 import logging
 import os
 import threading
+import zlib
 from datetime import datetime, timedelta, timezone
 
 import fastf1
@@ -59,6 +61,26 @@ def _merge(target, source):
     return target
 
 
+def _inflate(data):
+    """Decode the zlib raw-deflate + base64 payload used by the ``.z`` feeds
+    (CarData.z, Position.z). Also tolerates already-JSON or quoted payloads."""
+    if not isinstance(data, str):
+        return data if isinstance(data, dict) else None
+    s = data.strip()
+    if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+        s = s[1:-1]
+    if s[:1] in ("{", "["):
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError:
+            return None
+    try:
+        raw = zlib.decompress(base64.b64decode(s), -zlib.MAX_WBITS)
+        return json.loads(raw.decode("utf-8-sig"))
+    except Exception:
+        return None
+
+
 def _parse_line(line):
     line = line.strip()
     if not line:
@@ -72,10 +94,15 @@ def _parse_line(line):
     topic = record[0]
     payload = record[1]
     if isinstance(payload, str):
-        try:
-            payload = json.loads(payload)
-        except json.JSONDecodeError:
-            return None
+        if isinstance(topic, str) and topic.endswith(".z"):
+            payload = _inflate(payload)
+        else:
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                return None
+    if payload is None:
+        return None
     return topic, payload
 
 
@@ -133,9 +160,17 @@ class LiveManager:
     def _start_recorder(self, session_key, filename):
         from fastf1.livetiming.client import SignalRClient
 
+        # FastF1's default subscription omits some feeds we want to capture.
+        class _ExtendedClient(SignalRClient):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                for extra in ("PitLaneTimeCollection",):
+                    if extra not in self.topics:
+                        self.topics = list(self.topics) + [extra]
+
         def run():
             try:
-                client = SignalRClient(
+                client = _ExtendedClient(
                     filename=filename,
                     filemode="a",
                     timeout=90,
@@ -401,12 +436,56 @@ def _team_radio_live(topics):
     return result
 
 
+def _pit_times_live(topics):
+    coll = topics.get("PitLaneTimeCollection", {})
+    if not isinstance(coll, dict):
+        return []
+    pit_times = coll.get("PitTimes", {})
+    if not isinstance(pit_times, dict):
+        return []
+    result = []
+    for number, info in pit_times.items():
+        if not isinstance(info, dict):
+            continue
+        result.append({
+            "driver_number": str(number),
+            "duration": _clean(info.get("Duration")),
+            "lap": _to_int(info.get("Lap")),
+        })
+    return result
+
+
+def _timing_stats_live(topics):
+    stats = topics.get("TimingStats", {})
+    if not isinstance(stats, dict):
+        return {}
+    lines = stats.get("Lines", {})
+    if not isinstance(lines, dict):
+        return {}
+    result = {}
+    for number, line in lines.items():
+        if not isinstance(line, dict):
+            continue
+        pb = line.get("PersonalBestLapTime")
+        pb = pb if isinstance(pb, dict) else {}
+        result[str(number)] = {
+            "best_lap": _clean(pb.get("Value")),
+            "best_lap_position": _to_int(pb.get("Position")),
+        }
+    return result
+
+
 def _position_data_live(topics):
-    pos = topics.get("Position.z", {})
+    # Position.z decodes to {"Position": [{"Timestamp": ..,
+    #   "Entries": {"44": {"Status", "X", "Y", "Z"}}}, ...]}; take the latest.
+    pos = topics.get("Position.z")
     if not isinstance(pos, dict):
         return {}
-
-    drivers = pos.get("Entries", {})
+    series = pos.get("Position")
+    if not isinstance(series, list) or not series:
+        return {}
+    latest = series[-1]
+    drivers = latest.get("Entries") if isinstance(latest, dict) else None
     if not isinstance(drivers, dict):
         return {}
 
@@ -429,30 +508,37 @@ def _position_data_live(topics):
     return result
 
 
+# CarData.z telemetry channel ids.
+_CAR_CHANNELS = {"rpm": "0", "speed": "2", "gear": "3", "throttle": "4", "brake": "5", "drs": "45"}
+
+
 def _car_data_live(topics):
-    car = topics.get("CarData.z", {})
+    # CarData.z decodes to {"Entries": [{"Utc": .., "Cars": {"44":
+    #   {"Channels": {"0": rpm, "2": speed, "3": gear, ...}}}}, ...]}; latest wins.
+    car = topics.get("CarData.z")
     if not isinstance(car, dict):
         return {}
-
-    drivers = car.get("Entries", {})
-    if not isinstance(drivers, dict):
+    entries = car.get("Entries")
+    if not isinstance(entries, list) or not entries:
+        return {}
+    latest = entries[-1]
+    cars = latest.get("Cars") if isinstance(latest, dict) else None
+    if not isinstance(cars, dict):
         return {}
 
     result = {}
-    for number_str, entry in drivers.items():
-        if not isinstance(entry, dict):
+    for number_str, entry in cars.items():
+        channels = entry.get("Channels") if isinstance(entry, dict) else None
+        if not isinstance(channels, dict):
             continue
-        try:
-            result[str(number_str)] = {
-                "speed": _to_float(entry.get("Speed")),
-                "throttle": _to_float(entry.get("Throttle")),
-                "brake": _to_float(entry.get("Brake")),
-                "gear": _to_int(entry.get("Gear")),
-                "rpm": _to_int(entry.get("RPM")),
-                "drs": _to_int(entry.get("DRS")),
-            }
-        except (TypeError, ValueError):
-            pass
+        result[str(number_str)] = {
+            "speed": _to_float(channels.get(_CAR_CHANNELS["speed"])),
+            "throttle": _to_float(channels.get(_CAR_CHANNELS["throttle"])),
+            "brake": _to_float(channels.get(_CAR_CHANNELS["brake"])),
+            "gear": _to_int(channels.get(_CAR_CHANNELS["gear"])),
+            "rpm": _to_int(channels.get(_CAR_CHANNELS["rpm"])),
+            "drs": _to_int(channels.get(_CAR_CHANNELS["drs"])),
+        }
     return result
 
 
@@ -575,6 +661,8 @@ def _live_snapshot(current, topics):
         "rows": rows,
         "race_control_messages": _race_control_live(topics),
         "team_radio": _team_radio_live(topics),
+        "pit_times": _pit_times_live(topics),
+        "timing_stats": _timing_stats_live(topics),
         "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -591,6 +679,8 @@ def _empty_snapshot(current, session_meta=None):
         "rows": [],
         "race_control_messages": [],
         "team_radio": [],
+        "pit_times": [],
+        "timing_stats": {},
         "track": {"x": [], "y": []},
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -609,6 +699,8 @@ def _connecting_snapshot(current):
         "rows": [],
         "race_control_messages": [],
         "team_radio": [],
+        "pit_times": [],
+        "timing_stats": {},
         "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -683,6 +775,8 @@ def _historical_snapshot(current):
         "rows": rows,
         "race_control_messages": [],
         "team_radio": [],
+        "pit_times": [],
+        "timing_stats": {},
         "track": track,
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),

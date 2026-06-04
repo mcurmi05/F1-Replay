@@ -116,11 +116,14 @@ export const api = {
       `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/replay`,
       signal,
     ),
-  listLayouts: (signal?: AbortSignal) => get<SavedLayoutMeta[]>('/layouts', signal),
-  getLayout: (id: string, signal?: AbortSignal) => get<SavedLayoutFull>(`/layouts/${encodeURIComponent(id)}`, signal),
-  saveLayout: (name: string, layout: unknown[], hiddenPanels: string[], timingColumns?: unknown[] | null, cols?: number) =>
-    post<SavedLayoutMeta>('/layouts', { name, layout, hidden_panels: hiddenPanels, timing_columns: timingColumns ?? null, cols: cols ?? null }),
+  listLayouts: (category: string, signal?: AbortSignal) =>
+    get<SavedLayoutMeta[]>(`/layouts/${encodeURIComponent(category)}`, signal),
+  getLayout: (category: string, id: string, signal?: AbortSignal) =>
+    get<SavedLayoutFull>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`, signal),
+  saveLayout: (category: string, name: string, layout: unknown[], hiddenPanels: string[], timingColumns?: unknown[] | null, cols?: number) =>
+    post<SavedLayoutMeta>(`/layouts/${encodeURIComponent(category)}`, { name, layout, hidden_panels: hiddenPanels, timing_columns: timingColumns ?? null, cols: cols ?? null }),
   updateLayout: (
+    category: string,
     id: string,
     name?: string,
     layout?: unknown[],
@@ -128,12 +131,13 @@ export const api = {
     timingColumns?: unknown[] | null,
     cols?: number,
   ) =>
-    put<SavedLayoutMeta>(`/layouts/${encodeURIComponent(id)}`, {
+    put<SavedLayoutMeta>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`, {
       ...(name !== undefined ? { name } : {}),
       ...(layout !== undefined ? { layout } : {}),
       ...(hiddenPanels !== undefined ? { hidden_panels: hiddenPanels } : {}),
       ...(timingColumns !== undefined ? { timing_columns: timingColumns } : {}),
       ...(cols !== undefined ? { cols } : {}),
     }),
-  deleteLayout: (id: string) => del<{ ok: boolean }>(`/layouts/${encodeURIComponent(id)}`),
+  deleteLayout: (category: string, id: string) =>
+    del<{ ok: boolean }>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`),
 }

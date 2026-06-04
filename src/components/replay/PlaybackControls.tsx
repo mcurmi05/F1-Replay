@@ -35,8 +35,16 @@ export default function PlaybackControls({
     }
   }
 
+  // Keep the label text inside the track bounds at the extremes.
   const markerTransform = (pct: number): string =>
     pct <= 1 ? 'translateX(0)' : pct >= 99 ? 'translateX(-100%)' : 'translateX(-50%)'
+
+  // The range thumb travels inset by half its width at each end, so the thumb
+  // centre at a given fraction is `frac*W + THUMB*(0.5 - frac)`. Offsetting the
+  // markers by the same amount keeps each tick aligned with the thumb centre.
+  const THUMB = 14
+  const markerLeft = (pct: number): string =>
+    `calc(${pct}% + ${(0.5 - pct / 100) * THUMB}px)`
 
   function handleToggle() {
     if (!playing && currentTime >= duration) {
@@ -97,7 +105,7 @@ export default function PlaybackControls({
             step={0.1}
             value={currentTime}
             onChange={(event) => seek(Number(event.target.value))}
-            className="h-1.5 w-full cursor-pointer accent-f1-red"
+            className="playback-range h-3.5 w-full cursor-pointer"
           />
           {rendered.map((marker) => {
             const pct = (marker.time / duration) * 100
@@ -105,7 +113,7 @@ export default function PlaybackControls({
               <span
                 key={marker.time}
                 className="pointer-events-none absolute top-1/2 h-3 w-0.5 rounded bg-zinc-200"
-                style={{ left: `${pct}%`, transform: `${markerTransform(pct)} translateY(-50%)` }}
+                style={{ left: markerLeft(pct), transform: 'translateX(-50%) translateY(-50%)' }}
               />
             )
           })}
@@ -119,7 +127,7 @@ export default function PlaybackControls({
                   key={marker.time}
                   type="button"
                   onClick={() => seek(marker.time)}
-                  style={{ left: `${pct}%`, transform: markerTransform(pct) }}
+                  style={{ left: markerLeft(pct), transform: markerTransform(pct) }}
                   className="absolute text-[10px] font-semibold uppercase tracking-wider text-zinc-500 transition hover:text-white"
                 >
                   {marker.label}

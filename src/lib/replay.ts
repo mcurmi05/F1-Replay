@@ -409,8 +409,19 @@ export function lapLeaderboard(
     if (b.best_lap === null) return -1
     return a.best_lap - b.best_lap
   })
+  // In lap-mode sessions (practice/qualifying) the interval/leader gaps are the
+  // difference between best laps rather than on-track gaps.
   rows.forEach((row, idx) => {
     row.position = idx + 1
+    if (row.best_lap === null) return
+    const leaderBest = rows[0].best_lap
+    if (idx > 0 && leaderBest !== null) {
+      row.gap_leader = `+${(row.best_lap - leaderBest).toFixed(3)}`
+    }
+    const aheadBest = idx > 0 ? rows[idx - 1].best_lap : null
+    if (aheadBest !== null) {
+      row.interval = `+${(row.best_lap - aheadBest).toFixed(3)}`
+    }
   })
   return rows
 }

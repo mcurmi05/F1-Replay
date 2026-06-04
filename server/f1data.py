@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import threading
@@ -668,6 +669,59 @@ def _qualifying_segments(session, start):
     return segments
 
 
+def _commentary(session, start):
+    """The world-feed English commentary is published as a single continuous HLS
+    stream per session. Return its URL plus the replay-axis offset of where the
+    stream begins so the UI can seek it in lock-step with playback."""
+    try:
+        import fastf1._api as ff1_api
+        import requests
+
+        base = ff1_api.base_url + session.api_path
+        resp = requests.get(
+            base + "AudioStreams.json",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        data = json.loads(resp.content.decode("utf-8-sig"))
+        streams = data.get("Streams") if isinstance(data, dict) else None
+        if not isinstance(streams, list) or not streams:
+            return None
+
+        stream = next(
+            (s for s in streams if isinstance(s, dict) and str(s.get("Language", "")).lower() == "en"),
+            None,
+        ) or (streams[0] if isinstance(streams[0], dict) else None)
+        path = stream.get("Path") if stream else None
+        if not path:
+            return None
+
+        offset = None
+        t0 = getattr(session, "t0_date", None)
+        utc = stream.get("Utc")
+        if utc is not None and t0 is not None:
+            t0 = pd.Timestamp(t0)
+            if t0.tzinfo is not None:
+                t0 = t0.tz_convert("UTC").tz_localize(None)
+            try:
+                ts = pd.Timestamp(utc)
+                if ts.tzinfo is not None:
+                    ts = ts.tz_convert("UTC").tz_localize(None)
+                offset = round((ts - t0).total_seconds() - start, 2)
+            except Exception:
+                offset = None
+
+        return {
+            "url": base + path,
+            "start": offset,
+            "language": stream.get("Language") or "en",
+        }
+    except Exception:
+        return None
+
+
 def build_replay(session, step=0.5):
     results_by_number = {
         str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
@@ -703,6 +757,7 @@ def build_replay(session, step=0.5):
             "weather": [],
             "qualifying_segments": [],
             "session_window": None,
+            "commentary": None,
         }
 
     start = float(min(starts))
@@ -843,6 +898,7 @@ def build_replay(session, step=0.5):
     weather = _weather_series(session, start)
     qualifying_segments = _qualifying_segments(session, start)
     session_window = _session_window(session, start)
+    commentary = _commentary(session, start)
 
     return {
         "available": True,
@@ -864,4 +920,5 @@ def build_replay(session, step=0.5):
         "weather": weather,
         "qualifying_segments": qualifying_segments,
         "session_window": session_window,
+        "commentary": commentary,
     }

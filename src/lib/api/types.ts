@@ -153,9 +153,17 @@ export interface LiveState {
   rows: LiveRow[]
   race_control_messages: RaceControlMessage[]
   team_radio: TeamRadioClip[]
+  pit_times?: LivePitTime[]
+  timing_stats?: Record<string, { best_lap: string | null; best_lap_position: number | null }>
   track: { x: number[]; y: number[]; sector_markers?: { x: number; y: number }[] }
   next_session: LiveNextSession | null
   updated_at: string
+}
+
+export interface LivePitTime {
+  driver_number: string
+  duration: string | null
+  lap: number | null
 }
 
 export interface ReplayDriver {
@@ -273,4 +281,11 @@ export interface ReplayData {
   weather: WeatherSample[]
   qualifying_segments: QualifyingSegment[]
   session_window: SessionWindow | null
+  commentary?: CommentaryStream | null
+}
+
+export interface CommentaryStream {
+  url: string
+  start: number | null
+  language?: string
 }

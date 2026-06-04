@@ -63,6 +63,23 @@ export default function TeamRadioFeed({
 
   const origin = replay.race_start ?? replay.session_window?.start ?? null
 
+  const qSegments = replay.qualifying_segments ?? []
+  const isQuali = qSegments.length > 0
+
+  // Qualifying clips read as "Q1 15:32" (segment + elapsed time within it);
+  // everything else stays relative to the session/race start.
+  function radioTime(t: number): string {
+    if (isQuali) {
+      let seg = qSegments.find((s) => t >= s.start && t <= s.end)
+      if (!seg) {
+        const before = qSegments.filter((s) => t >= s.start)
+        seg = before.length ? before[before.length - 1] : undefined
+      }
+      if (seg) return `${seg.name} ${formatTime(t - seg.start)}`
+    }
+    return formatTime(origin !== null ? t - origin : t)
+  }
+
   const flaggedUrls = useMemo(() => {
     const all = replay.team_radio ?? []
     const TOLERANCE = 600
@@ -292,11 +309,15 @@ export default function TeamRadioFeed({
         ) : (
           relevant.map((clip, idx) => {
             const flagged = flaggedUrls.has(clip.url)
+            // Older sessions encode a surname (e.g. "VERSTAPPEN") in the clip
+            // path instead of the modern 3-letter TLA; slice to the first three
+            // letters so the lookup and label both stay as initials.
+            const initials = clip.driver_code ? clip.driver_code.slice(0, 3).toUpperCase() : null
             const driver = flagged
               ? undefined
-              : (clip.driver_code ? driverByCode.get(clip.driver_code.toUpperCase()) : undefined) ??
+              : (initials ? driverByCode.get(initials) : undefined) ??
                 (clip.racing_number ? driverByNumber.get(clip.racing_number) : undefined)
-            const label = flagged ? 'Unknown' : clip.driver_code ?? driver?.abbreviation ?? clip.racing_number ?? '?'
+            const label = flagged ? 'Unknown' : driver?.abbreviation ?? initials ?? clip.racing_number ?? '?'
             const isActive = activeUrl === clip.url
             const isPlaying = isActive && !paused
             return (
@@ -346,7 +367,7 @@ export default function TeamRadioFeed({
                   {clip.time !== null && (
                     <span className="ml-auto flex items-center gap-1.5">
                       <span className="font-mono text-zinc-400">
-                        {formatTime(origin !== null ? clip.time - origin : clip.time)}
+                        {radioTime(clip.time)}
                       </span>
                       {(() => {
                         if (origin !== null && clip.time < origin) return null

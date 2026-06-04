@@ -12,10 +12,14 @@ import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 import { BASE_COLS, COLS, scaleLayout } from '../lib/layoutGrid'
 import type { TimingColumnState } from '../lib/timingColumns'
+import { sessionCategory } from '../lib/defaultLayouts'
+import type { SessionDefault, LayoutCategory } from '../lib/defaultLayouts'
 import type { WeatherSample } from '../lib/api/types'
 
-const HIDDEN_PANELS_KEY = 'f1replay.hiddenPanels.v1'
-const TIMING_COLUMNS_KEY = 'f1replay.timingColumns.v1'
+const HIDDEN_PANELS_KEY = 'f1replay.hiddenPanels.v2'
+const TIMING_COLUMNS_KEY = 'f1replay.timingColumns.v2'
+
+const keyFor = (base: string, scope: string | null) => (scope ? `${base}.${scope}` : base)
 
 interface TitleInfo {
   eventName: string | null
@@ -50,6 +54,8 @@ interface ReplayLayoutContextValue {
   hiddenPanels: Set<string>
   timingColumns: TimingColumnState[] | null
   setTimingColumns: (next: TimingColumnState[] | null) => void
+  category: LayoutCategory | null
+  applyScope: (session: string, def: SessionDefault) => void
   setActive: (value: boolean) => void
   setEditMode: (value: boolean) => void
   setTitleInfo: (info: TitleInfo | null) => void
@@ -79,22 +85,13 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
   const [sessionNav, setSessionNav] = useState<SessionNav | null>(null)
   const [trackRotation, setTrackRotation] = useState(0)
   const [panelDefs, setPanelDefs] = useState<PanelDef[]>([])
-  const [hiddenPanels, setHiddenPanels] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem(HIDDEN_PANELS_KEY)
-      return new Set<string>(JSON.parse(saved ?? '[]'))
-    } catch {
-      return new Set()
-    }
-  })
-  const [timingColumns, setTimingColumnsState] = useState<TimingColumnState[] | null>(() => {
-    try {
-      const saved = localStorage.getItem(TIMING_COLUMNS_KEY)
-      return saved ? (JSON.parse(saved) as TimingColumnState[]) : null
-    } catch {
-      return null
-    }
-  })
+  // hiddenPanels and timingColumns are scoped per session type. They are seeded
+  // from the active session's built-in default and persisted under a per-type key.
+  const [hiddenPanels, setHiddenPanels] = useState<Set<string>>(new Set())
+  const [timingColumns, setTimingColumnsState] = useState<TimingColumnState[] | null>(null)
+  const [category, setCategory] = useState<LayoutCategory | null>(null)
+  const scopeRef = useRef<string | null>(null)
+  const defaultRef = useRef<SessionDefault | null>(null)
   const resetRef = useRef<(() => void) | null>(null)
   const showPanelRef = useRef<((id: string) => void) | null>(null)
   const getLayoutRef = useRef<(() => Layout) | null>(null)
@@ -116,21 +113,41 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const applyScope = useCallback((session: string, def: SessionDefault) => {
+    scopeRef.current = session
+    defaultRef.current = def
+    setCategory(sessionCategory(session))
+    try {
+      const rawHidden = localStorage.getItem(keyFor(HIDDEN_PANELS_KEY, session))
+      setHiddenPanels(new Set<string>(rawHidden ? JSON.parse(rawHidden) : def.hiddenPanels))
+    } catch {
+      setHiddenPanels(new Set(def.hiddenPanels))
+    }
+    try {
+      const rawCols = localStorage.getItem(keyFor(TIMING_COLUMNS_KEY, session))
+      setTimingColumnsState(rawCols ? (JSON.parse(rawCols) as TimingColumnState[]) : def.timingColumns)
+    } catch {
+      setTimingColumnsState(def.timingColumns)
+    }
+  }, [])
+
   const setTimingColumns = useCallback((next: TimingColumnState[] | null) => {
     setTimingColumnsState(next)
+    const key = keyFor(TIMING_COLUMNS_KEY, scopeRef.current)
     if (next === null) {
-      localStorage.removeItem(TIMING_COLUMNS_KEY)
+      localStorage.removeItem(key)
     } else {
-      localStorage.setItem(TIMING_COLUMNS_KEY, JSON.stringify(next))
+      localStorage.setItem(key, JSON.stringify(next))
     }
   }, [])
 
   const reset = useCallback(() => {
     resetRef.current?.()
-    setHiddenPanels(new Set())
-    localStorage.removeItem(HIDDEN_PANELS_KEY)
-    setTimingColumnsState(null)
-    localStorage.removeItem(TIMING_COLUMNS_KEY)
+    const def = defaultRef.current
+    setHiddenPanels(new Set(def?.hiddenPanels ?? []))
+    setTimingColumnsState(def?.timingColumns ?? null)
+    localStorage.removeItem(keyFor(HIDDEN_PANELS_KEY, scopeRef.current))
+    localStorage.removeItem(keyFor(TIMING_COLUMNS_KEY, scopeRef.current))
   }, [])
 
   const toggleEditMode = useCallback(() => {
@@ -140,7 +157,7 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
   const hidePanel = useCallback((id: string) => {
     setHiddenPanels((prev) => {
       const next = new Set([...prev, id])
-      localStorage.setItem(HIDDEN_PANELS_KEY, JSON.stringify([...next]))
+      localStorage.setItem(keyFor(HIDDEN_PANELS_KEY, scopeRef.current), JSON.stringify([...next]))
       return next
     })
   }, [])
@@ -149,7 +166,7 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
     setHiddenPanels((prev) => {
       const next = new Set(prev)
       next.delete(id)
-      localStorage.setItem(HIDDEN_PANELS_KEY, JSON.stringify([...next]))
+      localStorage.setItem(keyFor(HIDDEN_PANELS_KEY, scopeRef.current), JSON.stringify([...next]))
       return next
     })
   }, [])
@@ -168,7 +185,7 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
   const replaceHiddenPanels = useCallback((ids: string[]) => {
     const next = new Set(ids)
     setHiddenPanels(next)
-    localStorage.setItem(HIDDEN_PANELS_KEY, JSON.stringify(ids))
+    localStorage.setItem(keyFor(HIDDEN_PANELS_KEY, scopeRef.current), JSON.stringify(ids))
   }, [])
 
   const callGetLayout = useCallback((): Layout => {
@@ -185,14 +202,14 @@ export function ReplayLayoutProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      active, editMode, titleInfo, statusInfo, sessionNav, setSessionNav, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
+      active, editMode, titleInfo, statusInfo, sessionNav, setSessionNav, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns, category, applyScope,
       setActive, setEditMode, setTitleInfo, setStatusInfo, setTrackRotation, toggleEditMode,
       registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
     }),
     [
-      active, editMode, titleInfo, statusInfo, sessionNav, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns,
+      active, editMode, titleInfo, statusInfo, sessionNav, trackRotation, panelDefs, hiddenPanels, timingColumns, setTimingColumns, category, applyScope,
       toggleEditMode, registerReset, reset, hidePanel, showPanel, handleShowPanel, registerShowPanel,
       replaceHiddenPanels, registerLayoutAccessors, callGetLayout, callSetLayout,
       registerPanelDefs,
@@ -331,7 +348,7 @@ export function ReplayLayoutControls() {
     active, editMode, toggleEditMode, reset,
     hiddenPanels, handleShowPanel, panelDefs,
     replaceHiddenPanels, callGetLayout, callSetLayout,
-    timingColumns, setTimingColumns,
+    timingColumns, setTimingColumns, category,
   } = useReplayLayout()
 
   const [showSave, setShowSave] = useState(false)
@@ -351,6 +368,10 @@ export function ReplayLayoutControls() {
   if (!active) return null
 
   const hiddenDefs = panelDefs.filter((p) => hiddenPanels.has(p.id))
+  // The built-in default entry adopts the category name (e.g. "Practice Default"),
+  // and the matching seeded file is hidden so it isn't listed twice.
+  const defaultName = category ? `${category[0].toUpperCase()}${category.slice(1)} Default` : 'Default'
+  const customLayouts = layouts.filter((l) => l.name !== defaultName)
 
   function openSaveModal() {
     setSaveName('')
@@ -360,11 +381,11 @@ export function ReplayLayoutControls() {
 
   async function doSave() {
     const name = saveName.trim()
-    if (!name) return
+    if (!name || !category) return
     setSaving(true)
     setSaveError(null)
     try {
-      await api.saveLayout(name, callGetLayout() as unknown[], [...hiddenPanels], timingColumns, COLS)
+      await api.saveLayout(category, name, callGetLayout() as unknown[], [...hiddenPanels], timingColumns, COLS)
       setShowSave(false)
     } catch {
       setSaveError('Failed to save layout.')
@@ -374,23 +395,25 @@ export function ReplayLayoutControls() {
   }
 
   function openLayoutsModal() {
+    if (!category) return
     setEditingId(null)
     setConfirmDeleteId(null)
     setModalError(null)
     setShowLayouts(true)
     setLayoutsLoading(true)
     api
-      .listLayouts()
+      .listLayouts(category)
       .then(setLayouts)
       .catch(() => setModalError('No cache folder selected, or could not load layouts.'))
       .finally(() => setLayoutsLoading(false))
   }
 
   async function doLoad(id: string) {
+    if (!category) return
     setBusyId(id)
     setModalError(null)
     try {
-      const full: SavedLayoutFull = await api.getLayout(id)
+      const full: SavedLayoutFull = await api.getLayout(category, id)
       const savedCols = full.cols ?? BASE_COLS
       callSetLayout(scaleLayout(full.layout as unknown as Layout, COLS / savedCols))
       replaceHiddenPanels(full.hiddenPanels)
@@ -405,10 +428,10 @@ export function ReplayLayoutControls() {
 
   async function doRename(id: string) {
     const name = editName.trim()
-    if (!name) return
+    if (!name || !category) return
     setBusyId(id)
     try {
-      const updated = await api.updateLayout(id, name)
+      const updated = await api.updateLayout(category, id, name)
       setLayouts((prev) => prev.map((l) => (l.id === id ? updated : l)))
       setEditingId(null)
     } catch {
@@ -419,9 +442,10 @@ export function ReplayLayoutControls() {
   }
 
   async function doOverwrite(id: string) {
+    if (!category) return
     setBusyId(id)
     try {
-      await api.updateLayout(id, undefined, callGetLayout() as unknown[], [...hiddenPanels], timingColumns, COLS)
+      await api.updateLayout(category, id, undefined, callGetLayout() as unknown[], [...hiddenPanels], timingColumns, COLS)
       setEditingId(null)
     } catch {
       setModalError('Could not update layout.')
@@ -431,9 +455,10 @@ export function ReplayLayoutControls() {
   }
 
   async function doDelete(id: string) {
+    if (!category) return
     setBusyId(id)
     try {
-      await api.deleteLayout(id)
+      await api.deleteLayout(category, id)
       setLayouts((prev) => prev.filter((l) => l.id !== id))
       setConfirmDeleteId(null)
     } catch {
@@ -547,7 +572,7 @@ export function ReplayLayoutControls() {
             <h2 className="mb-4 text-lg font-bold text-white">Saved layouts</h2>
             <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
               <li className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2">
-                <span className="flex-1 truncate text-sm text-zinc-200">Default</span>
+                <span className="flex-1 truncate text-sm text-zinc-200">{defaultName}</span>
                 <button
                   type="button"
                   onClick={() => { reset(); setShowLayouts(false) }}
@@ -558,9 +583,9 @@ export function ReplayLayoutControls() {
               </li>
               {layoutsLoading ? (
                 <li className="text-sm text-zinc-500 px-1 py-1">Loading...</li>
-              ) : layouts.length === 0 && !modalError ? (
+              ) : customLayouts.length === 0 && !modalError ? (
                 <li className="text-sm text-zinc-500 px-1 py-1">No saved layouts yet.</li>
-              ) : layouts.map((item) => {
+              ) : customLayouts.map((item) => {
                   const isEditing = editingId === item.id
                   const isConfirmDelete = confirmDeleteId === item.id
                   const busy = busyId === item.id

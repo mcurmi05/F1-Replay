@@ -3,6 +3,7 @@ import ReactGridLayout, { noCompactor } from 'react-grid-layout'
 import type { Layout, ResizeHandleAxis } from 'react-grid-layout'
 
 import StatusCard from '../StatusCard'
+import CommentaryAudio from './CommentaryAudio'
 import PitStopFeed from './PitStopFeed'
 import PlaybackControls from './PlaybackControls'
 import RaceControlFeed from './RaceControlFeed'
@@ -17,7 +18,8 @@ import { useReplay, useSchedule } from '../../hooks/useApi'
 import { usePlayback } from '../../hooks/usePlayback'
 import { usePersistedLayout } from '../../hooks/usePersistedLayout'
 import { useReplayLayout } from '../../hooks/useReplayLayout'
-import { BASE_COLS, COLS, FINE, scaleLayout } from '../../lib/layoutGrid'
+import { BASE_COLS, COLS, FINE } from '../../lib/layoutGrid'
+import { defaultsFor } from '../../lib/defaultLayouts'
 import {
   currentLapNumber,
   currentRaceControlFlag,
@@ -31,7 +33,7 @@ import {
 } from '../../lib/replay'
 import type { SessionSummary } from '../../lib/api/types'
 
-const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v9'
+const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v10'
 const GRID_MARGIN = 8
 const HEADER_H = 64
 const PAD_TOP = 16
@@ -48,6 +50,7 @@ const PANEL_DEFS = [
   { id: 'teamRadio',   label: 'Team Radio' },
   { id: 'sessionBests', label: 'Session Bests' },
   { id: 'speedTrap',   label: 'Speed Trap' },
+  { id: 'commentary',  label: 'Commentary' },
   { id: 'playback',    label: 'Playback' },
 ]
 const RESIZE_EDGE = 8
@@ -94,20 +97,6 @@ function HidePanelButton({ onHide }: { onHide: () => void }) {
       </svg>
     </button>
   )
-}
-
-function buildDefaultLayout(): Layout {
-  return [
-    { i: 'trackmap',     x: 0,  y: 0,  w: 7,  h: 12, minW: 4, minH: 4 },
-    { i: 'telemetry',    x: 7,  y: 0,  w: 9,  h: 4,  minW: 4, minH: 2 },
-    { i: 'sessionBests', x: 7,  y: 4,  w: 5,  h: 4,  minW: 4, minH: 2 },
-    { i: 'teamRadio',    x: 7,  y: 8,  w: 5,  h: 4,  minW: 3, minH: 2 },
-    { i: 'raceControl',  x: 12, y: 4,  w: 4,  h: 3,  minW: 2, minH: 2 },
-    { i: 'pitStops',     x: 12, y: 7,  w: 4,  h: 3,  minW: 2, minH: 2 },
-    { i: 'speedTrap',    x: 12, y: 10, w: 4,  h: 2,  minW: 3, minH: 2 },
-    { i: 'timingTower',  x: 16, y: 0,  w: 16, h: 14, minW: 6, minH: 6 },
-    { i: 'playback',     x: 0,  y: 12, w: 16, h: 2,  minW: 6, minH: 2 },
-  ]
 }
 
 function firstFreeY(items: Layout, w: number, h: number): number {
@@ -162,8 +151,9 @@ export default function ReplayViewer({
   const { data, error, loading } = useReplay(year, event, session)
   const playback = usePlayback(data?.duration ?? 0)
   const [selected, setSelected] = useState<string | null>(null)
-  const defaultLayout = useMemo(() => scaleLayout(buildDefaultLayout(), FINE), [])
-  const { layout, setLayout, reset } = usePersistedLayout(LAYOUT_STORAGE_KEY, defaultLayout)
+  const sessionDefault = useMemo(() => defaultsFor(session), [session])
+  const defaultLayout = sessionDefault.layout
+  const { layout, setLayout, reset } = usePersistedLayout(`${LAYOUT_STORAGE_KEY}.${session}`, defaultLayout)
   const [grid, setGrid] = useState(() => calcGrid(window.innerWidth, window.innerHeight))
 
   useEffect(() => {
@@ -171,8 +161,12 @@ export default function ReplayViewer({
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  const { editMode, setActive, setEditMode, setTitleInfo, setStatusInfo, setSessionNav, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors, timingColumns, setTimingColumns } = useReplayLayout()
+  const { editMode, setActive, setEditMode, setTitleInfo, setStatusInfo, setSessionNav, registerReset, hiddenPanels, hidePanel, showPanel, registerPanelDefs, registerShowPanel, registerLayoutAccessors, timingColumns, setTimingColumns, applyScope } = useReplayLayout()
   const { data: schedule } = useSchedule(year)
+
+  useEffect(() => {
+    applyScope(session, sessionDefault)
+  }, [session, sessionDefault, applyScope])
 
   useEffect(() => {
     setActive(true)
@@ -402,6 +396,19 @@ export default function ReplayViewer({
             {editMode ? <EditBorder /> : null}
             {editMode ? <HidePanelButton onHide={() => hidePanel('speedTrap')} /> : null}
             <SpeedTrapFeed replay={data} currentTime={time} />
+          </div>
+          )}
+          {!hiddenPanels.has('commentary') && (
+          <div key="commentary" className={panelOutline} style={panelZ('commentary')}>
+            {editMode ? <DragHandle title="Commentary" /> : null}
+            {editMode ? <EditBorder /> : null}
+            {editMode ? <HidePanelButton onHide={() => hidePanel('commentary')} /> : null}
+            <CommentaryAudio
+              commentary={data.commentary ?? null}
+              currentTime={time}
+              playing={playback.playing}
+              speed={playback.speed}
+            />
           </div>
           )}
           {!hiddenPanels.has('playback') && (
