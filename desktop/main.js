@@ -22,11 +22,14 @@ ipcMain.handle('choose-folder', async () => {
 function startServer() {
   const env = { ...process.env, F1_NO_BROWSER: '1', PORT: String(PORT) }
   if (app.isPackaged) {
-    const binary = path.join(process.resourcesPath, 'server', 'f1-replay')
+    const exe = process.platform === 'win32' ? 'f1-replay.exe' : 'f1-replay'
+    const binary = path.join(process.resourcesPath, 'server', exe)
     serverProcess = spawn(binary, [], { env })
   } else {
     const serverDir = path.join(__dirname, '..', 'server')
-    const python = path.join(serverDir, '.venv', 'bin', 'python')
+    const python = process.platform === 'win32'
+      ? path.join(serverDir, '.venv', 'Scripts', 'python.exe')
+      : path.join(serverDir, '.venv', 'bin', 'python')
     serverProcess = spawn(python, ['launcher.py'], { cwd: serverDir, env })
   }
   serverProcess.stdout.on('data', (data) => console.log(`[server] ${data}`))
