@@ -209,11 +209,11 @@ export default function TimingTower({
       case 'lastLap':
         return <span key={id} style={{ width: width.lastLap }} className="shrink-0 text-center">Last</span>
       case 'sectors':
-        return <span key={id} style={{ width: width.sectors }} className="shrink-0 text-center">Sectors</span>
+        return <span key={id} style={{ width: width.sectors }} className="shrink-0 text-center">Live Sectors</span>
       case 'bestLap':
         return <span key={id} style={{ width: width.bestLap }} className="shrink-0 text-center">Best</span>
       case 'bestSectors':
-        return <span key={id} style={{ width: width.bestSectors }} className="shrink-0 text-center">Lap Sec</span>
+        return <span key={id} style={{ width: width.bestSectors }} className="shrink-0 text-center">Best Lap Sec</span>
       case 'pbSectors':
         return <span key={id} style={{ width: width.pbSectors }} className="shrink-0 text-center">Best Sec</span>
       case 'tyre':
