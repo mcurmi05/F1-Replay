@@ -35,7 +35,7 @@ export default function SpeedTrapFeed({
       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Speed Trap</p>
       <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto text-xs">
         {trap.length === 0 ? (
-          <p className="text-zinc-600">--</p>
+          <p className="text-zinc-600">Nobody has passed the speed trap yet</p>
         ) : (
           trap.map((row, idx) => (
             <div key={row.driver} className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900/60 px-2 py-1">

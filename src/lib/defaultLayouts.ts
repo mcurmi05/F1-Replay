@@ -94,6 +94,34 @@ const RACE: SessionDefault = {
   ],
 }
 
+const LIVE_PRACTICE: SessionDefault = {
+  layout: [
+    { i: 'trackmap', x: 0, y: 0, w: 35, h: 70, minW: 20, minH: 20 },
+    { i: 'raceControl', x: 65, y: 10, w: 20, h: 21, minW: 10, minH: 10 },
+    { i: 'pitStops', x: 65, y: 31, w: 20, h: 21, minW: 10, minH: 10 },
+    { i: 'telemetry', x: 35, y: 0, w: 30, h: 29, minW: 20, minH: 10 },
+    { i: 'timingTower', x: 85, y: 0, w: 75, h: 70, minW: 30, minH: 30 },
+    { i: 'teamRadio', x: 35, y: 49, w: 30, h: 21, minW: 15, minH: 10 },
+    { i: 'sessionBests', x: 35, y: 29, w: 30, h: 20, minW: 20, minH: 10 },
+    { i: 'speedTrap', x: 65, y: 52, w: 20, h: 18, minW: 15, minH: 10 },
+    { i: 'commentary', x: 65, y: 0, w: 20, h: 10, minW: 15, minH: 10 },
+  ],
+  hiddenPanels: [],
+  timingColumns: [
+    { id: 'pos', visible: true },
+    { id: 'driver', visible: true },
+    { id: 'bestSectors', visible: true },
+    { id: 'bestLap', visible: true },
+    { id: 'bestTyre', visible: false },
+    { id: 'interval', visible: true },
+    { id: 'pbSectors', visible: true },
+    { id: 'lastLap', visible: true },
+    { id: 'sectors', visible: true },
+    { id: 'tyre', visible: true },
+    { id: 'leader', visible: false },
+  ],
+}
+
 export type LayoutCategory =
   | 'practice'
   | 'qualifying'
@@ -118,9 +146,8 @@ export function defaultsFor(session: string): SessionDefault {
   return PRACTICE
 }
 
-// The live screen mirrors the replay layout for the session type, minus the
-// playback bar (there is no scrubbing in a live session).
 export function liveDefaultsFor(session: string): SessionDefault {
+  if (sessionCategory(session) === 'practice') return LIVE_PRACTICE
   const base = defaultsFor(session)
   return {
     layout: base.layout.filter((item) => item.i !== 'playback'),
