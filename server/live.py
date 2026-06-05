@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import threading
+import time
 import zlib
 from datetime import datetime, timedelta, timezone
 
@@ -11,6 +12,7 @@ import fastf1
 import pandas as pd
 
 import f1data
+import liveauth
 
 logger = logging.getLogger("f1live")
 
@@ -37,6 +39,9 @@ WINDOW_MINUTES = {
     "R": 200,
 }
 
+PRE_SESSION_MINUTES = 60
+POST_SESSION_MINUTES = 60
+
 TRACK_STATUS = {
     "1": "Track Clear",
     "2": "Yellow Flag",
@@ -54,8 +59,14 @@ def _merge(target, source):
     if not isinstance(source, dict):
         return source
     for key, value in source.items():
-        if isinstance(value, dict) and isinstance(target.get(key), dict):
-            target[key] = _merge(target[key], value)
+        existing = target.get(key)
+        if isinstance(value, dict):
+            if isinstance(existing, list):
+                existing = {str(i): item for i, item in enumerate(existing)}
+            if isinstance(existing, dict):
+                target[key] = _merge(existing, value)
+            else:
+                target[key] = value
         else:
             target[key] = value
     return target
@@ -109,6 +120,19 @@ class LiveRecording:
         self.path = path
         self._offset = 0
         self.topics = {}
+        self.retired = set()
+
+    def _track_retired(self, payload):
+        lines = payload.get("Lines") if isinstance(payload, dict) else None
+        if not isinstance(lines, dict):
+            return
+        for number, line in lines.items():
+            if not isinstance(line, dict):
+                continue
+            if line.get("Retired") or line.get("Stopped"):
+                self.retired.add(str(number))
+            if line.get("PitOut"):
+                self.retired.discard(str(number))
 
     def poll(self):
         if not os.path.exists(self.path):
@@ -127,6 +151,8 @@ class LiveRecording:
             topic, payload = parsed
             if topic in SKIP_TOPICS:
                 continue
+            if topic == "TimingData":
+                self._track_retired(payload)
             current = self.topics.setdefault(topic, {})
             if isinstance(payload, dict):
                 self.topics[topic] = _merge(current, payload)
@@ -200,12 +226,14 @@ class LiveManager:
                 return _empty_snapshot(None)
             current = _current_session()
             if current is not None and current["live_window"]:
+                if not liveauth.is_authenticated():
+                    return _auth_required_snapshot(current)
                 key = current["key"]
                 self._ensure_recorder(key)
                 if self._recording is not None:
                     self._recording.poll()
                     if self._recording.has_data():
-                        return _live_snapshot(current, self._recording.topics)
+                        return _live_snapshot(current, self._recording.topics, self._recording.retired)
                 return _connecting_snapshot(current)
             return self._historical_state(current)
 
@@ -291,6 +319,28 @@ def _current_session():
     upcoming = [s for s in sessions if s["start_utc"] > now]
     next_session = upcoming[0] if upcoming else None
 
+    if past:
+        latest = past[-1]
+        window = WINDOW_MINUTES.get(latest["session_type"], 120)
+        end = latest["start_utc"] + timedelta(minutes=window + POST_SESSION_MINUTES)
+        if now <= end:
+            key = f"{latest['year']}_{latest['round']}_{latest['session_type']}"
+            return {
+                "key": key,
+                "live_window": True,
+                "session": latest,
+                "next": next_session,
+            }
+
+    if next_session is not None and now >= next_session["start_utc"] - timedelta(minutes=PRE_SESSION_MINUTES):
+        key = f"{next_session['year']}_{next_session['round']}_{next_session['session_type']}"
+        return {
+            "key": key,
+            "live_window": True,
+            "session": next_session,
+            "next": upcoming[1] if len(upcoming) > 1 else None,
+        }
+
     if not past:
         return {
             "key": None,
@@ -300,13 +350,10 @@ def _current_session():
         }
 
     latest = past[-1]
-    window = WINDOW_MINUTES.get(latest["session_type"], 120)
-    end = latest["start_utc"] + timedelta(minutes=window)
-    live_window = latest["start_utc"] - timedelta(minutes=5) <= now <= end
     key = f"{latest['year']}_{latest['round']}_{latest['session_type']}"
     return {
         "key": key,
-        "live_window": live_window,
+        "live_window": False,
         "session": latest,
         "next": next_session,
     }
@@ -357,6 +404,8 @@ def _current_stint(app_line):
 
 def _stint_index(app_line):
     stints = app_line.get("Stints")
+    if isinstance(stints, list):
+        stints = {str(i): item for i, item in enumerate(stints)}
     if not isinstance(stints, dict) or not stints:
         return None, None
     best_key = None
@@ -507,6 +556,11 @@ def _timing_stats_live(topics):
             for i, sec in enumerate(sectors[:3]):
                 if isinstance(sec, dict):
                     best_sectors[i] = _clean(sec.get("Value"))
+        elif isinstance(sectors, dict):
+            for i, key in enumerate(["0", "1", "2"]):
+                sec = sectors.get(key)
+                if isinstance(sec, dict):
+                    best_sectors[i] = _clean(sec.get("Value"))
 
         best_speeds = {}
         speeds = line.get("BestSpeeds")
@@ -586,7 +640,8 @@ def _car_data_live(topics):
     return result
 
 
-def _live_snapshot(current, topics):
+def _live_snapshot(current, topics, retired_set=None):
+    retired_set = retired_set or set()
     session = current["session"]
     drivers = _drivers_from_topics(topics)
     timing = topics.get("TimingData", {}).get("Lines", {})
@@ -594,7 +649,7 @@ def _live_snapshot(current, topics):
 
     position_data = _position_data_live(topics)
     car_data = _car_data_live(topics)
-    track = _get_track_geometry(session.get("year"), session.get("round"), session.get("session_type"))
+    track = _get_track_geometry(session.get("year"), session.get("round"), session.get("session_type"), session.get("event_name"))
 
     rows = []
     for number, line in timing.items():
@@ -614,7 +669,7 @@ def _live_snapshot(current, topics):
             position = None
 
         in_pit = bool(line.get("InPit"))
-        retired = bool(line.get("Retired")) or bool(line.get("Stopped"))
+        retired = bool(line.get("Retired")) or bool(line.get("Stopped")) or str(number) in retired_set
         laps_done = _to_int(line.get("NumberOfLaps"))
         if retired and (laps_done is None or laps_done == 0):
             status = "DNS"
@@ -641,8 +696,8 @@ def _live_snapshot(current, topics):
             "full_name": info.get("full_name"),
             "team_name": info.get("team_name"),
             "team_colour": info.get("team_colour"),
-            "gap": _clean(line.get("GapToLeader")),
-            "interval": _clean(_nested(line, "IntervalToPositionAhead", "Value")),
+            "gap": _clean(line.get("GapToLeader")) or _clean(line.get("TimeDiffToFastest")),
+            "interval": _clean(_nested(line, "IntervalToPositionAhead", "Value")) or _clean(line.get("TimeDiffToPositionAhead")),
             "last_lap": _clean(_nested(line, "LastLapTime", "Value")),
             "best_lap": _clean(_nested(line, "BestLapTime", "Value")),
             "compound": _compound(stint.get("Compound")),
@@ -701,7 +756,7 @@ def _live_snapshot(current, topics):
             },
             "current_lap": _to_int(lap_count.get("CurrentLap")),
             "total_laps": _to_int(lap_count.get("TotalLaps")),
-            "time_remaining": _clean(clock.get("Remaining")),
+            "time_remaining": _extrapolated_remaining(clock),
             "started_at": session["start_utc"].isoformat(),
         },
         "weather": _weather(weather),
@@ -712,6 +767,27 @@ def _live_snapshot(current, topics):
         "timing_stats": _timing_stats_live(topics),
         "commentary": _commentary_live(topics),
         "track": track,
+        "next_session": _next_payload(current),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _auth_required_snapshot(current):
+    session = current["session"]
+    return {
+        "available": False,
+        "live": False,
+        "auth_required": True,
+        "source": "live",
+        "session": _session_meta_payload(session, "Authentication required"),
+        "weather": None,
+        "rows": [],
+        "race_control_messages": [],
+        "team_radio": [],
+        "pit_times": [],
+        "timing_stats": {},
+        "commentary": None,
+        "track": {"x": [], "y": []},
         "next_session": _next_payload(current),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -738,7 +814,7 @@ def _empty_snapshot(current, session_meta=None):
 
 def _connecting_snapshot(current):
     session = current["session"]
-    track = _get_track_geometry(session.get("year"), session.get("round"), session.get("session_type"))
+    track = _get_track_geometry(session.get("year"), session.get("round"), session.get("session_type"), session.get("event_name"))
     return {
         "available": False,
         "live": True,
@@ -766,7 +842,61 @@ def _load_results_only(year, event, session_type):
     return session
 
 
-def _get_track_geometry(year, round_num, session_type):
+_track_cache = {}
+_track_loading = set()
+_track_cache_lock = threading.Lock()
+TRACK_RETRY_SECONDS = 300
+
+
+def _get_track_geometry(year, round_num, session_type, event_name=None):
+    if not year or not round_num:
+        return {"x": [], "y": []}
+
+    key = f"{year}_{round_num}_{session_type}"
+    now = time.monotonic()
+    with _track_cache_lock:
+        entry = _track_cache.get(key)
+        if entry is not None and (entry["data"]["x"] or now - entry["ts"] < TRACK_RETRY_SECONDS):
+            return entry["data"]
+        if key in _track_loading:
+            return entry["data"] if entry else {"x": [], "y": []}
+        _track_loading.add(key)
+        current = entry["data"] if entry else {"x": [], "y": []}
+
+    threading.Thread(
+        target=_load_geometry_async,
+        args=(key, year, round_num, session_type, event_name),
+        daemon=True,
+    ).start()
+    return current
+
+
+def _load_geometry_async(key, year, round_num, session_type, event_name):
+    data = {"x": [], "y": []}
+    try:
+        data = _load_track_geometry(year, round_num, session_type)
+        if not data["x"] and event_name:
+            data = _load_prior_geometry(event_name, year)
+    except Exception:
+        logger.exception("Track geometry load failed")
+    with _track_cache_lock:
+        _track_cache[key] = {"data": data, "ts": time.monotonic()}
+        _track_loading.discard(key)
+
+
+def _load_prior_geometry(event_name, year):
+    for prev_year in range(year - 1, year - 4, -1):
+        for stype in ("R", "Q"):
+            try:
+                geo = _load_track_geometry(prev_year, event_name, stype)
+            except Exception:
+                geo = {"x": [], "y": []}
+            if geo["x"]:
+                return geo
+    return {"x": [], "y": []}
+
+
+def _load_track_geometry(year, round_num, session_type):
     """Load track geometry from a session's fastest lap telemetry."""
     if not year or not round_num:
         return {"x": [], "y": []}
@@ -794,9 +924,25 @@ def _get_track_geometry(year, round_num, session_type):
         if not np.any(mask):
             return {"x": [], "y": []}
 
+        sector_markers = []
+        try:
+            if "SessionTime" in lap_tel:
+                sess_arr = lap_tel["SessionTime"].dt.total_seconds().to_numpy()
+                for col in ("Sector1SessionTime", "Sector2SessionTime"):
+                    st = fastest_lap.get(col)
+                    if st is None or not pd.notna(st):
+                        continue
+                    target = pd.Timedelta(st).total_seconds()
+                    j = int(np.nanargmin(np.abs(sess_arr - target)))
+                    if not (np.isnan(tx[j]) or np.isnan(ty[j])):
+                        sector_markers.append({"x": int(round(float(tx[j]))), "y": int(round(float(ty[j])))})
+        except Exception:
+            sector_markers = []
+
         return {
             "x": [int(round(float(v))) for v in tx[mask]],
             "y": [int(round(float(v))) for v in ty[mask]],
+            "sector_markers": sector_markers,
         }
     except Exception as e:
         logger.warning(f"Could not load track geometry for {year}/{round_num}/{session_type}: {e}")
@@ -815,7 +961,7 @@ def _historical_snapshot(current):
 
     rows = _historical_rows(loaded)
     rows = _historical_rows_with_new_fields(rows)
-    track = _get_track_geometry(session_meta.get("year"), session_meta.get("round"), session_meta.get("session_type"))
+    track = _get_track_geometry(session_meta.get("year"), session_meta.get("round"), session_meta.get("session_type"), session_meta.get("event_name"))
     return {
         "available": bool(rows),
         "live": False,
@@ -1025,6 +1171,61 @@ def _to_int(value):
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_hms(text):
+    parts = str(text).split(":")
+    try:
+        nums = [float(p) for p in parts]
+    except ValueError:
+        return None
+    seconds = 0.0
+    for n in nums:
+        seconds = seconds * 60 + n
+    return seconds
+
+
+def _format_hms(seconds):
+    seconds = int(max(0, round(seconds)))
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def _parse_utc(text):
+    text = str(text).strip().replace("Z", "+00:00")
+    if "." in text:
+        head, _, tail = text.partition(".")
+        frac = tail
+        tz = ""
+        for marker in ("+", "-"):
+            idx = tail.find(marker)
+            if idx != -1:
+                frac, tz = tail[:idx], tail[idx:]
+                break
+        frac = frac[:6]
+        text = f"{head}.{frac}{tz}"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _extrapolated_remaining(clock):
+    remaining = _clean(clock.get("Remaining"))
+    if not remaining:
+        return None
+    if not clock.get("Extrapolating"):
+        return remaining
+    base = _parse_hms(remaining)
+    ref = _parse_utc(clock.get("Utc")) if clock.get("Utc") else None
+    if base is None or ref is None:
+        return remaining
+    elapsed = (datetime.now(timezone.utc) - ref).total_seconds()
+    return _format_hms(base - elapsed)
 
 
 def _to_float(value):

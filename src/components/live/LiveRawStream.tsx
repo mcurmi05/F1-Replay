@@ -14,7 +14,7 @@ interface Box {
 }
 
 function loadBox(): Box {
-  const fallback: Box = { x: 24, y: 96, w: 460, h: 520, open: true }
+  const fallback: Box = { x: 24, y: 96, w: 460, h: 520, open: false }
   try {
     const raw = localStorage.getItem(POS_KEY)
     if (!raw) return fallback

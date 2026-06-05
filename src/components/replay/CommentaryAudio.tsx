@@ -4,6 +4,18 @@ import FitScale from '../FitScale'
 
 const DRIFT_TOLERANCE = 0.4
 
+async function resolveAudioPlaylist(url: string): Promise<string> {
+  try {
+    const text = await (await fetch(url)).text()
+    if (/#EXT-X-STREAM-INF/.test(text)) return url
+    const media = text.match(/#EXT-X-MEDIA:[^\n]*URI="([^"]+)"/)
+    if (media?.[1]) return new URL(media[1], url).toString()
+    return url
+  } catch {
+    return url
+  }
+}
+
 function formatCountdown(seconds: number): string {
   const s = Math.max(0, Math.round(seconds))
   const m = Math.floor(s / 60)
@@ -49,14 +61,16 @@ export default function CommentaryAudio({
       setReadyUrl(url)
     } else {
       import('hls.js')
-        .then(({ default: Hls }) => {
+        .then(async ({ default: Hls }) => {
           if (cancelled || !audioRef.current) return
           if (!Hls.isSupported()) {
             setErrorUrl(url)
             return
           }
+          const source = await resolveAudioPlaylist(url)
+          if (cancelled || !audioRef.current) return
           const hls = new Hls({ enableWorker: true })
-          hls.loadSource(url)
+          hls.loadSource(source)
           hls.attachMedia(audioRef.current)
           hls.on(Hls.Events.MANIFEST_PARSED, () => setReadyUrl(url))
           hls.on(Hls.Events.ERROR, (_evt, data) => {

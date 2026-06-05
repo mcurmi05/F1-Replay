@@ -7,6 +7,7 @@ import time
 import fastf1
 import numpy as np
 import pandas as pd
+import platformdirs
 from fastf1.exceptions import RateLimitExceededError
 
 _SUPPRESSED_FASTF1_WARNINGS = ("lap accuracy check", "Lap timing integrity check")
@@ -25,6 +26,24 @@ _cache_dir = None
 _cache_deleted = False
 
 CACHE_FOLDER_NAME = "f1replaycache"
+
+_CONFIG_PATH = os.path.join(platformdirs.user_data_dir("f1-replay", ensure_exists=True), "config.json")
+
+
+def _save_cache_pref(path):
+    try:
+        with open(_CONFIG_PATH, "w") as handle:
+            json.dump({"cache_dir": path}, handle)
+    except OSError:
+        pass
+
+
+def _load_cache_pref():
+    try:
+        with open(_CONFIG_PATH) as handle:
+            return json.load(handle).get("cache_dir")
+    except (OSError, ValueError):
+        return None
 
 TEAM_COLORS = {
     "mclaren": "FF8000",
@@ -121,6 +140,7 @@ def set_cache(directory):
     fastf1.Cache.enable_cache(target)
     _cache_dir = target
     _cache_deleted = False
+    _save_cache_pref(target)
 
 
 def get_cache():
@@ -145,6 +165,13 @@ def cache_was_deleted():
 _env_cache = os.environ.get("FASTF1_CACHE_DIR")
 if _env_cache:
     set_cache(_env_cache)
+else:
+    _saved_cache = _load_cache_pref()
+    if _saved_cache and os.path.isdir(_saved_cache):
+        try:
+            set_cache(_saved_cache)
+        except OSError:
+            pass
 
 
 def _iso(value):

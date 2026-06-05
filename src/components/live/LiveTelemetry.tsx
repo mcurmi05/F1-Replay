@@ -212,20 +212,6 @@ export default function LiveTelemetry({ row }: { row: LiveRow | null }) {
       ),
     [series.times, windowStart, windowEnd, throttle, brakeValue],
   )
-  const brakeSegments = useMemo(
-    () =>
-      buildSegments(
-        series.times,
-        series.brake,
-        windowStart,
-        windowEnd,
-        brakeValue,
-        () => BRAKE_RED,
-        BRAKE_RED,
-      ),
-    [series.times, windowStart, windowEnd, brakeValue],
-  )
-
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-3">
       <div className="flex items-center gap-2.5">
@@ -281,31 +267,6 @@ export default function LiveTelemetry({ row }: { row: LiveRow | null }) {
             ))}
           </svg>
           <VerticalBar value={throttle} color={THROTTLE_GREEN} />
-        </div>
-      </div>
-
-      <div className="mt-2 flex min-h-0 flex-1 flex-col">
-        <div className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-500">Brake</div>
-        <div className="flex min-h-0 flex-1 items-stretch gap-3">
-          <svg
-            viewBox="0 0 100 40"
-            preserveAspectRatio="none"
-            className="min-h-0 flex-1 rounded-md bg-zinc-900/40"
-          >
-            {brakeSegments.map((segment, index) => (
-              <polyline
-                key={index}
-                points={segment.points}
-                fill="none"
-                stroke={segment.color}
-                strokeWidth={0.9}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-          </svg>
-          <VerticalBar value={brakeValue} color={BRAKE_RED} />
         </div>
       </div>
     </div>

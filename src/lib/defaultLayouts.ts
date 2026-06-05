@@ -111,7 +111,7 @@ const LIVE_PRACTICE: SessionDefault = {
     { id: 'pos', visible: true },
     { id: 'driver', visible: true },
     { id: 'interval', visible: true },
-    { id: 'bestSectors', visible: true },
+    { id: 'bestSectors', visible: false },
     { id: 'bestLap', visible: true },
     { id: 'bestTyre', visible: false },
     { id: 'pbSectors', visible: true },

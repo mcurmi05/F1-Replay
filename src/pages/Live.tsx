@@ -11,6 +11,7 @@ import TeamRadioFeed from '../components/replay/TeamRadioFeed'
 import TimingTower from '../components/replay/TimingTower'
 import type { TimingTowerRow } from '../components/replay/TimingTower'
 import TrackMap from '../components/replay/TrackMap'
+import LiveAuthGate from '../components/live/LiveAuthGate'
 import LivePitStops from '../components/live/LivePitStops'
 import LiveTelemetry from '../components/live/LiveTelemetry'
 import { useLive } from '../hooks/useApi'
@@ -62,11 +63,18 @@ function parseLapTime(value: string | null | undefined): number | null {
   return Number.isFinite(seconds) ? seconds : null
 }
 
+function utcMs(value: string | number | null | undefined): number | null {
+  if (typeof value !== 'string') return null
+  const normalized = /[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`
+  const t = Date.parse(normalized)
+  return Number.isFinite(t) ? t : null
+}
+
 function relSeconds(value: string | number | null | undefined, startMs: number): number | null {
   if (value === null || value === undefined) return null
   if (typeof value === 'number') return value
-  const t = Date.parse(value)
-  if (!Number.isFinite(t) || !Number.isFinite(startMs)) return null
+  const t = utcMs(value)
+  if (t === null || !Number.isFinite(startMs)) return null
   return (t - startMs) / 1000
 }
 
@@ -125,11 +133,8 @@ function liveWeatherToSample(weather: LiveWeather | null): WeatherSample | null 
 }
 
 function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingTowerRow[] {
-  const liveMin = [Infinity, Infinity, Infinity]
   const pbMin = [Infinity, Infinity, Infinity]
   for (const r of rows) {
-    const live = [parseNum(r.sector_1), parseNum(r.sector_2), parseNum(r.sector_3)]
-    live.forEach((v, i) => { if (v !== null && v < liveMin[i]) liveMin[i] = v })
     const bs = stats?.[r.driver_number]?.best_sectors ?? []
     bs.forEach((val, i) => { const v = parseNum(val); if (v !== null && v < pbMin[i]) pbMin[i] = v })
   }
@@ -139,7 +144,7 @@ function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingT
     const livePb = [row.sector_1_pb, row.sector_2_pb, row.sector_3_pb]
     const live_sectors: SectorCell[] = liveVals.map((v, i) => ({
       value: v,
-      tone: v === null ? null : v === liveMin[i] ? 'best' : livePb[i] ? 'pb' : 'set',
+      tone: v === null ? null : (pbMin[i] !== Infinity && v <= pbMin[i]) ? 'best' : livePb[i] ? 'pb' : 'set',
     }))
     const bestSectorVals = (stats?.[row.driver_number]?.best_sectors ?? []).map(parseNum)
     const personal_best_sectors: SectorCell[] = [0, 1, 2].map((i) => {
@@ -175,10 +180,16 @@ function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingT
 function buildLiveReplay(data: LiveState): { replay: ReplayData; hasMap: boolean } {
   const startMs = data.session?.started_at ? Date.parse(data.session.started_at) : NaN
 
-  const raceControl: RaceControlMessage[] = (data.race_control_messages ?? []).map((m) => ({
-    ...m,
-    time: relSeconds(m.time as unknown as string | number | null, startMs),
-  }))
+  const remainingNow = parseLapTime(data.session?.time_remaining ?? null)
+  const nowMs = Date.now()
+  const raceControl: RaceControlMessage[] = (data.race_control_messages ?? []).map((m) => {
+    const msgMs = utcMs(m.time as unknown as string | number | null)
+    const time =
+      remainingNow !== null && msgMs !== null
+        ? remainingNow + (nowMs - msgMs) / 1000
+        : relSeconds(m.time as unknown as string | number | null, startMs)
+    return { ...m, time }
+  })
 
   const teamRadio = (data.team_radio ?? []).map((c) => ({
     utc: c.utc ?? null,
@@ -260,7 +271,8 @@ function LiveBoard({ data }: { data: LiveState }) {
   const [selected, setSelected] = useState<string | null>(null)
   const { setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
 
-  const isLive = data.live
+  const isLive = data.source === 'live'
+  const ended = isLive && !data.live
   const view = useMemo(() => (isLive ? data : blankLive(data)), [isLive, data])
 
   const session = view.session
@@ -272,6 +284,10 @@ function LiveBoard({ data }: { data: LiveState }) {
 
   const board = useMemo(() => toTowerRows(view.rows, view.timing_stats), [view.rows, view.timing_stats])
   const { replay, hasMap } = useMemo(() => buildLiveReplay(view), [view])
+  const pitDrivers = useMemo(
+    () => new Set(view.rows.filter((r) => r.in_pit).map((r) => r.driver_number)),
+    [view.rows],
+  )
   const weatherSample = useMemo(() => liveWeatherToSample(view.weather), [view.weather])
 
   const next = data.next_session
@@ -280,7 +296,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       setTitleInfo({
         year: session.started_at ? new Date(session.started_at).getFullYear() : null,
         eventName: session.event_name,
-        sessionName: session.session_name,
+        sessionName: ended ? `${session.session_name} · Ending now` : session.session_name,
         location: session.location,
       })
     } else {
@@ -296,7 +312,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       setTitleInfo(null)
       setSessionNav(null)
     }
-  }, [isLive, session, next, setTitleInfo, setSessionNav])
+  }, [isLive, ended, session, next, setTitleInfo, setSessionNav])
 
   useEffect(() => {
     if (isLive) {
@@ -326,7 +342,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
         <div className="absolute inset-0 overflow-hidden p-3">
           {hasMap ? (
-            <TrackMap replay={replay} currentTime={0} selected={selected} onSelect={setSelected} />
+            <TrackMap replay={replay} currentTime={0} selected={selected} onSelect={setSelected} live pitDrivers={pitDrivers} />
           ) : (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <div className="h-12 w-12 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
@@ -386,6 +402,8 @@ export default function Live() {
     )
   } else if (!data) {
     content = null
+  } else if (data.auth_required) {
+    content = <LiveAuthGate next={data.next_session} />
   } else {
     content = <LiveBoard data={data} />
   }

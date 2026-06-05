@@ -7,6 +7,8 @@ import { useReplayLayout } from '../../hooks/useReplayLayout'
 import trackIcon from '../../assets/follow_target.png'
 
 const FOLLOW_ZOOM = 1.5
+const TRACK_DELAY_MS = 1200
+const EMPTY_PITS: Set<string> = new Set()
 const FLAG_COLORS = { red: '#ef4444', sc: '#facc15', vsc: '#f59e0b', yellow: '#facc15' } as const
 
 function lerp(values: (number | null)[], i0: number, i1: number, frac: number): number | null {
@@ -21,18 +23,80 @@ function lerp(values: (number | null)[], i0: number, i1: number, frac: number): 
   return a + (b - a) * frac
 }
 
+interface Arc {
+  xs: number[]
+  ys: number[]
+  cum: number[]
+  total: number
+}
+
+function buildArc(track: { x: number[]; y: number[] }): Arc | null {
+  const xs = track.x
+  const ys = track.y
+  if (xs.length < 2) return null
+  const cum = new Array<number>(xs.length)
+  cum[0] = 0
+  for (let i = 1; i < xs.length; i += 1) {
+    cum[i] = cum[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1])
+  }
+  return { xs, ys, cum, total: cum[cum.length - 1] }
+}
+
+function projectToS(arc: Arc, x: number, y: number): number {
+  const { xs, ys, cum } = arc
+  let bestD = Infinity
+  let bestS = 0
+  for (let i = 0; i < xs.length - 1; i += 1) {
+    const ax = xs[i]
+    const ay = ys[i]
+    const dx = xs[i + 1] - ax
+    const dy = ys[i + 1] - ay
+    const len2 = dx * dx + dy * dy || 1
+    let t = ((x - ax) * dx + (y - ay) * dy) / len2
+    if (t < 0) t = 0
+    else if (t > 1) t = 1
+    const px = ax + dx * t
+    const py = ay + dy * t
+    const d = (x - px) ** 2 + (y - py) ** 2
+    if (d < bestD) {
+      bestD = d
+      bestS = cum[i] + Math.hypot(px - ax, py - ay)
+    }
+  }
+  return bestS
+}
+
+function posOnTrack(arc: Arc, s: number): { x: number; y: number } {
+  const { xs, ys, cum, total } = arc
+  const ss = ((s % total) + total) % total
+  let lo = 1
+  let hi = cum.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (cum[mid] < ss) lo = mid + 1
+    else hi = mid
+  }
+  const seg = cum[lo] - cum[lo - 1] || 1
+  const t = (ss - cum[lo - 1]) / seg
+  return { x: xs[lo - 1] + (xs[lo] - xs[lo - 1]) * t, y: ys[lo - 1] + (ys[lo] - ys[lo - 1]) * t }
+}
+
 export default function TrackMap({
   replay,
   currentTime,
   selected,
   onSelect,
   editMode = false,
+  live = false,
+  pitDrivers = EMPTY_PITS,
 }: {
   replay: ReplayData
   currentTime: number
   selected: string | null
   onSelect: (driver: string) => void
   editMode?: boolean
+  live?: boolean
+  pitDrivers?: Set<string>
 }) {
   const [rotation, setRotation] = useState(0)
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
@@ -45,6 +109,10 @@ export default function TrackMap({
   const { setTrackRotation } = useReplayLayout()
   const vWRef = useRef(0)
   const vHRef = useRef(0)
+  const bufRef = useRef<Map<string, { t: number; x: number; y: number; s: number; on: boolean }[]>>(new Map())
+  const lastRawRef = useRef<Map<string, number>>(new Map())
+  const offsetRef = useRef<Map<string, number>>(new Map())
+  const [, setFrame] = useState(0)
 
   followRef.current = follow
 
@@ -134,6 +202,53 @@ export default function TrackMap({
   const radius = Math.max(width, height) / 95
   const flipY = (y: number) => bounds.min_y + bounds.max_y - y
 
+  const arc = useMemo(() => buildArc(track), [track])
+
+  useEffect(() => {
+    if (!live || !arc) return
+    const L = arc.total
+    const now = performance.now()
+    for (const driver of replay.drivers) {
+      const path = replay.positions[driver.number]
+      if (!path || path.x.length === 0) continue
+      const x = path.x[path.x.length - 1]
+      const y = path.y[path.y.length - 1]
+      if (x === null || y === null) continue
+      const onTrack = !pitDrivers.has(driver.number)
+      let s = 0
+      if (onTrack) {
+        const raw = projectToS(arc, x, y)
+        const prev = lastRawRef.current.get(driver.number)
+        let offset = offsetRef.current.get(driver.number) ?? 0
+        if (prev !== undefined && prev - raw > L / 2) offset += L
+        offsetRef.current.set(driver.number, offset)
+        lastRawRef.current.set(driver.number, raw)
+        s = raw + offset
+      } else {
+        lastRawRef.current.delete(driver.number)
+        offsetRef.current.delete(driver.number)
+      }
+      const buf = bufRef.current.get(driver.number) ?? []
+      const lastSample = buf[buf.length - 1]
+      if (!lastSample || lastSample.x !== x || lastSample.y !== y || now - lastSample.t > 200) {
+        buf.push({ t: now, x, y, s, on: onTrack })
+      }
+      while (buf.length > 2 && buf[1].t < now - (TRACK_DELAY_MS + 2000)) buf.shift()
+      bufRef.current.set(driver.number, buf)
+    }
+  }, [replay, live, arc, pitDrivers])
+
+  useEffect(() => {
+    if (!live || !arc) return
+    let raf = 0
+    const loop = () => {
+      setFrame((f) => (f + 1) % 1000000)
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [live, arc])
+
   const trackPoints = useMemo(
     () => track.x.map((x, i) => `${x},${bounds.min_y + bounds.max_y - track.y[i]}`).join(' '),
     [track, bounds],
@@ -208,10 +323,40 @@ export default function TrackMap({
   const i1 = Math.min(i0 + 1, length - 1)
   const frac = Math.max(0, Math.min(ratio - base, 1))
 
+  function driverPos(num: string): { x: number; y: number } | null {
+    if (live && arc) {
+      const buf = bufRef.current.get(num)
+      if (!buf || buf.length === 0) return null
+      const renderT = performance.now() - TRACK_DELAY_MS
+      if (renderT <= buf[0].t) {
+        return buf[0].on ? posOnTrack(arc, buf[0].s) : { x: buf[0].x, y: buf[0].y }
+      }
+      if (renderT >= buf[buf.length - 1].t) {
+        const last = buf[buf.length - 1]
+        return last.on ? posOnTrack(arc, last.s) : { x: last.x, y: last.y }
+      }
+      let i = buf.length - 2
+      while (i > 0 && buf[i].t > renderT) i -= 1
+      const a = buf[i]
+      const b = buf[i + 1]
+      const f = (renderT - a.t) / (b.t - a.t || 1)
+      if (a.on && b.on) {
+        return posOnTrack(arc, a.s + (b.s - a.s) * f)
+      }
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
+    }
+    const path = replay.positions[num]
+    if (!path) return null
+    const x = lerp(path.x, i0, i1, frac)
+    const y = lerp(path.y, i0, i1, frac)
+    if (x === null || y === null) return null
+    return { x, y }
+  }
+
   const selectedDriver = selected ? replay.drivers.find((d) => d.number === selected) : null
-  const selectedPath = selected ? replay.positions[selected] : undefined
-  const selX = selectedPath ? lerp(selectedPath.x, i0, i1, frac) : null
-  const selY = selectedPath ? lerp(selectedPath.y, i0, i1, frac) : null
+  const selPos = selected ? driverPos(selected) : null
+  const selX = selPos ? selPos.x : null
+  const selY = selPos ? selPos.y : null
 
   const zoomPct = Math.round(zoom * 100)
 
@@ -282,21 +427,16 @@ export default function TrackMap({
         />
       ) : null}
       {replay.drivers.map((driver) => {
-        const path = replay.positions[driver.number]
-        if (!path) {
-          return null
-        }
-        const x = lerp(path.x, i0, i1, frac)
-        const y = lerp(path.y, i0, i1, frac)
-        if (x === null || y === null) {
+        const pos = driverPos(driver.number)
+        if (!pos) {
           return null
         }
         const isSelected = selected === driver.number
         return (
           <circle
             key={driver.number}
-            cx={x}
-            cy={flipY(y)}
+            cx={pos.x}
+            cy={flipY(pos.y)}
             r={isSelected ? radius * 1.6 : radius}
             fill={teamColor(driver.team_colour)}
             stroke={isSelected ? '#ffffff' : 'rgba(0,0,0,0.45)'}

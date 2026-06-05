@@ -144,9 +144,18 @@ export interface TeamRadioClip {
   url: string
 }
 
+export interface LiveAuthStatus {
+  authenticated: boolean
+  pending: boolean
+  product: string | null
+  subscription: string | null
+  expires_at: string | null
+}
+
 export interface LiveState {
   available: boolean
   live: boolean
+  auth_required?: boolean
   source: 'live' | 'historical' | 'none'
   session: LiveSession | null
   weather: LiveWeather | null

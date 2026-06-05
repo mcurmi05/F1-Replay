@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 import f1data
 import live
+import liveauth
 
 app = FastAPI(title="F1 Replay API")
 
@@ -152,6 +153,21 @@ def live_status():
 @api.get("/live/raw")
 def live_raw():
     return live.live_raw()
+
+
+@api.get("/live/auth")
+def live_auth_status():
+    return liveauth.status()
+
+
+@api.post("/live/auth/login")
+def live_auth_login():
+    return liveauth.start_login()
+
+
+@api.post("/live/auth/logout")
+def live_auth_logout():
+    return liveauth.logout()
 
 
 @api.get("/schedule/{year}")

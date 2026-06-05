@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, session } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron')
 const { spawn } = require('node:child_process')
 const path = require('node:path')
 const http = require('node:http')
@@ -76,6 +76,13 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
     },
   })
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
   waitForServer(() => window.loadURL(BASE_URL), 120)
 }
 
