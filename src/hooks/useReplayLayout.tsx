@@ -21,6 +21,7 @@ const TIMING_COLUMNS_KEY = 'f1replay.timingColumns.v2'
 const keyFor = (base: string, scope: string | null) => (scope ? `${base}.${scope}` : base)
 
 interface TitleInfo {
+  year: number | null
   eventName: string | null
   sessionName: string | null
   location: string | null
@@ -248,17 +249,20 @@ export function ReplayTitleBadge() {
         )
       ) : null}
       <div className="flex items-center gap-2 text-sm">
-        <span className="font-semibold text-white">{titleInfo.eventName}</span>
-        {titleInfo.sessionName ? (
-          <>
-            <span className="text-zinc-600">·</span>
-            <span className="text-zinc-400">{titleInfo.sessionName}</span>
-          </>
+        {titleInfo.year !== null ? (
+          <span className="font-semibold text-zinc-400">{titleInfo.year}</span>
         ) : null}
+        <span className="font-semibold text-white">{titleInfo.eventName}</span>
         {titleInfo.location ? (
           <>
             <span className="text-zinc-600">·</span>
             <span className="text-zinc-500">{titleInfo.location}</span>
+          </>
+        ) : null}
+        {titleInfo.sessionName ? (
+          <>
+            <span className="text-zinc-600">·</span>
+            <span className="text-zinc-400">{titleInfo.sessionName}</span>
           </>
         ) : null}
       </div>

@@ -226,6 +226,14 @@ export default function TrackMap({
   }
   const viewBox = `${centerX - vwZ / 2} ${centerY - vhZ / 2} ${vwZ} ${vhZ}`
 
+  if (track.x.length === 0) {
+    return (
+      <div ref={containerRef} className="flex h-full w-full items-center justify-center p-4 text-center">
+        <p className="text-sm text-zinc-500">This session has no position data, so the track map is unavailable.</p>
+      </div>
+    )
+  }
+
   return (
     <div ref={containerRef} className="relative h-full w-full">
     <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" className="h-full w-full pointer-events-none" style={{ overflowAnchor: 'none' }}>

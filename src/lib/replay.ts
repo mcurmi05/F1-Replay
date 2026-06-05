@@ -630,7 +630,15 @@ export function compoundInfo(compound: string | null): { letter: string; color: 
       return { letter: 'I', color: '#43b02a' }
     case 'WET':
       return { letter: 'W', color: '#3b82f6' }
+    case 'HYPERSOFT':
+      return { letter: 'HS', color: '#feb1c1' }
+    case 'ULTRASOFT':
+      return { letter: 'US', color: '#b24ba7' }
+    case 'SUPERSOFT':
+      return { letter: 'SS', color: '#fc2b2a' }
+    case 'SUPERHARD':
+      return { letter: 'SH', color: '#fd7d3c' }
     default:
-      return { letter: '-', color: '#71717a' }
+      return { letter: '?', color: '#71717a' }
   }
 }

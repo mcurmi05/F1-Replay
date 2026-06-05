@@ -206,12 +206,11 @@ export default function CommentaryAudio({
               step={0.05}
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
-              className="h-1 flex-1 cursor-pointer accent-f1-red"
+              className="h-1 min-w-0 flex-1 cursor-pointer accent-f1-red"
               title="Volume"
             />
             {!live ? (
               <div className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500" title="Shift the commentary by seconds (+ = later, - = earlier)">
-                Delay
                 <button
                   type="button"
                   onClick={() => setDelaySign((s) => -s)}

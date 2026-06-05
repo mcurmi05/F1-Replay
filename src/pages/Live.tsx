@@ -272,9 +272,15 @@ function LiveBoard({ data }: { data: LiveState }) {
   const next = data.next_session
   useEffect(() => {
     if (isLive && session) {
-      setTitleInfo({ eventName: session.event_name, sessionName: session.session_name, location: session.location })
+      setTitleInfo({
+        year: session.started_at ? new Date(session.started_at).getFullYear() : null,
+        eventName: session.event_name,
+        sessionName: session.session_name,
+        location: session.location,
+      })
     } else {
       setTitleInfo({
+        year: null,
         eventName: 'No current session',
         sessionName: next ? `Next: ${next.event_name} · ${next.session_name}` : null,
         location: next ? countdown(next.start_utc) : null,

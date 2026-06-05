@@ -31,7 +31,11 @@ export default function RaceControlFeed({
       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Race Control</p>
       <div ref={scrollRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto text-xs">
         {relevant.length === 0 ? (
-          <p className="text-zinc-500">No race control messages</p>
+          messages.length === 0 ? (
+            <p className="text-zinc-500">This session has no race control data.</p>
+          ) : (
+            <p className="text-zinc-500">No race control messages</p>
+          )
         ) : (
           relevant.map((msg, idx) => (
             <div

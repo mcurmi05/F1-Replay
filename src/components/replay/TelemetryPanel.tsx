@@ -137,6 +137,19 @@ function LiftingIndicator({ lifting }: { lifting: boolean }) {
   )
 }
 
+function DRSIndicator({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold transition ${
+        active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-600'
+      }`}
+    >
+      <span className={`h-2 w-2 rounded-full ${active ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+      DRS
+    </span>
+  )
+}
+
 export default function TelemetryPanel({
   year,
   event,
@@ -183,6 +196,9 @@ export default function TelemetryPanel({
     return null
   }, [telemetry, path, replay.time])
 
+  const hasTelemetry =
+    !!series && (series.speed.length > 0 || series.throttle.length > 0 || series.gear.length > 0)
+
   const idx = series ? Math.max(0, lastAtOrBefore(series.times, currentTime)) : -1
   const speed = series ? series.speed[idx] ?? null : null
   const throttle = series ? series.throttle[idx] ?? null : null
@@ -200,7 +216,7 @@ export default function TelemetryPanel({
     : []
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-3">
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-3 pr-2">
       <div className="flex items-center gap-2.5">
         <span
           className="h-4 w-1.5 rounded-full"
@@ -210,52 +226,58 @@ export default function TelemetryPanel({
           {info?.full_name ?? info?.abbreviation ?? driver}
         </span>
         {info?.team_name ? <span className="text-sm text-zinc-500">{info.team_name}</span> : null}
-        <span className="ml-auto font-mono text-2xl font-bold text-white">
-          {speed === null ? '-' : Math.round(speed)}
-          <span className="text-sm font-normal text-zinc-500"> km/h</span>
-        </span>
-      </div>
-
-      <div className="mt-3 flex items-center gap-4 text-xs text-zinc-500">
-        <span>
-          Gear <span className="font-mono text-zinc-200">{gear === null ? '-' : Math.round(gear)}</span>
-        </span>
-        <span>
-          RPM <span className="font-mono text-zinc-200">{rpm === null ? '-' : Math.round(rpm)}</span>
-        </span>
-        <BrakeIndicator braking={braking} />
-        <LiftingIndicator lifting={lifting} />
-        {drs !== null && drs > 0 && (
-          <span>
-            DRS <span className={`font-mono ${drs === 2 ? 'text-blue-400 font-semibold' : 'text-zinc-400'}`}>{drs === 2 ? 'ACTIVE' : 'Available'}</span>
+        <span className="ml-auto flex shrink-0 items-baseline justify-end font-mono text-2xl font-bold text-white">
+          <span className="tabular-nums">
+            {speed === null ? '-' : Math.round(speed)}
           </span>
-        )}
+          <span className="ml-1 text-sm font-normal text-zinc-500">km/h</span>
+        </span>
       </div>
 
-      <div className="mt-2 flex min-h-0 flex-1 flex-col">
-        <div className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-500">Throttle</div>
-        <div className="flex min-h-0 flex-1 items-stretch gap-3">
-          <svg
-            viewBox="0 0 100 40"
-            preserveAspectRatio="none"
-            className="min-h-0 flex-1 rounded-md bg-zinc-900/40"
-          >
-            {throttleSegments.map((segment, index) => (
-              <polyline
-                key={index}
-                points={segment.points}
-                fill="none"
-                stroke={segment.color}
-                strokeWidth={0.9}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-          </svg>
-          <VerticalBar value={throttle} color={THROTTLE_GREEN} />
+      {hasTelemetry ? (
+        <>
+          <div className="mt-3 flex items-center gap-4 text-xs text-zinc-500">
+            <span>
+              Gear <span className="font-mono text-zinc-200">{gear === null ? '-' : Math.round(gear)}</span>
+            </span>
+            <span>
+              RPM <span className="font-mono text-zinc-200">{rpm === null ? '-' : Math.round(rpm)}</span>
+            </span>
+            <BrakeIndicator braking={braking} />
+            <LiftingIndicator lifting={lifting} />
+            <DRSIndicator active={drs !== null && drs >= 10} />
+          </div>
+
+          <div className="mt-2 flex min-h-0 flex-1 flex-col">
+            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-500">Throttle</div>
+            <div className="flex min-h-0 flex-1 items-stretch gap-3">
+              <svg
+                viewBox="0 0 100 40"
+                preserveAspectRatio="none"
+                className="min-h-0 flex-1 rounded-md bg-zinc-900/40"
+              >
+                {throttleSegments.map((segment, index) => (
+                  <polyline
+                    key={index}
+                    points={segment.points}
+                    fill="none"
+                    stroke={segment.color}
+                    strokeWidth={0.9}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
+              </svg>
+              <VerticalBar value={throttle} color={THROTTLE_GREEN} />
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center text-center">
+          <p className="text-sm text-zinc-500">This session has no telemetry data.</p>
         </div>
-      </div>
+      )}
     </div>
   )
 }

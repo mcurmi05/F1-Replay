@@ -1,18 +1,9 @@
 import type { LiveRow } from '../../lib/api/types'
-import { tyreIcon } from '../../lib/replay'
+import TyreMarker from '../TyreMarker'
 
 function TyreIcon({ compound }: { compound: string | null }) {
   if (!compound) return null
-  const icon = tyreIcon(compound)
-  if (!icon) return null
-  return (
-    <img
-      src={icon}
-      alt={compound}
-      title={compound}
-      className="h-6 w-6"
-    />
-  )
+  return <TyreMarker compound={compound} size={24} />
 }
 
 function SectorCell({ value, pb }: { value: string | null; pb: boolean }) {

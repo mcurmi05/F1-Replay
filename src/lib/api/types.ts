@@ -260,6 +260,7 @@ export interface SessionWindow {
 
 export interface ReplayData {
   available: boolean
+  has_position: boolean
   step: number
   duration: number
   race_start: number | null

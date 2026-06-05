@@ -38,16 +38,16 @@ const PRACTICE: SessionDefault = {
 
 const QUALIFYING: SessionDefault = {
   layout: [
-    { i: 'trackmap', x: 0, y: 0, w: 35, h: 60, minW: 20, minH: 20 },
-    { i: 'raceControl', x: 65, y: 10, w: 20, h: 21, minW: 10, minH: 10 },
-    { i: 'pitStops', x: 65, y: 31, w: 20, h: 18, minW: 10, minH: 10 },
-    { i: 'telemetry', x: 35, y: 0, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'timingTower', x: 85, y: 0, w: 75, h: 70, minW: 30, minH: 30 },
-    { i: 'teamRadio', x: 35, y: 40, w: 30, h: 20, minW: 15, minH: 10 },
-    { i: 'sessionBests', x: 35, y: 20, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'speedTrap', x: 65, y: 49, w: 20, h: 11, minW: 15, minH: 10 },
-    { i: 'commentary', x: 65, y: 0, w: 20, h: 10, minW: 15, minH: 10 },
-    { i: 'playback', x: 0, y: 60, w: 85, h: 10, minW: 30, minH: 10 },
+    { i: 'trackmap', x: 0, y: 0, w: 32, h: 60, minW: 20, minH: 20 },
+    { i: 'raceControl', x: 62, y: 10, w: 22, h: 21, minW: 10, minH: 10 },
+    { i: 'pitStops', x: 62, y: 31, w: 22, h: 18, minW: 10, minH: 10 },
+    { i: 'telemetry', x: 32, y: 0, w: 30, h: 20, minW: 20, minH: 10 },
+    { i: 'timingTower', x: 84, y: 0, w: 76, h: 70, minW: 30, minH: 30 },
+    { i: 'teamRadio', x: 32, y: 40, w: 30, h: 20, minW: 15, minH: 10 },
+    { i: 'sessionBests', x: 32, y: 20, w: 30, h: 20, minW: 20, minH: 10 },
+    { i: 'speedTrap', x: 62, y: 49, w: 22, h: 11, minW: 15, minH: 10 },
+    { i: 'commentary', x: 62, y: 0, w: 22, h: 10, minW: 15, minH: 10 },
+    { i: 'playback', x: 0, y: 60, w: 84, h: 10, minW: 30, minH: 10 },
   ],
   hiddenPanels: [],
   timingColumns: [

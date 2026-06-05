@@ -768,6 +768,79 @@ def _retired_time(session, number, start):
     return round(end - start, 2)
 
 
+def _empty_replay(step):
+    return {
+        "available": False,
+        "has_position": False,
+        "step": step,
+        "duration": 0.0,
+        "race_start": None,
+        "track_status": [],
+        "total_laps": None,
+        "time": [],
+        "track": {"x": [], "y": [], "sector_markers": []},
+        "corners": [],
+        "bounds": {"min_x": 0, "max_x": 0, "min_y": 0, "max_y": 0},
+        "drivers": [],
+        "positions": {},
+        "laps": {},
+        "race_control_messages": [],
+        "team_radio": [],
+        "session_bests": [],
+        "weather": [],
+        "qualifying_segments": [],
+        "session_window": None,
+        "commentary": None,
+    }
+
+
+def _replay_time_bounds(session):
+    lo = None
+    hi = None
+
+    def consider(values):
+        nonlocal lo, hi
+        if values is None:
+            return
+        arr = np.asarray(values, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            return
+        vlo = float(arr.min())
+        vhi = float(arr.max())
+        if lo is None or vlo < lo:
+            lo = vlo
+        if hi is None or vhi > hi:
+            hi = vhi
+
+    for number in session.drivers:
+        car = session.car_data.get(number)
+        if car is not None and len(car):
+            consider(_seconds_axis(car))
+
+    try:
+        laps = session.laps
+    except Exception:
+        laps = None
+    if laps is not None and len(laps):
+        for col in ("LapStartTime", "Time", "Sector3SessionTime"):
+            if col in laps:
+                consider(laps[col].dt.total_seconds().to_numpy())
+
+    weather = getattr(session, "weather_data", None)
+    if weather is not None and len(weather) and "Time" in weather:
+        consider(weather["Time"].dt.total_seconds().to_numpy())
+
+    for attr in ("session_status", "track_status"):
+        df = getattr(session, attr, None)
+        if df is not None and len(df) and "Time" in df:
+            consider(df["Time"].dt.total_seconds().to_numpy())
+
+    if lo is None or hi is None or hi <= lo:
+        return None
+    return lo, hi
+
+
 def build_replay(session, step=0.5):
     results_by_number = {
         str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
@@ -785,41 +858,41 @@ def build_replay(session, step=0.5):
         starts.append(times[0])
         ends.append(times[-1])
 
-    if not samples:
-        return {
-            "available": False,
-            "step": step,
-            "duration": 0.0,
-            "race_start": None,
-            "track_status": [],
-            "total_laps": None,
-            "time": [],
-            "track": {"x": [], "y": []},
-            "corners": [],
-            "bounds": {},
-            "drivers": [],
-            "positions": {},
-            "laps": {},
-            "weather": [],
-            "qualifying_segments": [],
-            "session_window": None,
-            "commentary": None,
-        }
-
-    start = float(min(starts))
-    end = float(max(ends))
+    has_position = bool(samples)
+    if has_position:
+        start = float(min(starts))
+        end = float(max(ends))
+    else:
+        time_bounds = _replay_time_bounds(session)
+        if time_bounds is None:
+            return _empty_replay(step)
+        start, end = time_bounds
     grid = np.arange(start, end, step)
+    if grid.size == 0:
+        return _empty_replay(step)
 
     streams = _timing_streams(session)
+
+    if has_position:
+        driver_numbers = list(samples.keys())
+    else:
+        driver_numbers = list(
+            dict.fromkeys(list(session.drivers) + list(results_by_number.keys()))
+        )
 
     positions = {}
     drivers = []
     colour_map = None
-    for number, (times, pos) in samples.items():
-        entry = {
-            "x": _grid_values(grid, times, pos["X"].to_numpy()),
-            "y": _grid_values(grid, times, pos["Y"].to_numpy()),
-        }
+    for number in driver_numbers:
+        sample = samples.get(number)
+        if sample is not None:
+            times, pos = sample
+            entry = {
+                "x": _grid_values(grid, times, pos["X"].to_numpy()),
+                "y": _grid_values(grid, times, pos["Y"].to_numpy()),
+            }
+        else:
+            entry = {"x": [], "y": []}
         car = session.car_data.get(number)
         if car is not None and len(car):
             car_times = _seconds_axis(car)
@@ -867,51 +940,56 @@ def build_replay(session, step=0.5):
         })
         positions[number] = {"x": [], "y": []}
 
-    fastest_lap = session.laps.pick_fastest()
-    lap_tel = fastest_lap.get_telemetry()
-    tx = lap_tel["X"].to_numpy()
-    ty = lap_tel["Y"].to_numpy()
-    mask = ~(np.isnan(tx) | np.isnan(ty))
-    track = {
-        "x": [int(round(v)) for v in tx[mask]],
-        "y": [int(round(v)) for v in ty[mask]],
-    }
+    if has_position:
+        fastest_lap = session.laps.pick_fastest()
+        lap_tel = fastest_lap.get_telemetry()
+        tx = lap_tel["X"].to_numpy()
+        ty = lap_tel["Y"].to_numpy()
+        mask = ~(np.isnan(tx) | np.isnan(ty))
+        track = {
+            "x": [int(round(v)) for v in tx[mask]],
+            "y": [int(round(v)) for v in ty[mask]],
+        }
 
-    sector_markers = []
-    try:
-        if "SessionTime" in lap_tel:
-            sess_arr = lap_tel["SessionTime"].dt.total_seconds().to_numpy()
-            for col in ("Sector1SessionTime", "Sector2SessionTime"):
-                st = fastest_lap.get(col)
-                if st is None or not pd.notna(st):
-                    continue
-                target = pd.Timedelta(st).total_seconds()
-                j = int(np.nanargmin(np.abs(sess_arr - target)))
-                if not (np.isnan(tx[j]) or np.isnan(ty[j])):
-                    sector_markers.append({"x": int(round(tx[j])), "y": int(round(ty[j]))})
-    except Exception:
         sector_markers = []
-    track["sector_markers"] = sector_markers
+        try:
+            if "SessionTime" in lap_tel:
+                sess_arr = lap_tel["SessionTime"].dt.total_seconds().to_numpy()
+                for col in ("Sector1SessionTime", "Sector2SessionTime"):
+                    st = fastest_lap.get(col)
+                    if st is None or not pd.notna(st):
+                        continue
+                    target = pd.Timedelta(st).total_seconds()
+                    j = int(np.nanargmin(np.abs(sess_arr - target)))
+                    if not (np.isnan(tx[j]) or np.isnan(ty[j])):
+                        sector_markers.append({"x": int(round(tx[j])), "y": int(round(ty[j]))})
+        except Exception:
+            sector_markers = []
+        track["sector_markers"] = sector_markers
 
-    corners = []
-    info = session.get_circuit_info()
-    if info is not None:
-        for _, corner in info.corners.iterrows():
-            corners.append({
-                "number": _int(corner.get("Number")),
-                "letter": _text(corner.get("Letter")),
-                "x": _float(corner.get("X")),
-                "y": _float(corner.get("Y")),
-            })
+        corners = []
+        info = session.get_circuit_info()
+        if info is not None:
+            for _, corner in info.corners.iterrows():
+                corners.append({
+                    "number": _int(corner.get("Number")),
+                    "letter": _text(corner.get("Letter")),
+                    "x": _float(corner.get("X")),
+                    "y": _float(corner.get("Y")),
+                })
 
-    xs = track["x"] + [c["x"] for c in corners if c["x"] is not None]
-    ys = track["y"] + [c["y"] for c in corners if c["y"] is not None]
-    bounds = {
-        "min_x": min(xs),
-        "max_x": max(xs),
-        "min_y": min(ys),
-        "max_y": max(ys),
-    }
+        xs = track["x"] + [c["x"] for c in corners if c["x"] is not None]
+        ys = track["y"] + [c["y"] for c in corners if c["y"] is not None]
+        bounds = {
+            "min_x": min(xs),
+            "max_x": max(xs),
+            "min_y": min(ys),
+            "max_y": max(ys),
+        }
+    else:
+        track = {"x": [], "y": [], "sector_markers": []}
+        corners = []
+        bounds = {"min_x": 0, "max_x": 0, "min_y": 0, "max_y": 0}
 
     race_start = None
     status = session.session_status
@@ -934,7 +1012,7 @@ def build_replay(session, step=0.5):
             })
 
     laps_by_driver = {}
-    for number in samples:
+    for number in (d["number"] for d in drivers):
         entries = []
         for _, lap in session.laps.pick_drivers(number).iterrows():
             pit_in = lap.get("PitInTime")
@@ -968,6 +1046,7 @@ def build_replay(session, step=0.5):
 
     return {
         "available": True,
+        "has_position": has_position,
         "step": step,
         "duration": end - start,
         "race_start": race_start,

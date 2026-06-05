@@ -4,8 +4,8 @@ import type { ReactNode } from 'react'
 import settingsCogIcon from '../../assets/settings_cog.png'
 import questionIcon from '../../assets/question.png'
 import { formatLapTime, teamColor } from '../../lib/format'
-import { tyreIcon } from '../../lib/replay'
 import type { SectorCell, TowerRow } from '../../lib/replay'
+import TyreMarker from '../TyreMarker'
 import {
   TIMING_COLUMN_LABELS,
   normalizeColumns,
@@ -309,19 +309,17 @@ export default function TimingTower({
       case 'pbSectors':
         return sectorTrio(row.personal_best_sectors, id, true)
       case 'tyre': {
-        const icon = tyreIcon(row.compound)
         return (
           <span key={id} style={{ width: width.tyre }} className="flex shrink-0 items-center justify-center gap-1">
-            {icon ? <img src={icon} alt={row.compound ?? ''} style={{ width: iconPx, height: iconPx }} /> : <span style={{ width: iconPx, height: iconPx }} />}
+            <TyreMarker compound={row.compound} size={iconPx} />
             <span style={{ fontSize: fs * 0.7 }} className="font-mono text-zinc-400">{row.tyre_age !== null ? `${row.tyre_age}L` : ''}</span>
           </span>
         )
       }
       case 'bestTyre': {
-        const icon = tyreIcon(row.best_lap_compound)
         return (
           <span key={id} style={{ width: width.bestTyre }} className="flex shrink-0 items-center justify-center gap-1">
-            {icon ? <img src={icon} alt={row.best_lap_compound ?? ''} style={{ width: iconPx, height: iconPx }} /> : <span style={{ width: iconPx, height: iconPx }} />}
+            <TyreMarker compound={row.best_lap_compound} size={iconPx} />
             <span style={{ fontSize: fs * 0.7 }} className="font-mono text-zinc-400">{row.best_lap_tyre_age !== null ? `${row.best_lap_tyre_age}L` : ''}</span>
           </span>
         )

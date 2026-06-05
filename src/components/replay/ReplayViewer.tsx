@@ -64,9 +64,9 @@ export default function ReplayViewer({
   const { data: schedule } = useSchedule(year)
 
   useEffect(() => {
-    setTitleInfo({ eventName: summary.event_name, sessionName: summary.session_name, location: summary.location })
+    setTitleInfo({ year, eventName: summary.event_name, sessionName: summary.session_name, location: summary.location })
     return () => setTitleInfo(null)
-  }, [summary.event_name, summary.session_name, summary.location, setTitleInfo])
+  }, [year, summary.event_name, summary.session_name, summary.location, setTitleInfo])
 
   useEffect(() => {
     if (!schedule) return
@@ -112,7 +112,7 @@ export default function ReplayViewer({
         {loading ? <StatusCard text="Loading replay data..." /> : null}
         {error ? <StatusCard text={`Could not load replay: ${error.message}`} /> : null}
         {!loading && !error && (!data || !data.available) ? (
-          <StatusCard text="This session has no position data, so a track replay is not available." />
+          <StatusCard text="This session has no replay data available." />
         ) : null}
       </div>
     )
