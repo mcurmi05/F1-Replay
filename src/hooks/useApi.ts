@@ -62,7 +62,7 @@ export function useYears() {
   return useQuery<number[]>('years', (signal) => api.years(signal))
 }
 
-export function useLive(intervalMs = 4000) {
+export function useLive(intervalMs = 1000) {
   const [state, setState] = useState<QueryState<LiveState>>({
     data: undefined,
     error: undefined,
