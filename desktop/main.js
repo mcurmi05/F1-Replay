@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, session } = require('electron')
 const { spawn } = require('node:child_process')
 const path = require('node:path')
 const http = require('node:http')
@@ -47,6 +47,20 @@ function waitForServer(onReady, attempts) {
   })
 }
 
+function allowF1Cors() {
+  const filter = { urls: ['https://*.formula1.com/*'] }
+  session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
+    const responseHeaders = Object.assign({}, details.responseHeaders)
+    for (const key of Object.keys(responseHeaders)) {
+      if (key.toLowerCase() === 'access-control-allow-origin') {
+        delete responseHeaders[key]
+      }
+    }
+    responseHeaders['Access-Control-Allow-Origin'] = ['*']
+    callback({ responseHeaders })
+  })
+}
+
 function createWindow() {
   const window = new BrowserWindow({
     width: 1400,
@@ -70,6 +84,7 @@ function stopServer() {
 }
 
 app.whenReady().then(() => {
+  allowF1Cors()
   startServer()
   createWindow()
 

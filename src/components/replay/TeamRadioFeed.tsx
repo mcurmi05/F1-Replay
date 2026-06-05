@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { teamColor } from '../../lib/format'
+import { formatClockHours, teamColor } from '../../lib/format'
 import { currentLapNumber } from '../../lib/replay'
 import type { ReplayData } from '../../lib/api/types'
 import questionIcon from '../../assets/question.png'
@@ -68,12 +68,8 @@ export default function TeamRadioFeed({
 
   function radioTime(t: number): string {
     if (isQuali) {
-      let seg = qSegments.find((s) => t >= s.start && t <= s.end)
-      if (!seg) {
-        const before = qSegments.filter((s) => t >= s.start)
-        seg = before.length ? before[before.length - 1] : undefined
-      }
-      if (seg) return `${seg.name} ${formatTime(t - seg.start)}`
+      const seg = qSegments.find((s) => t >= s.start && t <= s.end)
+      return seg ? `${seg.name} ${formatTime(t - seg.start)} (${formatClockHours(t)})` : formatClockHours(t)
     }
     return formatTime(origin !== null ? t - origin : t)
   }
