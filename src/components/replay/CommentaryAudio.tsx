@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CommentaryStream } from '../../lib/api/types'
+import FitScale from '../FitScale'
 
 const DRIFT_TOLERANCE = 0.4
 
@@ -143,7 +144,8 @@ export default function CommentaryAudio({
                   : 'Paused'
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
+    <div className="h-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-3">
+      <FitScale className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Commentary</p>
         {commentary ? (
@@ -164,11 +166,11 @@ export default function CommentaryAudio({
       <audio ref={audioRef} className="hidden" preload="auto" />
 
       {!commentary ? (
-        <p className="mt-2 text-[11px] leading-snug text-zinc-500">
+        <p className="text-[11px] leading-snug text-zinc-500">
           Commentary isn't published for this session.
         </p>
       ) : (
-        <div className="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
+        <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
@@ -182,7 +184,7 @@ export default function CommentaryAudio({
             <span className="text-sm text-zinc-300">{status}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={toggleMute}
@@ -236,6 +238,7 @@ export default function CommentaryAudio({
           </div>
         </div>
       )}
+      </FitScale>
     </div>
   )
 }
