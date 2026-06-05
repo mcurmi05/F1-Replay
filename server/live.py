@@ -209,6 +209,24 @@ class LiveManager:
                 return _connecting_snapshot(current)
             return self._historical_state(current)
 
+    def raw_topics(self):
+        with self._lock:
+            if not f1data.cache_valid():
+                return {"available": False, "source": "none", "topics": {}}
+            current = _current_session()
+            if current is not None and current["live_window"]:
+                self._ensure_recorder(current["key"])
+                if self._recording is not None:
+                    self._recording.poll()
+                    return {
+                        "available": self._recording.has_data(),
+                        "source": "live",
+                        "session_key": current["key"],
+                        "topics": self._recording.topics,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+            return {"available": False, "source": "none", "topics": {}}
+
     def _historical_state(self, current):
         if current is None or current.get("session") is None:
             return _empty_snapshot(current)
@@ -1024,6 +1042,25 @@ def live_state():
     if _test_mode:
         return _live_state_test()
     return _manager.state()
+
+
+def live_raw():
+    if _test_mode:
+        return _live_raw_test()
+    return _manager.raw_topics()
+
+
+def _live_raw_test():
+    test_file = os.environ.get("F1_LIVE_TEST_FILE", "/tmp/test_live_data.txt")
+    recording = LiveRecording(test_file)
+    recording.poll()
+    return {
+        "available": recording.has_data(),
+        "source": "test",
+        "session_key": None,
+        "topics": recording.topics,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _live_state_test():

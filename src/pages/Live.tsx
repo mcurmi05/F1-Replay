@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import CommentaryAudio from '../components/replay/CommentaryAudio'
@@ -32,6 +32,10 @@ import type {
 // Everything in the live snapshot is point-in-time, so the replay feeds (which
 // reveal records as a clock advances) are fed a clock that is always "now".
 const LIVE_NOW = Number.MAX_SAFE_INTEGER
+
+const LiveRawStream = __DEBUG_TOOLS__
+  ? lazy(() => import('../components/live/LiveRawStream'))
+  : null
 
 const LIVE_PANEL_DEFS: PanelDef[] = [
   { id: 'trackmap', label: 'Track Map' },
@@ -365,26 +369,34 @@ function LiveBoard({ data }: { data: LiveState }) {
 export default function Live() {
   const { data, error, loading } = useLive()
 
+  let content: ReactNode
   if (loading && !data) {
-    return (
+    content = (
       <div className="flex min-h-[60vh] items-center justify-center">
         <span className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
       </div>
     )
-  }
-
-  if (error && !data) {
-    return (
+  } else if (error && !data) {
+    content = (
       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
         <h1 className="text-2xl font-bold text-white">Could not load live timing</h1>
         <p className="mt-3 max-w-md text-zinc-400">Is the data server running?</p>
       </div>
     )
+  } else if (!data) {
+    content = null
+  } else {
+    content = <LiveBoard data={data} />
   }
 
-  if (!data) {
-    return null
-  }
-
-  return <LiveBoard data={data} />
+  return (
+    <>
+      {content}
+      {LiveRawStream && (
+        <Suspense fallback={null}>
+          <LiveRawStream />
+        </Suspense>
+      )}
+    </>
+  )
 }

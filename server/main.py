@@ -149,6 +149,11 @@ def live_status():
     return live.live_state()
 
 
+@api.get("/live/raw")
+def live_raw():
+    return live.live_raw()
+
+
 @api.get("/schedule/{year}")
 def schedule(year: int):
     _require_cache()

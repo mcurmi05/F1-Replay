@@ -161,6 +161,14 @@ export interface LiveState {
   updated_at: string
 }
 
+export interface LiveRawState {
+  available: boolean
+  source: 'live' | 'test' | 'none'
+  session_key?: string | null
+  topics: Record<string, unknown>
+  updated_at?: string
+}
+
 export interface LivePitTime {
   driver_number: string
   duration: string | null
