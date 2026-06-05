@@ -223,6 +223,7 @@ function buildLiveReplay(data: LiveState): { replay: ReplayData; hasMap: boolean
 
   const replay: ReplayData = {
     available: true,
+    has_position: positions.length > 0,
     step: 1,
     duration: 0,
     race_start: null,
