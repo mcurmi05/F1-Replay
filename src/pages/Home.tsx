@@ -20,12 +20,27 @@ interface Option {
   value: string
 }
 
-function sessionStarted(dateUtc: string | null, eventDate: string | null): boolean {
-  const ref = dateUtc ?? eventDate
-  if (!ref) {
-    return true
-  }
-  return new Date(ref).getTime() <= Date.now()
+const SESSION_DURATION_MIN: Record<string, number> = {
+  FP1: 60, FP2: 60, FP3: 60, Q: 75, SQ: 45, Sprint: 60, R: 130,
+}
+const AVAILABILITY_BUFFER_MIN = 15
+
+// Schedule date_utc arrives as a naive UTC timestamp (no Z/offset), which the
+// browser would otherwise parse as local time; normalize it to UTC.
+function utcMs(value: string | null): number | null {
+  if (!value) return null
+  const normalized = /[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`
+  const t = Date.parse(normalized)
+  return Number.isFinite(t) ? t : null
+}
+
+// A session is replayable once it has finished and its data has had time to be
+// published, so gate by the estimated end time, not the start.
+function sessionAvailable(type: string, dateUtc: string | null, eventDate: string | null): boolean {
+  const startMs = utcMs(dateUtc) ?? utcMs(eventDate)
+  if (startMs === null) return true
+  const endMs = startMs + ((SESSION_DURATION_MIN[type] ?? 90) + AVAILABILITY_BUFFER_MIN) * 60000
+  return Date.now() >= endMs
 }
 
 function formatDateRange(start: string | null, end: string | null): string {
@@ -56,7 +71,7 @@ function sessionsForEvent(sessions: ScheduleEvent['sessions']) {
 }
 
 function availableSessionsForEvent(event: ScheduleEvent) {
-  return sessionsForEvent(event.sessions).filter((s) => sessionStarted(s.date_utc, event.event_date))
+  return sessionsForEvent(event.sessions).filter((s) => sessionAvailable(s.value, s.date_utc, event.event_date))
 }
 
 function formatSessionTime(dateLocal: string | null): string {
