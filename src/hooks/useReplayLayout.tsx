@@ -513,7 +513,7 @@ export function ReplayLayoutControls() {
           >
             Reset
           </button>
-          {__DEBUG_TOOLS__ && category?.startsWith('live-') ? (
+          {category?.startsWith('live-') ? (
             <button
               type="button"
               onClick={() => toggleRawStream()}

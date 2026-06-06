@@ -35,9 +35,7 @@ import type {
 // reveal records as a clock advances) are fed a clock that is always "now".
 const LIVE_NOW = Number.MAX_SAFE_INTEGER
 
-const LiveRawStream = __DEBUG_TOOLS__
-  ? lazy(() => import('../components/live/LiveRawStream'))
-  : null
+const LiveRawStream = lazy(() => import('../components/live/LiveRawStream'))
 
 const LIVE_PANEL_DEFS: PanelDef[] = [
   { id: 'trackmap', label: 'Track Map' },
@@ -420,11 +418,9 @@ export default function Live() {
   return (
     <>
       {content}
-      {LiveRawStream && (
-        <Suspense fallback={null}>
-          <LiveRawStream />
-        </Suspense>
-      )}
+      <Suspense fallback={null}>
+        <LiveRawStream />
+      </Suspense>
     </>
   )
 }
