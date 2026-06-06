@@ -148,6 +148,12 @@ export default function LiveTelemetry({ row }: { row: LiveRow | null }) {
 
   useEffect(() => {
     if (!row) {
+      // Driver was deselected - clear the trace so no stale telemetry lingers.
+      if (driverRef.current !== null) {
+        driverRef.current = null
+        bufferRef.current = emptySeries()
+        setTick((n) => n + 1)
+      }
       return
     }
     if (driverRef.current !== row.driver_number) {

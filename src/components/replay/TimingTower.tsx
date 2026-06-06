@@ -312,7 +312,7 @@ export default function TimingTower({
         return (
           <span key={id} style={{ width: width.tyre }} className="flex shrink-0 items-center justify-center gap-1">
             <TyreMarker compound={row.compound} size={iconPx} />
-            <span style={{ fontSize: fs * 0.7 }} className="font-mono text-zinc-400">{row.tyre_age !== null ? `${row.tyre_age}L` : ''}</span>
+            <span style={{ fontSize: fs * 0.7, width: '3ch' }} className="text-left font-mono text-zinc-400">{row.tyre_age !== null ? `${row.tyre_age}L` : ''}</span>
           </span>
         )
       }
@@ -320,7 +320,7 @@ export default function TimingTower({
         return (
           <span key={id} style={{ width: width.bestTyre }} className="flex shrink-0 items-center justify-center gap-1">
             <TyreMarker compound={row.best_lap_compound} size={iconPx} />
-            <span style={{ fontSize: fs * 0.7 }} className="font-mono text-zinc-400">{row.best_lap_tyre_age !== null ? `${row.best_lap_tyre_age}L` : ''}</span>
+            <span style={{ fontSize: fs * 0.7, width: '3ch' }} className="text-left font-mono text-zinc-400">{row.best_lap_tyre_age !== null ? `${row.best_lap_tyre_age}L` : ''}</span>
           </span>
         )
       }

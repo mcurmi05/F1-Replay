@@ -9,22 +9,23 @@ export interface SessionDefault {
 
 const PRACTICE: SessionDefault = {
   layout: [
-    { i: 'trackmap', x: 0, y: 0, w: 35, h: 60, minW: 20, minH: 20 },
-    { i: 'raceControl', x: 65, y: 10, w: 20, h: 21, minW: 10, minH: 10 },
-    { i: 'pitStops', x: 65, y: 31, w: 20, h: 18, minW: 10, minH: 10 },
-    { i: 'telemetry', x: 35, y: 0, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'timingTower', x: 85, y: 0, w: 75, h: 70, minW: 30, minH: 30 },
-    { i: 'teamRadio', x: 35, y: 40, w: 30, h: 20, minW: 15, minH: 10 },
-    { i: 'sessionBests', x: 35, y: 20, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'speedTrap', x: 65, y: 49, w: 20, h: 11, minW: 15, minH: 10 },
-    { i: 'commentary', x: 65, y: 0, w: 20, h: 10, minW: 15, minH: 10 },
-    { i: 'playback', x: 0, y: 60, w: 85, h: 10, minW: 30, minH: 10 },
+    { i: 'trackmap', x: 0, y: 0, w: 33, h: 43, minW: 20, minH: 20 },
+    { i: 'raceControl', x: 57, y: 10, w: 22, h: 28, minW: 10, minH: 10 },
+    { i: 'pitStops', x: 57, y: 38, w: 22, h: 22, minW: 10, minH: 10 },
+    { i: 'telemetry', x: 0, y: 43, w: 33, h: 17, minW: 20, minH: 10 },
+    { i: 'timingTower', x: 79, y: 0, w: 81, h: 70, minW: 30, minH: 30 },
+    { i: 'teamRadio', x: 33, y: 38, w: 24, h: 22, minW: 15, minH: 10 },
+    { i: 'sessionBests', x: 33, y: 18, w: 24, h: 20, minW: 20, minH: 10 },
+    { i: 'speedTrap', x: 33, y: 0, w: 24, h: 18, minW: 15, minH: 10 },
+    { i: 'commentary', x: 57, y: 0, w: 22, h: 10, minW: 15, minH: 10 },
+    { i: 'playback', x: 0, y: 60, w: 79, h: 10, minW: 30, minH: 10 },
   ],
   hiddenPanels: [],
   timingColumns: [
     { id: 'pos', visible: true },
     { id: 'driver', visible: true },
     { id: 'interval', visible: true },
+    { id: 'leader', visible: true },
     { id: 'bestSectors', visible: true },
     { id: 'bestLap', visible: true },
     { id: 'bestTyre', visible: false },
@@ -32,28 +33,28 @@ const PRACTICE: SessionDefault = {
     { id: 'lastLap', visible: true },
     { id: 'sectors', visible: true },
     { id: 'tyre', visible: true },
-    { id: 'leader', visible: false },
   ],
 }
 
 const QUALIFYING: SessionDefault = {
   layout: [
-    { i: 'trackmap', x: 0, y: 0, w: 32, h: 60, minW: 20, minH: 20 },
-    { i: 'raceControl', x: 62, y: 10, w: 22, h: 21, minW: 10, minH: 10 },
-    { i: 'pitStops', x: 62, y: 31, w: 22, h: 18, minW: 10, minH: 10 },
-    { i: 'telemetry', x: 32, y: 0, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'timingTower', x: 84, y: 0, w: 76, h: 70, minW: 30, minH: 30 },
-    { i: 'teamRadio', x: 32, y: 40, w: 30, h: 20, minW: 15, minH: 10 },
-    { i: 'sessionBests', x: 32, y: 20, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'speedTrap', x: 62, y: 49, w: 22, h: 11, minW: 15, minH: 10 },
-    { i: 'commentary', x: 62, y: 0, w: 22, h: 10, minW: 15, minH: 10 },
-    { i: 'playback', x: 0, y: 60, w: 84, h: 10, minW: 30, minH: 10 },
+    { i: 'trackmap', x: 0, y: 0, w: 33, h: 43, minW: 20, minH: 20 },
+    { i: 'raceControl', x: 57, y: 10, w: 22, h: 28, minW: 10, minH: 10 },
+    { i: 'pitStops', x: 57, y: 38, w: 22, h: 22, minW: 10, minH: 10 },
+    { i: 'telemetry', x: 0, y: 43, w: 33, h: 17, minW: 20, minH: 10 },
+    { i: 'timingTower', x: 79, y: 0, w: 81, h: 70, minW: 30, minH: 30 },
+    { i: 'teamRadio', x: 33, y: 38, w: 24, h: 22, minW: 15, minH: 10 },
+    { i: 'sessionBests', x: 33, y: 18, w: 24, h: 20, minW: 20, minH: 10 },
+    { i: 'speedTrap', x: 33, y: 0, w: 24, h: 18, minW: 15, minH: 10 },
+    { i: 'commentary', x: 57, y: 0, w: 22, h: 10, minW: 15, minH: 10 },
+    { i: 'playback', x: 0, y: 60, w: 79, h: 10, minW: 30, minH: 10 },
   ],
   hiddenPanels: [],
   timingColumns: [
     { id: 'pos', visible: true },
     { id: 'driver', visible: true },
     { id: 'interval', visible: true },
+    { id: 'leader', visible: true },
     { id: 'bestSectors', visible: true },
     { id: 'bestLap', visible: true },
     { id: 'pbSectors', visible: true },
@@ -61,22 +62,21 @@ const QUALIFYING: SessionDefault = {
     { id: 'sectors', visible: true },
     { id: 'tyre', visible: true },
     { id: 'bestTyre', visible: false },
-    { id: 'leader', visible: false },
   ],
 }
 
 const RACE: SessionDefault = {
   layout: [
-    { i: 'trackmap', x: 0, y: 0, w: 35, h: 60, minW: 20, minH: 20 },
-    { i: 'raceControl', x: 65, y: 10, w: 25, h: 21, minW: 10, minH: 10 },
-    { i: 'pitStops', x: 65, y: 31, w: 25, h: 18, minW: 10, minH: 10 },
-    { i: 'telemetry', x: 35, y: 0, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'timingTower', x: 90, y: 0, w: 70, h: 70, minW: 30, minH: 30 },
-    { i: 'teamRadio', x: 35, y: 40, w: 30, h: 20, minW: 15, minH: 10 },
-    { i: 'sessionBests', x: 35, y: 20, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'speedTrap', x: 65, y: 49, w: 24, h: 11, minW: 15, minH: 10 },
-    { i: 'commentary', x: 65, y: 0, w: 25, h: 10, minW: 15, minH: 10 },
-    { i: 'playback', x: 0, y: 60, w: 90, h: 10, minW: 30, minH: 10 },
+    { i: 'trackmap', x: 0, y: 0, w: 33, h: 43, minW: 20, minH: 20 },
+    { i: 'raceControl', x: 57, y: 10, w: 22, h: 28, minW: 10, minH: 10 },
+    { i: 'pitStops', x: 57, y: 38, w: 22, h: 22, minW: 10, minH: 10 },
+    { i: 'telemetry', x: 0, y: 43, w: 33, h: 17, minW: 20, minH: 10 },
+    { i: 'timingTower', x: 79, y: 0, w: 81, h: 70, minW: 30, minH: 30 },
+    { i: 'teamRadio', x: 33, y: 38, w: 24, h: 22, minW: 15, minH: 10 },
+    { i: 'sessionBests', x: 33, y: 18, w: 24, h: 20, minW: 20, minH: 10 },
+    { i: 'speedTrap', x: 33, y: 0, w: 24, h: 18, minW: 15, minH: 10 },
+    { i: 'commentary', x: 57, y: 0, w: 22, h: 10, minW: 15, minH: 10 },
+    { i: 'playback', x: 0, y: 60, w: 79, h: 10, minW: 30, minH: 10 },
   ],
   hiddenPanels: [],
   timingColumns: [
@@ -85,8 +85,8 @@ const RACE: SessionDefault = {
     { id: 'interval', visible: true },
     { id: 'leader', visible: true },
     { id: 'bestSectors', visible: true },
-    { id: 'pbSectors', visible: false },
     { id: 'bestLap', visible: true },
+    { id: 'pbSectors', visible: true },
     { id: 'bestTyre', visible: false },
     { id: 'lastLap', visible: true },
     { id: 'sectors', visible: true },
@@ -94,17 +94,49 @@ const RACE: SessionDefault = {
   ],
 }
 
-const LIVE_PRACTICE: SessionDefault = {
+const LIVE_NONRACE: SessionDefault = {
   layout: [
-    { i: 'trackmap', x: 0, y: 0, w: 35, h: 70, minW: 20, minH: 20 },
-    { i: 'raceControl', x: 65, y: 10, w: 20, h: 21, minW: 10, minH: 10 },
-    { i: 'pitStops', x: 65, y: 31, w: 20, h: 21, minW: 10, minH: 10 },
-    { i: 'telemetry', x: 35, y: 0, w: 30, h: 29, minW: 20, minH: 10 },
-    { i: 'timingTower', x: 85, y: 0, w: 75, h: 70, minW: 30, minH: 30 },
-    { i: 'teamRadio', x: 35, y: 49, w: 30, h: 21, minW: 15, minH: 10 },
-    { i: 'sessionBests', x: 35, y: 29, w: 30, h: 20, minW: 20, minH: 10 },
-    { i: 'speedTrap', x: 65, y: 52, w: 20, h: 18, minW: 15, minH: 10 },
-    { i: 'commentary', x: 65, y: 0, w: 20, h: 10, minW: 15, minH: 10 },
+    { i: 'trackmap', x: 0, y: 0, w: 33, h: 53, minW: 20, minH: 20 },
+    { i: 'raceControl', x: 57, y: 10, w: 22, h: 35, minW: 10, minH: 10 },
+    { i: 'pitStops', x: 57, y: 45, w: 22, h: 25, minW: 10, minH: 10 },
+    { i: 'telemetry', x: 0, y: 53, w: 33, h: 17, minW: 20, minH: 10 },
+    { i: 'timingTower', x: 79, y: 0, w: 81, h: 70, minW: 30, minH: 30 },
+    { i: 'teamRadio', x: 33, y: 45, w: 24, h: 25, minW: 15, minH: 10 },
+    { i: 'sessionBests', x: 33, y: 25, w: 24, h: 20, minW: 20, minH: 10 },
+    { i: 'speedTrap', x: 33, y: 0, w: 24, h: 25, minW: 15, minH: 10 },
+    { i: 'commentary', x: 57, y: 0, w: 22, h: 10, minW: 15, minH: 10 },
+    { i: 'playback', x: 0, y: 60, w: 79, h: 10, minW: 30, minH: 10 },
+    { i: 'championship', x: 0, y: 70, w: 50, h: 28, minW: 20, minH: 12 },
+  ],
+  hiddenPanels: ['championship'],
+  timingColumns: [
+    { id: 'pos', visible: true },
+    { id: 'driver', visible: true },
+    { id: 'interval', visible: true },
+    { id: 'leader', visible: true },
+    { id: 'bestSectors', visible: true },
+    { id: 'bestLap', visible: true },
+    { id: 'pbSectors', visible: true },
+    { id: 'bestTyre', visible: false },
+    { id: 'lastLap', visible: true },
+    { id: 'sectors', visible: true },
+    { id: 'tyre', visible: true },
+  ],
+}
+
+const LIVE_RACE: SessionDefault = {
+  layout: [
+    { i: 'trackmap', x: 0, y: 0, w: 33, h: 53, minW: 20, minH: 20 },
+    { i: 'raceControl', x: 57, y: 25, w: 22, h: 20, minW: 10, minH: 10 },
+    { i: 'pitStops', x: 57, y: 45, w: 22, h: 25, minW: 10, minH: 10 },
+    { i: 'telemetry', x: 0, y: 53, w: 33, h: 17, minW: 20, minH: 10 },
+    { i: 'timingTower', x: 79, y: 0, w: 81, h: 70, minW: 30, minH: 30 },
+    { i: 'teamRadio', x: 33, y: 45, w: 24, h: 25, minW: 15, minH: 10 },
+    { i: 'sessionBests', x: 33, y: 25, w: 24, h: 20, minW: 20, minH: 10 },
+    { i: 'speedTrap', x: 33, y: 0, w: 24, h: 25, minW: 15, minH: 10 },
+    { i: 'commentary', x: 57, y: 0, w: 22, h: 10, minW: 15, minH: 10 },
+    { i: 'championship', x: 57, y: 10, w: 22, h: 15, minW: 20, minH: 12 },
+    { i: 'playback', x: 0, y: 60, w: 79, h: 10, minW: 30, minH: 10 },
   ],
   hiddenPanels: [],
   timingColumns: [
@@ -112,10 +144,10 @@ const LIVE_PRACTICE: SessionDefault = {
     { id: 'driver', visible: true },
     { id: 'interval', visible: true },
     { id: 'leader', visible: true },
-    { id: 'bestSectors', visible: false },
+    { id: 'bestSectors', visible: true },
     { id: 'bestLap', visible: true },
-    { id: 'bestTyre', visible: false },
     { id: 'pbSectors', visible: true },
+    { id: 'bestTyre', visible: false },
     { id: 'lastLap', visible: true },
     { id: 'sectors', visible: true },
     { id: 'tyre', visible: true },
@@ -146,25 +178,8 @@ export function defaultsFor(session: string): SessionDefault {
   return PRACTICE
 }
 
-const LIVE_CHAMPIONSHIP = { i: 'championship', x: 0, y: 70, w: 50, h: 28, minW: 20, minH: 12 }
-
 export function liveDefaultsFor(session: string): SessionDefault {
   const category = sessionCategory(session)
-  if (category === 'practice') {
-    return {
-      ...LIVE_PRACTICE,
-      layout: [...LIVE_PRACTICE.layout, LIVE_CHAMPIONSHIP],
-      hiddenPanels: [...LIVE_PRACTICE.hiddenPanels, 'championship'],
-    }
-  }
-  const base = defaultsFor(session)
-  const layout = [...base.layout.filter((item) => item.i !== 'playback'), LIVE_CHAMPIONSHIP]
-  if (category === 'race') {
-    return { layout, hiddenPanels: base.hiddenPanels, timingColumns: base.timingColumns }
-  }
-  return {
-    layout,
-    hiddenPanels: [...base.hiddenPanels, 'championship'],
-    timingColumns: base.timingColumns,
-  }
+  if (category === 'race') return LIVE_RACE
+  return LIVE_NONRACE
 }

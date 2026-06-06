@@ -11,6 +11,7 @@ import skipForwardIcon from '../assets/skip_forward.png'
 import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 import { BASE_COLS, COLS, scaleLayout } from '../lib/layoutGrid'
+import { toggleRawStream } from '../lib/debugStream'
 import type { TimingColumnState } from '../lib/timingColumns'
 import type { SessionDefault, LayoutCategory } from '../lib/defaultLayouts'
 import type { WeatherSample } from '../lib/api/types'
@@ -512,6 +513,15 @@ export function ReplayLayoutControls() {
           >
             Reset
           </button>
+          {__DEBUG_TOOLS__ && category?.startsWith('live-') ? (
+            <button
+              type="button"
+              onClick={() => toggleRawStream()}
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900/80 px-2 py-1.5 text-xs font-medium text-zinc-400 transition hover:border-f1-red/50 hover:text-zinc-200"
+            >
+              SignalR Stream
+            </button>
+          ) : null}
         </>
       ) : null}
       <button

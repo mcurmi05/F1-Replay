@@ -15,15 +15,18 @@ function formatTime(seconds: number): string {
 export default function RaceControlFeed({
   messages,
   currentTime,
+  origin = null,
 }: {
   messages: RaceControlMessage[]
   currentTime: number
+  origin?: number | null
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const relevant = messages.filter((m) => m.time !== null && m.time <= currentTime)
+  // Newest first: most recent message at the top, oldest at the bottom.
+  const relevant = messages.filter((m) => m.time !== null && m.time <= currentTime).reverse()
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [relevant.length])
 
   return (
@@ -45,7 +48,16 @@ export default function RaceControlFeed({
               <div className="flex items-center justify-between gap-2">
                 <p className="font-normal text-zinc-200">{msg.message}</p>
                 {msg.time !== null && (
-                  <p className="text-xs text-zinc-400">{formatTime(msg.time)}</p>
+                  <div className="shrink-0 text-right text-xs text-zinc-400">
+                    {origin !== null ? (
+                      <>
+                        <p>{formatTime(Math.max(0, msg.time - origin))}</p>
+                        <p className="text-zinc-600">({formatTime(msg.time)})</p>
+                      </>
+                    ) : (
+                      <p>{formatTime(msg.time)}</p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

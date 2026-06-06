@@ -17,12 +17,14 @@ export default function ReplayClock({
   totalLaps,
   label,
   hideHours = false,
+  elapsed = null,
 }: {
   relative: number | null
   lap: number
   totalLaps: number | null
   label?: string | null
   hideHours?: boolean
+  elapsed?: number | null
 }) {
   const lapDisplay = relative !== null && relative < 0 ? '-' : lap
   return (
@@ -30,8 +32,11 @@ export default function ReplayClock({
       <span className="text-sm font-medium text-zinc-400">
         {label ? label : totalLaps ? `Lap ${lapDisplay} / ${totalLaps}` : `Lap ${lapDisplay}`}
       </span>
-      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-2xl font-bold tabular-nums text-white">
-        {relative === null ? '--:--' : formatRaceTime(relative, hideHours)}
+      <span className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-2 font-mono font-bold tabular-nums text-white">
+        <span className="text-2xl">{relative === null ? '--:--' : formatRaceTime(relative, hideHours)}</span>
+        {elapsed != null ? (
+          <span className="text-base font-medium text-zinc-500">({formatRaceTime(elapsed, hideHours)})</span>
+        ) : null}
       </span>
     </div>
   )

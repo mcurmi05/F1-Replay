@@ -75,6 +75,7 @@ export interface LiveRow {
   full_name: string | null
   team_name: string | null
   team_colour: string | null
+  headshot_url: string | null
   gap: string | null
   interval: string | null
   last_lap: string | null

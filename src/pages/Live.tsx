@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import CommentaryAudio from '../components/replay/CommentaryAudio'
@@ -182,16 +182,12 @@ function toTowerRows(rows: LiveRow[], stats: LiveState['timing_stats']): TimingT
 function buildLiveReplay(data: LiveState): { replay: ReplayData; hasMap: boolean } {
   const startMs = data.session?.started_at ? Date.parse(data.session.started_at) : NaN
 
-  const remainingNow = parseLapTime(data.session?.time_remaining ?? null)
-  const nowMs = Date.now()
-  const raceControl: RaceControlMessage[] = (data.race_control_messages ?? []).map((m) => {
-    const msgMs = utcMs(m.time as unknown as string | number | null)
-    const time =
-      remainingNow !== null && msgMs !== null
-        ? remainingNow + (nowMs - msgMs) / 1000
-        : relSeconds(m.time as unknown as string | number | null, startMs)
-    return { ...m, time }
-  })
+  // Show the time each message came through relative to the session start. This is
+  // stable (a fixed point in the session) rather than a clock that ticks upward.
+  const raceControl: RaceControlMessage[] = (data.race_control_messages ?? []).map((m) => ({
+    ...m,
+    time: relSeconds(m.time as unknown as string | number | null, startMs),
+  }))
 
   const teamRadio = (data.team_radio ?? []).map((c) => ({
     utc: c.utc ?? null,
@@ -252,7 +248,7 @@ function buildLiveReplay(data: LiveState): { replay: ReplayData; hasMap: boolean
       full_name: r.full_name,
       team_name: r.team_name,
       team_colour: r.team_colour,
-      headshot_url: null,
+      headshot_url: r.headshot_url ?? null,
     })),
     positions: Object.fromEntries(
       data.rows.map((r) => [r.driver_number, { x: r.x !== null ? [r.x] : [], y: r.y !== null ? [r.y] : [] }]),
@@ -271,6 +267,10 @@ function buildLiveReplay(data: LiveState): { replay: ReplayData; hasMap: boolean
 
 function LiveBoard({ data }: { data: LiveState }) {
   const [selected, setSelected] = useState<string | null>(null)
+  // Clicking the already-selected driver deselects them.
+  const toggleSelected = useCallback((id: string | null) => {
+    setSelected((prev) => (prev === id ? null : id))
+  }, [])
   const { editMode, setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
 
   const isLive = data.source === 'live'
@@ -327,6 +327,9 @@ function LiveBoard({ data }: { data: LiveState }) {
     return () => setStatusInfo(null)
   }, [isLive, session, weatherSample, setStatusInfo])
 
+  const sessionStartMs = session?.started_at ? Date.parse(session.started_at) : null
+  const elapsed =
+    running && sessionStartMs !== null ? (Date.now() - sessionStartMs) / 1000 : null
   const liveHeader = isLive ? (
     <ReplayClock
       relative={parseLapTime(session?.time_remaining)}
@@ -334,6 +337,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       totalLaps={session?.total_laps ?? null}
       label={session && !session.total_laps ? session.session_name : null}
       hideHours={sessionType === 'Q' || sessionType === 'SQ'}
+      elapsed={elapsed}
     />
   ) : undefined
 
@@ -346,7 +350,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
         <div className="absolute inset-0 overflow-hidden p-3">
           {hasMap ? (
-            <TrackMap replay={replay} currentTime={0} selected={selected} onSelect={setSelected} live editMode={editMode} pitDrivers={pitDrivers} />
+            <TrackMap replay={replay} currentTime={0} selected={selected} onSelect={toggleSelected} live editMode={editMode} pitDrivers={pitDrivers} />
           ) : (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <div className="h-12 w-12 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
@@ -361,7 +365,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       <TimingTower
         rows={board}
         selected={selected}
-        onSelect={setSelected}
+        onSelect={toggleSelected}
         mode={lapMode ? 'lap' : 'race'}
         columns={timingColumns}
         onColumnsChange={setTimingColumns}
@@ -372,7 +376,7 @@ function LiveBoard({ data }: { data: LiveState }) {
     sessionBests: <SessionBestsFeed replay={replay} currentTime={LIVE_NOW} />,
     pitStops: isLive ? <LivePitStops times={view.pit_times ?? []} drivers={view.rows} /> : <EmptyPanel title="Pit Stops" />,
     speedTrap: isLive ? <SpeedTrapFeed replay={replay} currentTime={LIVE_NOW} /> : <EmptyPanel title="Speed Trap" />,
-    teamRadio: isLive ? <TeamRadioFeed replay={replay} currentTime={LIVE_NOW} /> : <EmptyPanel title="Team Radio" />,
+    teamRadio: isLive ? <TeamRadioFeed replay={replay} currentTime={LIVE_NOW} live /> : <EmptyPanel title="Team Radio" />,
     commentary: isLive ? <CommentaryAudio commentary={view.commentary ?? null} currentTime={0} playing speed={1} live /> : <EmptyPanel title="Commentary" />,
     championship: isLive ? <ChampionshipPrediction data={view.championship ?? null} /> : <EmptyPanel title="Projected Standings" />,
   }

@@ -207,7 +207,8 @@ export default function TelemetryPanel({
   const lifting = !braking && throttle !== null && throttle <= 0
   const gear = series ? series.gear[idx] ?? null : null
   const rpm = series && series.rpm.length > 0 ? series.rpm[idx] ?? null : null
-  const drs = series && series.drs.length > 0 ? series.drs[idx] ?? null : null
+  const hasDrs = !!series && series.drs.some((d) => d !== null && d !== undefined)
+  const drs = hasDrs ? series!.drs[idx] ?? null : null
 
   const windowEnd = currentTime
   const windowStart = currentTime - WINDOW_SECONDS
@@ -245,7 +246,7 @@ export default function TelemetryPanel({
             </span>
             <BrakeIndicator braking={braking} />
             <LiftingIndicator lifting={lifting} />
-            <DRSIndicator active={drs !== null && drs >= 10} />
+            {hasDrs ? <DRSIndicator active={drs !== null && drs >= 10} /> : null}
           </div>
 
           <div className="mt-2 flex min-h-0 flex-1 flex-col">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import StatusCard from '../StatusCard'
@@ -59,6 +59,10 @@ export default function ReplayViewer({
   const { data, error, loading } = useReplay(year, event, session)
   const playback = usePlayback(data?.duration ?? 0)
   const [selected, setSelected] = useState<string | null>(null)
+  // Clicking the already-selected driver deselects them.
+  const toggleSelected = useCallback((id: string | null) => {
+    setSelected((prev) => (prev === id ? null : id))
+  }, [])
   const sessionDefault = useMemo(() => defaultsFor(session), [session])
   const { editMode, setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
   const { data: schedule } = useSchedule(year)
@@ -156,11 +160,11 @@ export default function ReplayViewer({
     trackmap: (
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
         <div className="absolute inset-0 overflow-hidden p-3">
-          <TrackMap replay={data} currentTime={time} selected={selected} onSelect={setSelected} editMode={editMode} />
+          <TrackMap replay={data} currentTime={time} selected={selected} onSelect={toggleSelected} editMode={editMode} />
         </div>
       </div>
     ),
-    raceControl: <RaceControlFeed messages={data.race_control_messages} currentTime={time} />,
+    raceControl: <RaceControlFeed messages={data.race_control_messages} currentTime={time} origin={data.race_start ?? data.session_window?.start ?? 0} />,
     pitStops: <PitStopFeed replay={data} currentTime={time} label={pitLabel} />,
     telemetry: selected ? (
       <TelemetryPanel year={year} event={event} session={session} replay={data} driver={selected} currentTime={time} />
@@ -173,7 +177,7 @@ export default function ReplayViewer({
       <TimingTower
         rows={board}
         selected={selected}
-        onSelect={setSelected}
+        onSelect={toggleSelected}
         mode={lapMode ? 'lap' : 'race'}
         columns={timingColumns}
         onColumnsChange={setTimingColumns}

@@ -1,5 +1,6 @@
 import ast
 import base64
+import copy
 import json
 import logging
 import os
@@ -102,12 +103,33 @@ def _parse_line(line):
     return topic, payload
 
 
-class LiveRecording:
-    def __init__(self, path):
-        self.path = path
-        self._offset = 0
+class LiveFeed:
+    """Holds the live SignalR topic state directly in memory, updated straight
+    from the client callback. No files are written or read: readers always see
+    exactly what the SignalR stream currently holds."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
         self.topics = {}
         self.retired = set()
+        self._session_key = None
+
+    @staticmethod
+    def _decode(topic, payload):
+        if isinstance(payload, str):
+            if topic.endswith(".z"):
+                return _inflate(payload)
+            try:
+                return json.loads(payload)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return payload
+
+    @staticmethod
+    def _key_of(info):
+        if isinstance(info, dict):
+            return info.get("Key") or info.get("Name")
+        return None
 
     def _track_retired(self, payload):
         lines = payload.get("Lines") if isinstance(payload, dict) else None
@@ -121,118 +143,106 @@ class LiveRecording:
             if line.get("PitOut"):
                 self.retired.discard(str(number))
 
-    def poll(self):
-        if not os.path.exists(self.path):
-            return
-        try:
-            with open(self.path, "r") as handle:
-                handle.seek(self._offset)
-                lines = handle.readlines()
-                self._offset = handle.tell()
-        except OSError:
-            return
-        for line in lines:
-            parsed = _parse_line(line)
-            if parsed is None:
-                continue
-            topic, payload = parsed
+    def reset(self, raw_topics):
+        """Apply a full Subscribe snapshot, replacing our state so we mirror the
+        feed's authoritative current view (this is also how reconnects and
+        session changes come through)."""
+        decoded = {}
+        for topic, value in raw_topics.items():
             if topic in SKIP_TOPICS:
                 continue
+            value = self._decode(topic, value)
+            if value is not None:
+                decoded[topic] = value
+        with self._lock:
+            key = self._key_of(decoded.get("SessionInfo"))
+            if key != self._session_key:
+                self.retired = set()
+                self._session_key = key
+            timing = decoded.get("TimingData")
+            if timing is not None:
+                self._track_retired(timing)
+            self.topics = decoded
+
+    def update(self, topic, payload):
+        """Apply a streaming delta, merging it into the current state."""
+        if topic in SKIP_TOPICS:
+            return
+        payload = self._decode(topic, payload)
+        if payload is None:
+            return
+        with self._lock:
             if topic == "TimingData":
                 self._track_retired(payload)
-            current = self.topics.setdefault(topic, {})
+            if topic == "SessionInfo":
+                key = self._key_of(payload)
+                if key is not None and key != self._session_key:
+                    self._session_key = key
+            current = self.topics.get(topic)
             if isinstance(payload, dict):
-                self.topics[topic] = _merge(current, payload)
+                base = current if isinstance(current, dict) else {}
+                self.topics[topic] = _merge(base, payload)
             else:
                 self.topics[topic] = payload
 
-    def has_data(self):
-        return bool(self.topics)
-
-    def has_meaningful_data(self):
-        info = self.topics.get("SessionInfo")
-        if isinstance(info, dict) and info.get("Name"):
-            return True
-        timing = self.topics.get("TimingData")
-        if isinstance(timing, dict) and timing.get("Lines"):
-            return True
-        return False
-
-    def session_key(self):
-        info = self.topics.get("SessionInfo")
-        if isinstance(info, dict):
-            return info.get("Key") or info.get("Name")
-        return None
-
-    def reset_keeping_session(self):
-        info = self.topics.get("SessionInfo")
-        self.topics = {"SessionInfo": info} if isinstance(info, dict) else {}
-        self.retired = set()
+    def snapshot(self):
+        with self._lock:
+            return copy.deepcopy(self.topics), set(self.retired)
 
 
 class LiveManager:
     def __init__(self):
         self._lock = threading.Lock()
-        self._session_key = None
-        self._recording = None
+        self._feed = LiveFeed()
         self._thread = None
         self._no_auth = os.environ.get("F1_LIVE_NO_AUTH", "").lower() in {"1", "true", "yes"}
-        self._filename = None
-        self._info_key = None
 
-    def _live_dir(self):
-        cache = f1data.get_cache()
-        if cache is None:
-            return None
-        path = os.path.join(cache, "live")
-        os.makedirs(path, exist_ok=True)
-        return path
-
-    def _start_recorder(self, session_key, filename):
+    def _start_client(self):
         from fastf1.livetiming.client import SignalRClient
+        from signalrcore.messages.completion_message import CompletionMessage
 
-        class _ExtendedClient(SignalRClient):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
+        feed = self._feed
+        no_auth = self._no_auth
+
+        class _InMemoryClient(SignalRClient):
+            def __init__(self):
+                # filename is required by the base client but we never write to
+                # it; route it to the null device so no stream file is created.
+                super().__init__(
+                    filename=os.devnull,
+                    filemode="a",
+                    timeout=90,
+                    logger=logger,
+                    no_auth=no_auth,
+                )
                 for extra in ("PitLaneTimeCollection", "ChampionshipPrediction"):
                     if extra not in self.topics:
                         self.topics = list(self.topics) + [extra]
 
+            def _on_message(self, msg):
+                self._t_last_message = time.time()
+                try:
+                    if isinstance(msg, CompletionMessage):
+                        if isinstance(msg.result, dict):
+                            feed.reset(msg.result)
+                    elif isinstance(msg, list) and len(msg) >= 2:
+                        feed.update(msg[0], msg[1])
+                except Exception:
+                    self.logger.exception("Error handling live message")
+
         def run():
             try:
-                client = _ExtendedClient(
-                    filename=filename,
-                    filemode="a",
-                    timeout=90,
-                    logger=logger,
-                    no_auth=self._no_auth,
-                )
-                client.start()
+                _InMemoryClient().start()
             except Exception:
-                logger.exception("Live timing recorder stopped with an error")
+                logger.exception("Live timing client stopped with an error")
 
-        thread = threading.Thread(target=run, name=f"f1-live-{session_key}", daemon=True)
+        thread = threading.Thread(target=run, name="f1-live", daemon=True)
         thread.start()
         return thread
 
-    def _ensure_recorder(self):
-        live_dir = self._live_dir()
-        if live_dir is None:
-            return
-        if self._recording is None:
-            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-            self._filename = os.path.join(live_dir, f"stream-{stamp}.txt")
-            self._recording = LiveRecording(self._filename)
+    def _ensure_client(self):
         if self._thread is None or not self._thread.is_alive():
-            self._thread = self._start_recorder("live", self._filename)
-
-    def _drain(self):
-        self._recording.poll()
-        key = self._recording.session_key()
-        if key is not None:
-            if self._info_key is not None and key != self._info_key:
-                self._recording.reset_keeping_session()
-            self._info_key = key
+            self._thread = self._start_client()
 
     def state(self):
         with self._lock:
@@ -240,12 +250,16 @@ class LiveManager:
                 return _no_session_snapshot()
             if not self._no_auth and not liveauth.is_authenticated():
                 return _auth_required_snapshot()
-            self._ensure_recorder()
-            if self._recording is not None:
-                self._drain()
-                if self._recording.has_meaningful_data():
-                    return _live_snapshot(self._recording.topics, self._recording.retired)
-            return _no_session_snapshot()
+            self._ensure_client()
+            topics, retired = self._feed.snapshot()
+        info = topics.get("SessionInfo")
+        timing = topics.get("TimingData")
+        has_session = (isinstance(info, dict) and info.get("Name")) or (
+            isinstance(timing, dict) and bool(timing.get("Lines"))
+        )
+        if has_session:
+            return _live_snapshot(topics, retired)
+        return _no_session_snapshot()
 
     def raw_topics(self):
         with self._lock:
@@ -253,17 +267,17 @@ class LiveManager:
                 return {"available": False, "source": "none", "topics": {}}
             if not self._no_auth and not liveauth.is_authenticated():
                 return {"available": False, "source": "none", "topics": {}}
-            self._ensure_recorder()
-            if self._recording is not None:
-                self._drain()
-                return {
-                    "available": self._recording.has_data(),
-                    "source": "live",
-                    "session_key": self._info_key,
-                    "topics": self._recording.topics,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            return {"available": False, "source": "none", "topics": {}}
+            self._ensure_client()
+            topics, _ = self._feed.snapshot()
+        info = topics.get("SessionInfo")
+        key = (info.get("Key") or info.get("Name")) if isinstance(info, dict) else None
+        return {
+            "available": bool(topics),
+            "source": "live",
+            "session_key": key,
+            "topics": topics,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
 
 
 def _session_rows(schedule):
@@ -374,6 +388,7 @@ def _drivers_from_topics(topics):
             "full_name": info.get("FullName") or info.get("BroadcastName"),
             "team_name": info.get("TeamName"),
             "team_colour": info.get("TeamColour"),
+            "headshot_url": _clean(info.get("HeadshotUrl")),
         }
     return drivers
 
@@ -445,15 +460,22 @@ def _speeds(line):
     return result
 
 
+def _values(coll):
+    """SignalR sends collections as arrays in the initial snapshot and as
+    index-keyed dicts in deltas. Yield the values for either shape."""
+    if isinstance(coll, dict):
+        return list(coll.values())
+    if isinstance(coll, list):
+        return coll
+    return []
+
+
 def _race_control_live(topics):
     rcm = topics.get("RaceControlMessages", {})
     if not isinstance(rcm, dict):
         return []
-    messages = rcm.get("Messages", {})
-    if not isinstance(messages, dict):
-        return []
     result = []
-    for key, msg in messages.items():
+    for msg in _values(rcm.get("Messages")):
         if not isinstance(msg, dict):
             continue
         result.append({
@@ -475,11 +497,12 @@ def _team_radio_live(topics):
     tr = topics.get("TeamRadio", {})
     if not isinstance(tr, dict):
         return []
-    captures = tr.get("Captures", {})
-    if not isinstance(captures, dict):
-        return []
+    # Capture Path is relative to the session directory (SessionInfo.Path), e.g.
+    # "TeamRadio/MAXVER01_1_....mp3"; the playable URL is static/<session>/<path>.
+    session_path = _clean(_nested(topics, "SessionInfo", "Path")) or ""
+    base = f"https://livetiming.formula1.com/static/{session_path}"
     result = []
-    for key, capture in captures.items():
+    for capture in _values(tr.get("Captures")):
         if not isinstance(capture, dict):
             continue
         path = capture.get("Path")
@@ -487,7 +510,7 @@ def _team_radio_live(topics):
             result.append({
                 "utc": _clean(capture.get("Utc")),
                 "driver_number": _clean(str(capture.get("RacingNumber"))),
-                "url": f"https://livetiming.formula1.com/static/{path}",
+                "url": f"{base}{path}",
             })
     result.sort(key=lambda c: c["utc"] or "")
     return result
@@ -497,33 +520,40 @@ def _commentary_live(topics):
     audio = topics.get("AudioStreams", {})
     if not isinstance(audio, dict):
         return None
-    streams = audio.get("Streams")
-    if not isinstance(streams, list) or not streams:
+    streams = _values(audio.get("Streams"))
+    if not streams:
         return None
     stream = next(
         (s for s in streams if isinstance(s, dict) and str(s.get("Language", "")).lower() == "en"),
         None,
     ) or (streams[0] if isinstance(streams[0], dict) else None)
-    uri = stream.get("Uri") if isinstance(stream, dict) else None
-    if not uri:
+    if not isinstance(stream, dict):
         return None
-    return {"url": uri, "start": None, "language": stream.get("Language") or "en"}
+    # The live stream is the Uri straight from the feed (rdio.formula1.com); the
+    # relative Path is only the post-session archive that replay uses.
+    url = _clean(stream.get("Uri"))
+    if not url:
+        return None
+    return {"url": url, "start": None, "language": stream.get("Language") or "en"}
 
 
 def _pit_times_live(topics):
     coll = topics.get("PitLaneTimeCollection", {})
     if not isinstance(coll, dict):
         return []
-    pit_times = coll.get("PitTimes", {})
-    if not isinstance(pit_times, dict):
-        return []
     result = []
-    for number, info in pit_times.items():
+    for info in _values(coll.get("PitTimes")):
         if not isinstance(info, dict):
+            continue
+        number = info.get("RacingNumber")
+        if number is None:
+            continue
+        duration = _clean(info.get("Duration"))
+        if not duration:
             continue
         result.append({
             "driver_number": str(number),
-            "duration": _clean(info.get("Duration")),
+            "duration": duration,
             "lap": _to_int(info.get("Lap")),
         })
     return result
@@ -633,13 +663,15 @@ def _position_data_live(topics):
         z = entry.get("Z")
         if x is not None and y is not None:
             try:
-                result[str(number_str)] = {
-                    "x": float(x),
-                    "y": float(y),
-                    "z": float(z) if z is not None else None,
-                }
+                fx = float(x)
+                fy = float(y)
+                fz = float(z) if z is not None else None
             except (TypeError, ValueError):
-                pass
+                continue
+            # 0,0,0 is the feed's initialisation value, not a real location.
+            if fx == 0 and fy == 0 and (fz == 0 or fz is None):
+                continue
+            result[str(number_str)] = {"x": fx, "y": fy, "z": fz}
     return result
 
 
@@ -734,6 +766,7 @@ def _live_snapshot(topics, retired_set=None):
             "full_name": info.get("full_name"),
             "team_name": info.get("team_name"),
             "team_colour": info.get("team_colour"),
+            "headshot_url": info.get("headshot_url"),
             "gap": _clean(line.get("GapToLeader")) or _clean(line.get("TimeDiffToFastest")),
             "interval": _clean(_nested(line, "IntervalToPositionAhead", "Value")) or _clean(line.get("TimeDiffToPositionAhead")),
             "last_lap": _clean(_nested(line, "LastLapTime", "Value")),
@@ -1084,13 +1117,24 @@ def live_raw():
 
 def _live_raw_test():
     test_file = os.environ.get("F1_LIVE_TEST_FILE", "/tmp/test_live_data.txt")
-    recording = LiveRecording(test_file)
-    recording.poll()
+    topics = {}
+    if os.path.exists(test_file):
+        with open(test_file, "r") as handle:
+            for line in handle:
+                parsed = _parse_line(line)
+                if parsed is None:
+                    continue
+                topic, payload = parsed
+                current = topics.get(topic)
+                if isinstance(payload, dict):
+                    topics[topic] = _merge(current if isinstance(current, dict) else {}, payload)
+                else:
+                    topics[topic] = payload
     return {
-        "available": recording.has_data(),
+        "available": bool(topics),
         "source": "test",
         "session_key": None,
-        "topics": recording.topics,
+        "topics": topics,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 

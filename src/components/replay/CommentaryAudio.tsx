@@ -7,9 +7,20 @@ const DRIFT_TOLERANCE = 0.4
 async function resolveAudioPlaylist(url: string): Promise<string> {
   try {
     const text = await (await fetch(url)).text()
-    if (/#EXT-X-STREAM-INF/.test(text)) return url
+    // If this isn't a master playlist, it's already the media playlist.
+    if (!/#EXT-X-STREAM-INF|#EXT-X-MEDIA/.test(text)) return url
+    // F1's commentary master is audio-only and lists the same file as both a
+    // STREAM-INF variant and an EXT-X-MEDIA audio rendition, which hls.js fails
+    // to play. Drill straight to the concrete media playlist instead.
     const media = text.match(/#EXT-X-MEDIA:[^\n]*URI="([^"]+)"/)
     if (media?.[1]) return new URL(media[1], url).toString()
+    const lines = text.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
+        const next = lines[i + 1]?.trim()
+        if (next && !next.startsWith('#')) return new URL(next, url).toString()
+      }
+    }
     return url
   } catch {
     return url
@@ -47,13 +58,15 @@ export default function CommentaryAudio({
   const [errorUrl, setErrorUrl] = useState<string | null>(null)
 
   const streamStart = commentary?.start ?? 0
-  const ready = !!commentary && readyUrl === commentary.url
-  const error = !!commentary && errorUrl === commentary.url
+  const url = commentary?.url ?? null
+  const ready = !!url && readyUrl === url
+  const error = !!url && errorUrl === url
 
+  // Keyed on the URL string, not the commentary object: the live feed hands us a
+  // fresh object every poll, and rebuilding hls.js each time would cut playback.
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio || !commentary) return
-    const url = commentary.url
+    if (!audio || !url) return
     let cancelled = false
 
     if (audio.canPlayType('application/vnd.apple.mpegurl')) {
@@ -87,7 +100,7 @@ export default function CommentaryAudio({
       hlsRef.current = null
       audio.removeAttribute('src')
     }
-  }, [commentary])
+  }, [url])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -169,7 +182,7 @@ export default function CommentaryAudio({
             className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
               active ? 'bg-f1-red/20 text-red-300' : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
             }`}
-            title="Sync the world-feed commentary to the replay clock"
+            title={live ? 'Play the live world-feed commentary' : 'Sync the world-feed commentary to the replay clock'}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-f1-red' : 'bg-zinc-600'}`} />
             {active ? 'On' : 'Off'}

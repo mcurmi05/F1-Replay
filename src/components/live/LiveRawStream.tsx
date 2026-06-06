@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { LiveRawState } from '../../lib/api/types'
+import { isRawStreamOpen, setRawStreamOpen, subscribeRawStream } from '../../lib/debugStream'
 
 const POS_KEY = 'f1replay.debug.rawStream.pos'
 const POLL_MS = 3000
@@ -10,11 +11,10 @@ interface Box {
   y: number
   w: number
   h: number
-  open: boolean
 }
 
 function loadBox(): Box {
-  const fallback: Box = { x: 24, y: 96, w: 460, h: 520, open: false }
+  const fallback: Box = { x: 24, y: 96, w: 460, h: 520 }
   try {
     const raw = localStorage.getItem(POS_KEY)
     if (!raw) return fallback
@@ -26,6 +26,7 @@ function loadBox(): Box {
 
 export default function LiveRawStream() {
   const [box, setBox] = useState<Box>(loadBox)
+  const [open, setOpen] = useState(isRawStreamOpen)
   const [data, setData] = useState<LiveRawState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [paused, setPaused] = useState(false)
@@ -33,12 +34,14 @@ export default function LiveRawStream() {
   const pausedRef = useRef(paused)
   pausedRef.current = paused
 
+  useEffect(() => subscribeRawStream(setOpen), [])
+
   useEffect(() => {
     localStorage.setItem(POS_KEY, JSON.stringify(box))
   }, [box])
 
   useEffect(() => {
-    if (!box.open) return
+    if (!open) return
     let active = true
     let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -68,7 +71,7 @@ export default function LiveRawStream() {
       active = false
       if (timer) clearTimeout(timer)
     }
-  }, [box.open])
+  }, [open])
 
   const startDrag = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
@@ -111,17 +114,7 @@ export default function LiveRawStream() {
     window.addEventListener('pointerup', onUp)
   }, [box.w, box.h])
 
-  if (!box.open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setBox((b) => ({ ...b, open: true }))}
-        className="fixed bottom-4 right-4 z-[100] rounded-full border border-f1-red/60 bg-zinc-900/95 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-200 shadow-lg hover:border-f1-red"
-      >
-        SignalR Stream
-      </button>
-    )
-  }
+  if (!open) return null
 
   const topics = data?.topics ?? {}
   const topicKeys = Object.keys(topics).sort()
@@ -181,7 +174,7 @@ export default function LiveRawStream() {
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => setBox((b) => ({ ...b, open: false }))}
+            onClick={() => setRawStreamOpen(false)}
             className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 hover:border-zinc-500"
           >
             <svg viewBox="0 0 8 8" className="h-2.5 w-2.5" stroke="currentColor" strokeWidth="1.5" fill="none">

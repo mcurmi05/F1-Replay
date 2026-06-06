@@ -67,7 +67,10 @@ export default function PitStopFeed({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const allPits = getPitStops(replay)
-  const raceStarted = replay.race_start !== null && currentTime >= replay.race_start
+  // Race sessions count from the race start; practice/qualifying count from when
+  // the session window opened.
+  const origin = replay.race_start ?? replay.session_window?.start ?? null
+  const started = origin !== null && currentTime >= origin
   const pits = allPits.filter((pit) => pit.time <= currentTime)
 
   useEffect(() => {
@@ -78,7 +81,7 @@ export default function PitStopFeed({
     <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{label} Pit Stops</p>
       <div ref={scrollRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-        {!raceStarted ? (
+        {!started ? (
           <p className="text-xs text-zinc-500">{label} hasn't started yet</p>
         ) : pits.length === 0 ? (
           <p className="text-xs text-zinc-500">No pit stops yet</p>
@@ -95,12 +98,17 @@ export default function PitStopFeed({
                     style={{ backgroundColor: teamColor(pit.team_colour) }}
                   />
                   <span className="font-semibold text-white">{pit.abbreviation}</span>
-                  <span className="text-xs text-zinc-500">(Lap {pit.lap})</span>
+                  {label === 'Race' && pit.lap !== null ? (
+                    <span className="text-xs text-zinc-500">(Lap {pit.lap})</span>
+                  ) : null}
                 </div>
-                <span className="text-xs text-zinc-400">{formatTime(pit.time)}</span>
+                <span className="text-xs text-zinc-400">
+                  {formatTime(Math.max(0, pit.time - (origin ?? 0)))}
+                  <span className="ml-1 text-zinc-600">({formatTime(pit.time)})</span>
+                </span>
               </div>
               <p className="mt-1 text-xs font-mono text-zinc-400">
-                Duration: {formatDuration(Math.min(Math.max(currentTime - pit.time, 0), pit.duration))}
+                Duration: {formatDuration(pit.duration)}
               </p>
             </div>
           ))

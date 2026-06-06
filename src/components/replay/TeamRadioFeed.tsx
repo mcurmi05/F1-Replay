@@ -36,9 +36,11 @@ function formatTime(seconds: number): string {
 export default function TeamRadioFeed({
   replay,
   currentTime,
+  live = false,
 }: {
   replay: ReplayData
   currentTime: number
+  live?: boolean
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -75,6 +77,9 @@ export default function TeamRadioFeed({
   }
 
   const flaggedUrls = useMemo(() => {
+    // Live sessions only ever stream this session's own radio, so never flag any
+    // as mislabeled/unknown.
+    if (live) return new Set<string>()
     const all = replay.team_radio ?? []
     const TOLERANCE = 600
     const offsets: number[] = []
@@ -94,7 +99,7 @@ export default function TeamRadioFeed({
       if (Math.abs(recorded - c.time - median) > TOLERANCE) flagged.add(c.url)
     }
     return flagged
-  }, [replay.team_radio])
+  }, [replay.team_radio, live])
 
   const teamRadio = useMemo(() => {
     const all = replay.team_radio ?? []
@@ -128,12 +133,13 @@ export default function TeamRadioFeed({
     return count >= MIN_BURST ? end : null
   }, [teamRadio])
 
-  const relevant = teamRadio.filter(
-    (c) => c.time !== null && c.time <= currentTime && (burstEnd === null || c.time > burstEnd),
-  )
+  // Newest first: most recent radio at the top, oldest at the bottom.
+  const relevant = teamRadio
+    .filter((c) => c.time !== null && c.time <= currentTime && (burstEnd === null || c.time > burstEnd))
+    .reverse()
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [relevant.length])
 
   useEffect(() => {
@@ -255,29 +261,33 @@ export default function TeamRadioFeed({
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Team Radio</p>
         <div className="flex items-center gap-1.5">
-          <div className="group relative">
-            <img src={questionIcon} alt="Help" className="h-4 w-4 cursor-help opacity-70 hover:opacity-100" />
-            <div className="pointer-events-none absolute right-0 top-6 z-40 hidden w-56 rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-[11px] leading-snug text-zinc-300 shadow-xl group-hover:block">
-              The radio stream sometimes includes radio messages from F2 sessions that occurred before the F1 session, scroll to the top to see them with F1? toggled on.
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowAll((v) => !v)}
-            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-              showAll ? 'bg-zinc-700 text-zinc-200' : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
-            }`}
-            title="Include radio from other series that the feed mislabels as this session"
-          >
-            <span className={`flex h-2.5 w-2.5 items-center justify-center rounded-[3px] ${showAll ? 'bg-zinc-300 text-zinc-900' : 'border border-zinc-600'}`}>
-              {showAll ? (
-                <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M1.5 5l2.5 2.5L8.5 2.5" />
-                </svg>
-              ) : null}
-            </span>
-            F1?
-          </button>
+          {!live ? (
+            <>
+              <div className="group relative">
+                <img src={questionIcon} alt="Help" className="h-4 w-4 cursor-help opacity-70 hover:opacity-100" />
+                <div className="pointer-events-none absolute right-0 top-6 z-40 hidden w-56 rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-[11px] leading-snug text-zinc-300 shadow-xl group-hover:block">
+                  The radio stream sometimes includes radio messages from F2 sessions that occurred before the F1 session, scroll to the bottom to see them with F1? toggled on.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAll((v) => !v)}
+                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                  showAll ? 'bg-zinc-700 text-zinc-200' : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="Include radio from other series that the feed mislabels as this session"
+              >
+                <span className={`flex h-2.5 w-2.5 items-center justify-center rounded-[3px] ${showAll ? 'bg-zinc-300 text-zinc-900' : 'border border-zinc-600'}`}>
+                  {showAll ? (
+                    <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M1.5 5l2.5 2.5L8.5 2.5" />
+                    </svg>
+                  ) : null}
+                </span>
+                F1?
+              </button>
+            </>
+          ) : null}
           <button
             type="button"
             onClick={() => setAutoPlay((v) => {
