@@ -340,8 +340,8 @@ export function ReplayStatusBar() {
           <StatItem label="Track" value={formatStat(weather.track_temp, '°', 1)} />
           <StatItem label="Air" value={formatStat(weather.air_temp, '°', 1)} />
           <StatItem label="Hum" value={formatStat(weather.humidity, '%', 0)} />
-          <StatItem label="Pres" value={formatStat(weather.pressure, '', 0)} />
-          <StatItem label="Wind (Relative to trackmap)" value={formatStat(weather.wind_speed, '', 1)} dir={(weather.wind_direction ?? 0) + trackRotation} />
+          <StatItem label="Pres" value={formatStat(weather.pressure, ' mbar', 0)} />
+          <StatItem label="Wind (Relative to trackmap)" value={formatStat(weather.wind_speed, ' m/s', 1)} dir={(weather.wind_direction ?? 0) + trackRotation} />
         </div>
       ) : null}
     </div>
@@ -375,6 +375,7 @@ export function ReplayLayoutControls() {
   const hiddenDefs = panelDefs.filter((p) => hiddenPanels.has(p.id))
   const leaf = category ? category.split('-').pop()! : ''
   const defaultName = leaf ? `${leaf[0].toUpperCase()}${leaf.slice(1)} Default` : 'Default'
+  const savedDefault = layouts.find((l) => l.name === defaultName)
   const customLayouts = layouts.filter((l) => l.name !== defaultName)
 
   function openSaveModal() {
@@ -576,11 +577,25 @@ export function ReplayLayoutControls() {
             <h2 className="mb-4 text-lg font-bold text-white">Saved layouts</h2>
             <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
               <li className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2">
-                <span className="flex-1 truncate text-sm text-zinc-200">{defaultName}</span>
+                <span className="flex-1 truncate text-sm text-zinc-200">
+                  {defaultName}
+                  {savedDefault ? <span className="ml-1.5 text-[10px] uppercase tracking-wider text-zinc-500">saved</span> : null}
+                </span>
+                {savedDefault ? (
+                  <button
+                    type="button"
+                    onClick={() => { reset(); setShowLayouts(false) }}
+                    disabled={busyId === savedDefault.id}
+                    className="shrink-0 rounded border border-zinc-600 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-700"
+                  >
+                    Built-in
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => { reset(); setShowLayouts(false) }}
-                  className="shrink-0 rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110"
+                  onClick={() => { if (savedDefault) { void doLoad(savedDefault.id) } else { reset(); setShowLayouts(false) } }}
+                  disabled={savedDefault ? busyId === savedDefault.id : false}
+                  className="shrink-0 rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
                 >
                   Load
                 </button>

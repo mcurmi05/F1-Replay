@@ -14,6 +14,7 @@ import TrackMap from '../components/replay/TrackMap'
 import LiveAuthGate from '../components/live/LiveAuthGate'
 import LivePitStops from '../components/live/LivePitStops'
 import LiveTelemetry from '../components/live/LiveTelemetry'
+import ChampionshipPrediction from '../components/live/ChampionshipPrediction'
 import { useLive } from '../hooks/useApi'
 import { useReplayLayout } from '../hooks/useReplayLayout'
 import type { PanelDef } from '../hooks/useReplayLayout'
@@ -48,6 +49,7 @@ const LIVE_PANEL_DEFS: PanelDef[] = [
   { id: 'speedTrap', label: 'Speed Trap' },
   { id: 'teamRadio', label: 'Team Radio' },
   { id: 'commentary', label: 'Commentary' },
+  { id: 'championship', label: 'Championship' },
 ]
 
 function parseNum(value: string | null | undefined): number | null {
@@ -269,10 +271,10 @@ function buildLiveReplay(data: LiveState): { replay: ReplayData; hasMap: boolean
 
 function LiveBoard({ data }: { data: LiveState }) {
   const [selected, setSelected] = useState<string | null>(null)
-  const { setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
+  const { editMode, setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
 
   const isLive = data.source === 'live'
-  const ended = isLive && !data.live
+  const running = isLive && data.live
   const view = useMemo(() => (isLive ? data : blankLive(data)), [isLive, data])
 
   const session = view.session
@@ -293,10 +295,12 @@ function LiveBoard({ data }: { data: LiveState }) {
   const next = data.next_session
   useEffect(() => {
     if (isLive && session) {
+      const endedTag = !running ? ' (ENDED)' : ''
+      const upNext = !running && next ? ` · Next: ${next.session_name} ${countdown(next.start_utc)}` : ''
       setTitleInfo({
         year: session.started_at ? new Date(session.started_at).getFullYear() : null,
         eventName: session.event_name,
-        sessionName: ended ? `${session.session_name} · Ending now` : session.session_name,
+        sessionName: `${session.session_name ?? ''}${endedTag}${upNext}`,
         location: session.location,
       })
     } else {
@@ -312,7 +316,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       setTitleInfo(null)
       setSessionNav(null)
     }
-  }, [isLive, ended, session, next, setTitleInfo, setSessionNav])
+  }, [isLive, running, session, next, setTitleInfo, setSessionNav])
 
   useEffect(() => {
     if (isLive) {
@@ -342,7 +346,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-zinc-800 bg-surface">
         <div className="absolute inset-0 overflow-hidden p-3">
           {hasMap ? (
-            <TrackMap replay={replay} currentTime={0} selected={selected} onSelect={setSelected} live pitDrivers={pitDrivers} />
+            <TrackMap replay={replay} currentTime={0} selected={selected} onSelect={setSelected} live editMode={editMode} pitDrivers={pitDrivers} />
           ) : (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <div className="h-12 w-12 animate-spin rounded-full border-2 border-zinc-700 border-t-f1-red" />
@@ -370,6 +374,7 @@ function LiveBoard({ data }: { data: LiveState }) {
     speedTrap: isLive ? <SpeedTrapFeed replay={replay} currentTime={LIVE_NOW} /> : <EmptyPanel title="Speed Trap" />,
     teamRadio: isLive ? <TeamRadioFeed replay={replay} currentTime={LIVE_NOW} /> : <EmptyPanel title="Team Radio" />,
     commentary: isLive ? <CommentaryAudio commentary={view.commentary ?? null} currentTime={0} playing speed={1} live /> : <EmptyPanel title="Commentary" />,
+    championship: isLive ? <ChampionshipPrediction data={view.championship ?? null} /> : <EmptyPanel title="Projected Standings" />,
   }
 
   return (

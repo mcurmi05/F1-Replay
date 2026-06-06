@@ -111,6 +111,7 @@ const LIVE_PRACTICE: SessionDefault = {
     { id: 'pos', visible: true },
     { id: 'driver', visible: true },
     { id: 'interval', visible: true },
+    { id: 'leader', visible: true },
     { id: 'bestSectors', visible: false },
     { id: 'bestLap', visible: true },
     { id: 'bestTyre', visible: false },
@@ -118,7 +119,6 @@ const LIVE_PRACTICE: SessionDefault = {
     { id: 'lastLap', visible: true },
     { id: 'sectors', visible: true },
     { id: 'tyre', visible: true },
-    { id: 'leader', visible: false },
   ],
 }
 
@@ -146,12 +146,25 @@ export function defaultsFor(session: string): SessionDefault {
   return PRACTICE
 }
 
+const LIVE_CHAMPIONSHIP = { i: 'championship', x: 0, y: 70, w: 50, h: 28, minW: 20, minH: 12 }
+
 export function liveDefaultsFor(session: string): SessionDefault {
-  if (sessionCategory(session) === 'practice') return LIVE_PRACTICE
+  const category = sessionCategory(session)
+  if (category === 'practice') {
+    return {
+      ...LIVE_PRACTICE,
+      layout: [...LIVE_PRACTICE.layout, LIVE_CHAMPIONSHIP],
+      hiddenPanels: [...LIVE_PRACTICE.hiddenPanels, 'championship'],
+    }
+  }
   const base = defaultsFor(session)
+  const layout = [...base.layout.filter((item) => item.i !== 'playback'), LIVE_CHAMPIONSHIP]
+  if (category === 'race') {
+    return { layout, hiddenPanels: base.hiddenPanels, timingColumns: base.timingColumns }
+  }
   return {
-    layout: base.layout.filter((item) => item.i !== 'playback'),
-    hiddenPanels: base.hiddenPanels,
+    layout,
+    hiddenPanels: [...base.hiddenPanels, 'championship'],
     timingColumns: base.timingColumns,
   }
 }

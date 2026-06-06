@@ -6,6 +6,7 @@ export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
   define: {
     __DEBUG_TOOLS__: JSON.stringify(command === 'serve'),
+    'process.env.DRAGGABLE_DEBUG': 'false',
   },
   server: {
     proxy: {

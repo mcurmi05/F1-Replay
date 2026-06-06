@@ -152,6 +152,29 @@ export interface LiveAuthStatus {
   expires_at: string | null
 }
 
+export interface ChampionshipDriverPrediction {
+  driver_number: string
+  abbreviation: string | null
+  team_colour: string | null
+  current_position: number | null
+  predicted_position: number | null
+  current_points: number | null
+  predicted_points: number | null
+}
+
+export interface ChampionshipTeamPrediction {
+  team_name: string
+  current_position: number | null
+  predicted_position: number | null
+  current_points: number | null
+  predicted_points: number | null
+}
+
+export interface ChampionshipPrediction {
+  drivers: ChampionshipDriverPrediction[]
+  teams: ChampionshipTeamPrediction[]
+}
+
 export interface LiveState {
   available: boolean
   live: boolean
@@ -165,6 +188,7 @@ export interface LiveState {
   pit_times?: LivePitTime[]
   timing_stats?: Record<string, LiveTimingStat>
   commentary?: CommentaryStream | null
+  championship?: ChampionshipPrediction | null
   track: { x: number[]; y: number[]; sector_markers?: { x: number; y: number }[] }
   next_session: LiveNextSession | null
   updated_at: string

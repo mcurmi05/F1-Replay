@@ -29,19 +29,6 @@ SESSION_TYPES = {
     "Race": "R",
 }
 
-WINDOW_MINUTES = {
-    "FP1": 90,
-    "FP2": 90,
-    "FP3": 90,
-    "Q": 120,
-    "SQ": 90,
-    "Sprint": 90,
-    "R": 200,
-}
-
-PRE_SESSION_MINUTES = 60
-POST_SESSION_MINUTES = 60
-
 TRACK_STATUS = {
     "1": "Track Clear",
     "2": "Yellow Flag",
@@ -162,6 +149,26 @@ class LiveRecording:
     def has_data(self):
         return bool(self.topics)
 
+    def has_meaningful_data(self):
+        info = self.topics.get("SessionInfo")
+        if isinstance(info, dict) and info.get("Name"):
+            return True
+        timing = self.topics.get("TimingData")
+        if isinstance(timing, dict) and timing.get("Lines"):
+            return True
+        return False
+
+    def session_key(self):
+        info = self.topics.get("SessionInfo")
+        if isinstance(info, dict):
+            return info.get("Key") or info.get("Name")
+        return None
+
+    def reset_keeping_session(self):
+        info = self.topics.get("SessionInfo")
+        self.topics = {"SessionInfo": info} if isinstance(info, dict) else {}
+        self.retired = set()
+
 
 class LiveManager:
     def __init__(self):
@@ -170,8 +177,8 @@ class LiveManager:
         self._recording = None
         self._thread = None
         self._no_auth = os.environ.get("F1_LIVE_NO_AUTH", "").lower() in {"1", "true", "yes"}
-        self._historical_key = None
-        self._historical_cache = None
+        self._filename = None
+        self._info_key = None
 
     def _live_dir(self):
         cache = f1data.get_cache()
@@ -187,7 +194,7 @@ class LiveManager:
         class _ExtendedClient(SignalRClient):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
-                for extra in ("PitLaneTimeCollection",):
+                for extra in ("PitLaneTimeCollection", "ChampionshipPrediction"):
                     if extra not in self.topics:
                         self.topics = list(self.topics) + [extra]
 
@@ -208,62 +215,55 @@ class LiveManager:
         thread.start()
         return thread
 
-    def _ensure_recorder(self, session_key):
+    def _ensure_recorder(self):
         live_dir = self._live_dir()
         if live_dir is None:
             return
-        filename = os.path.join(live_dir, f"{session_key}.txt")
-        if self._session_key != session_key:
-            self._session_key = session_key
-            self._recording = LiveRecording(filename)
-            self._thread = None
+        if self._recording is None:
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+            self._filename = os.path.join(live_dir, f"stream-{stamp}.txt")
+            self._recording = LiveRecording(self._filename)
         if self._thread is None or not self._thread.is_alive():
-            self._thread = self._start_recorder(session_key, filename)
+            self._thread = self._start_recorder("live", self._filename)
+
+    def _drain(self):
+        self._recording.poll()
+        key = self._recording.session_key()
+        if key is not None:
+            if self._info_key is not None and key != self._info_key:
+                self._recording.reset_keeping_session()
+            self._info_key = key
 
     def state(self):
         with self._lock:
             if not f1data.cache_valid():
-                return _empty_snapshot(None)
-            current = _current_session()
-            if current is not None and current["live_window"]:
-                if not liveauth.is_authenticated():
-                    return _auth_required_snapshot(current)
-                key = current["key"]
-                self._ensure_recorder(key)
-                if self._recording is not None:
-                    self._recording.poll()
-                    if self._recording.has_data():
-                        return _live_snapshot(current, self._recording.topics, self._recording.retired)
-                return _connecting_snapshot(current)
-            return self._historical_state(current)
+                return _no_session_snapshot()
+            if not self._no_auth and not liveauth.is_authenticated():
+                return _auth_required_snapshot()
+            self._ensure_recorder()
+            if self._recording is not None:
+                self._drain()
+                if self._recording.has_meaningful_data():
+                    return _live_snapshot(self._recording.topics, self._recording.retired)
+            return _no_session_snapshot()
 
     def raw_topics(self):
         with self._lock:
             if not f1data.cache_valid():
                 return {"available": False, "source": "none", "topics": {}}
-            current = _current_session()
-            if current is not None and current["live_window"]:
-                self._ensure_recorder(current["key"])
-                if self._recording is not None:
-                    self._recording.poll()
-                    return {
-                        "available": self._recording.has_data(),
-                        "source": "live",
-                        "session_key": current["key"],
-                        "topics": self._recording.topics,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
+            if not self._no_auth and not liveauth.is_authenticated():
+                return {"available": False, "source": "none", "topics": {}}
+            self._ensure_recorder()
+            if self._recording is not None:
+                self._drain()
+                return {
+                    "available": self._recording.has_data(),
+                    "source": "live",
+                    "session_key": self._info_key,
+                    "topics": self._recording.topics,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
             return {"available": False, "source": "none", "topics": {}}
-
-    def _historical_state(self, current):
-        if current is None or current.get("session") is None:
-            return _empty_snapshot(current)
-        if f1data.get_cache() is None:
-            return _empty_snapshot(current, current["session"])
-        if current["key"] != self._historical_key:
-            self._historical_key = current["key"]
-            self._historical_cache = _historical_snapshot(current)
-        return self._historical_cache
 
 
 def _session_rows(schedule):
@@ -309,64 +309,57 @@ def _all_sessions():
     return sessions
 
 
-def _current_session():
+def _next_upcoming():
     now = datetime.now(timezone.utc)
-    sessions = _all_sessions()
-    if not sessions:
-        return None
-
-    past = [s for s in sessions if s["start_utc"] <= now]
-    upcoming = [s for s in sessions if s["start_utc"] > now]
-    next_session = upcoming[0] if upcoming else None
-
-    if past:
-        latest = past[-1]
-        window = WINDOW_MINUTES.get(latest["session_type"], 120)
-        end = latest["start_utc"] + timedelta(minutes=window + POST_SESSION_MINUTES)
-        if now <= end:
-            key = f"{latest['year']}_{latest['round']}_{latest['session_type']}"
+    for session in _all_sessions():
+        if session["start_utc"] > now:
             return {
-                "key": key,
-                "live_window": True,
-                "session": latest,
-                "next": next_session,
+                "event_name": session["event_name"],
+                "session_name": session["session_name"],
+                "start_utc": session["start_utc"].isoformat(),
             }
-
-    if next_session is not None and now >= next_session["start_utc"] - timedelta(minutes=PRE_SESSION_MINUTES):
-        key = f"{next_session['year']}_{next_session['round']}_{next_session['session_type']}"
-        return {
-            "key": key,
-            "live_window": True,
-            "session": next_session,
-            "next": upcoming[1] if len(upcoming) > 1 else None,
-        }
-
-    if not past:
-        return {
-            "key": None,
-            "live_window": False,
-            "session": None,
-            "next": next_session,
-        }
-
-    latest = past[-1]
-    key = f"{latest['year']}_{latest['round']}_{latest['session_type']}"
-    return {
-        "key": key,
-        "live_window": False,
-        "session": latest,
-        "next": next_session,
-    }
+    return None
 
 
-def _next_payload(current):
-    if current is None or current.get("next") is None:
+def _parse_gmt_offset(offset):
+    if not isinstance(offset, str) or not offset.strip():
+        return timedelta()
+    sign = -1 if offset.strip().startswith("-") else 1
+    parts = offset.strip().lstrip("+-").split(":")
+    values = [int(p) for p in parts[:3]] + [0, 0, 0]
+    return sign * timedelta(hours=values[0], minutes=values[1], seconds=values[2])
+
+
+def _info_start_utc(start_raw, offset):
+    if not isinstance(start_raw, str) or not start_raw:
         return None
-    nxt = current["next"]
+    try:
+        local = pd.Timestamp(start_raw)
+    except (ValueError, TypeError):
+        return None
+    if local.tzinfo is not None:
+        return local.tz_convert("UTC").to_pydatetime()
+    utc = local - _parse_gmt_offset(offset)
+    return utc.tz_localize("UTC").to_pydatetime()
+
+
+def _session_info_meta(topics):
+    info = topics.get("SessionInfo")
+    if not isinstance(info, dict):
+        return None
+    name = info.get("Name")
+    meeting = info.get("Meeting") if isinstance(info.get("Meeting"), dict) else {}
+    country = meeting.get("Country") if isinstance(meeting.get("Country"), dict) else {}
+    start_utc = _info_start_utc(info.get("StartDate"), info.get("GmtOffset"))
     return {
-        "event_name": nxt["event_name"],
-        "session_name": nxt["session_name"],
-        "start_utc": nxt["start_utc"].isoformat(),
+        "event_name": meeting.get("Name"),
+        "location": meeting.get("Location"),
+        "country": country.get("Name"),
+        "session_name": name,
+        "session_type": SESSION_TYPES.get(str(name)) if name else None,
+        "start_utc": start_utc,
+        "year": start_utc.year if start_utc else None,
+        "round": _to_int(meeting.get("Number")),
     }
 
 
@@ -578,6 +571,47 @@ def _timing_stats_live(topics):
     return result
 
 
+def _championship_live(topics):
+    champ = topics.get("ChampionshipPrediction")
+    if not isinstance(champ, dict):
+        return None
+    drivers_info = _drivers_from_topics(topics)
+    drivers = []
+    raw_drivers = champ.get("Drivers")
+    if isinstance(raw_drivers, dict):
+        for number, entry in raw_drivers.items():
+            if not isinstance(entry, dict):
+                continue
+            info = drivers_info.get(str(number), {})
+            drivers.append({
+                "driver_number": str(number),
+                "abbreviation": info.get("abbreviation"),
+                "team_colour": info.get("team_colour"),
+                "current_position": _to_int(entry.get("CurrentPosition")),
+                "predicted_position": _to_int(entry.get("PredictedPosition")),
+                "current_points": _to_float(entry.get("CurrentPoints")),
+                "predicted_points": _to_float(entry.get("PredictedPoints")),
+            })
+    teams = []
+    raw_teams = champ.get("Teams")
+    if isinstance(raw_teams, dict):
+        for key, entry in raw_teams.items():
+            if not isinstance(entry, dict):
+                continue
+            teams.append({
+                "team_name": entry.get("TeamName") or str(key),
+                "current_position": _to_int(entry.get("CurrentPosition")),
+                "predicted_position": _to_int(entry.get("PredictedPosition")),
+                "current_points": _to_float(entry.get("CurrentPoints")),
+                "predicted_points": _to_float(entry.get("PredictedPoints")),
+            })
+    if not drivers and not teams:
+        return None
+    drivers.sort(key=lambda d: d["predicted_position"] if d["predicted_position"] is not None else 999)
+    teams.sort(key=lambda t: t["predicted_position"] if t["predicted_position"] is not None else 999)
+    return {"drivers": drivers, "teams": teams}
+
+
 def _position_data_live(topics):
     pos = topics.get("Position.z")
     if not isinstance(pos, dict):
@@ -640,9 +674,13 @@ def _car_data_live(topics):
     return result
 
 
-def _live_snapshot(current, topics, retired_set=None):
+def _live_snapshot(topics, retired_set=None):
     retired_set = retired_set or set()
-    session = current["session"]
+    session = _session_info_meta(topics) or {
+        "event_name": None, "location": None, "country": None,
+        "session_name": None, "session_type": None,
+        "start_utc": None, "year": None, "round": None,
+    }
     drivers = _drivers_from_topics(topics)
     timing = topics.get("TimingData", {}).get("Lines", {})
     app_data = topics.get("TimingAppData", {}).get("Lines", {})
@@ -757,7 +795,7 @@ def _live_snapshot(current, topics, retired_set=None):
             "current_lap": _to_int(lap_count.get("CurrentLap")),
             "total_laps": _to_int(lap_count.get("TotalLaps")),
             "time_remaining": _extrapolated_remaining(clock),
-            "started_at": session["start_utc"].isoformat(),
+            "started_at": session["start_utc"].isoformat() if session["start_utc"] else None,
         },
         "weather": _weather(weather),
         "rows": rows,
@@ -766,20 +804,20 @@ def _live_snapshot(current, topics, retired_set=None):
         "pit_times": _pit_times_live(topics),
         "timing_stats": _timing_stats_live(topics),
         "commentary": _commentary_live(topics),
+        "championship": _championship_live(topics),
         "track": track,
-        "next_session": _next_payload(current),
+        "next_session": _next_upcoming(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
-def _auth_required_snapshot(current):
-    session = current["session"]
+def _auth_required_snapshot():
     return {
         "available": False,
         "live": False,
         "auth_required": True,
         "source": "live",
-        "session": _session_meta_payload(session, "Authentication required"),
+        "session": None,
         "weather": None,
         "rows": [],
         "race_control_messages": [],
@@ -787,18 +825,19 @@ def _auth_required_snapshot(current):
         "pit_times": [],
         "timing_stats": {},
         "commentary": None,
+        "championship": None,
         "track": {"x": [], "y": []},
-        "next_session": _next_payload(current),
+        "next_session": _next_upcoming(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
-def _empty_snapshot(current, session_meta=None):
+def _no_session_snapshot():
     return {
         "available": False,
         "live": False,
         "source": "none",
-        "session": _session_meta_payload(session_meta, "Finished") if session_meta else None,
+        "session": None,
         "weather": None,
         "rows": [],
         "race_control_messages": [],
@@ -806,40 +845,11 @@ def _empty_snapshot(current, session_meta=None):
         "pit_times": [],
         "timing_stats": {},
         "commentary": None,
+        "championship": None,
         "track": {"x": [], "y": []},
-        "next_session": _next_payload(current),
+        "next_session": _next_upcoming(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-
-
-def _connecting_snapshot(current):
-    session = current["session"]
-    track = _get_track_geometry(session.get("year"), session.get("round"), session.get("session_type"), session.get("event_name"))
-    return {
-        "available": False,
-        "live": True,
-        "source": "live",
-        "session": _session_meta_payload(session, "Connecting"),
-        "weather": None,
-        "rows": [],
-        "race_control_messages": [],
-        "team_radio": [],
-        "pit_times": [],
-        "timing_stats": {},
-        "commentary": None,
-        "track": track,
-        "next_session": _next_payload(current),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-def _load_results_only(year, event, session_type):
-    import threading as _threading
-
-    with _threading.Lock():
-        session = fastf1.get_session(year, event, session_type)
-        session.load(laps=True, telemetry=False, weather=False, messages=False)
-    return session
 
 
 _track_cache = {}
@@ -948,185 +958,6 @@ def _load_track_geometry(year, round_num, session_type):
         logger.warning(f"Could not load track geometry for {year}/{round_num}/{session_type}: {e}")
         return {"x": [], "y": []}
 
-
-def _historical_snapshot(current):
-    session_meta = current["session"]
-    try:
-        loaded = _load_results_only(
-            session_meta["year"], session_meta["round"], session_meta["session_type"]
-        )
-    except Exception:
-        logger.exception("Failed to load historical session for live fallback")
-        return _empty_snapshot(current, session_meta)
-
-    rows = _historical_rows(loaded)
-    rows = _historical_rows_with_new_fields(rows)
-    track = _get_track_geometry(session_meta.get("year"), session_meta.get("round"), session_meta.get("session_type"), session_meta.get("event_name"))
-    return {
-        "available": bool(rows),
-        "live": False,
-        "source": "historical",
-        "session": _session_meta_payload(session_meta, "Finished", loaded),
-        "weather": None,
-        "rows": rows,
-        "race_control_messages": [],
-        "team_radio": [],
-        "pit_times": [],
-        "timing_stats": {},
-        "commentary": None,
-        "track": track,
-        "next_session": _next_payload(current),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-def _historical_rows(session):
-    fastest = {}
-    try:
-        for number in session.drivers:
-            laps = session.laps.pick_drivers(number)
-            if len(laps) == 0:
-                continue
-            best = laps.pick_fastest()
-            if best is not None:
-                fastest[str(number)] = best
-    except Exception:
-        fastest = {}
-
-    rows = []
-    for _, row in session.results.iterrows():
-        number = f1data._text(row.get("DriverNumber"))
-        best = fastest.get(number)
-        compound = None
-        tyre_age = None
-        if best is not None:
-            compound = _compound(f1data._text(best.get("Compound")))
-            tyre = best.get("TyreLife")
-            tyre_age = int(tyre) if tyre is not None and not pd.isna(tyre) else None
-
-        time_value = f1data._seconds(row.get("Time"))
-        position = f1data._int(row.get("Position"))
-        status = f1data._text(row.get("Status")) or "Finished"
-        code = _result_code(f1data._text(row.get("ClassifiedPosition")), status)
-        gap = _result_gap(position, time_value, status, code)
-
-        rows.append({
-            "position": position,
-            "driver_number": number,
-            "abbreviation": f1data._text(row.get("Abbreviation")),
-            "full_name": f1data._text(row.get("FullName")),
-            "team_name": f1data._text(row.get("TeamName")),
-            "team_colour": f1data._text(row.get("TeamColor")),
-            "gap": gap,
-            "interval": None,
-            "last_lap": None,
-            "best_lap": _lap_time(best) if best is not None else None,
-            "compound": compound,
-            "tyre_age": tyre_age,
-            "stint": None,
-            "in_pit": False,
-            "retired": code is not None,
-            "status": code,
-        })
-
-    rows.sort(key=lambda item: item["position"] if item["position"] is not None else 999)
-    return rows
-
-
-def _historical_rows_with_new_fields(rows):
-    for row in rows:
-        row["sector_1"] = None
-        row["sector_2"] = None
-        row["sector_3"] = None
-        row["sector_1_pb"] = False
-        row["sector_2_pb"] = False
-        row["sector_3_pb"] = False
-        row["speed_i1"] = None
-        row["speed_i2"] = None
-        row["speed_fl"] = None
-        row["speed_st"] = None
-        row["pit_stops"] = None
-        row["tyre_fresh"] = None
-        row["x"] = None
-        row["y"] = None
-        row["z"] = None
-        row["speed"] = None
-        row["throttle"] = None
-        row["brake"] = None
-        row["gear"] = None
-        row["rpm"] = None
-        row["drs"] = None
-    return rows
-
-
-STATUS_ABBREV = {
-    "did not start": "DNS",
-    "did not qualify": "DNQ",
-    "disqualified": "DSQ",
-    "withdrew": "WD",
-    "not classified": "NC",
-}
-
-# FastF1's ClassifiedPosition letters are the canonical signal for whether a
-# driver was classified (a number, including lapped finishers) or not.
-CLASSIFIED_CODES = {"R": "DNF", "D": "DSQ", "E": "DSQ", "W": "DNS", "F": "DNQ", "N": "NC"}
-
-
-def _result_code(classified, status):
-    cls = (classified or "").strip().upper()
-    if cls.isdigit():
-        return None
-    if cls in CLASSIFIED_CODES:
-        return CLASSIFIED_CODES[cls]
-    low = (status or "").strip().lower()
-    if low == "did not start":
-        return "DNS"
-    if not low or low == "finished" or low.startswith("+") or "lap" in low:
-        return None
-    if low in STATUS_ABBREV:
-        return STATUS_ABBREV[low]
-    return "DNF"
-
-
-def _result_gap(position, time_value, status, code):
-    if code:
-        return code
-    if status and status.startswith("+"):
-        return status
-    if position == 1:
-        return "Leader"
-    if time_value is None:
-        return None
-    return f"+{time_value:.3f}"
-
-
-def _lap_time(lap):
-    value = lap.get("LapTime")
-    if value is None or pd.isna(value):
-        return None
-    total = pd.Timedelta(value).total_seconds()
-    minutes = int(total // 60)
-    seconds = total - minutes * 60
-    return f"{minutes}:{seconds:06.3f}"
-
-
-def _session_meta_payload(session_meta, status, loaded=None):
-    total_laps = None
-    if loaded is not None:
-        total_laps = _to_int(getattr(loaded, "total_laps", None))
-    return {
-        "event_name": session_meta["event_name"],
-        "location": session_meta["location"],
-        "country": session_meta["country"],
-        "session_name": session_meta["session_name"],
-        "session_type": session_meta["session_type"],
-        "status": status,
-        "track_status": {"code": None, "message": ""},
-        "current_lap": total_laps,
-        "total_laps": total_laps,
-        "time_remaining": None,
-        "started_at": session_meta["start_utc"].isoformat(),
-    }
 
 
 def _weather(weather):
@@ -1269,7 +1100,7 @@ def _live_state_test():
 
     test_file = os.environ.get("F1_LIVE_TEST_FILE", "/tmp/test_live_data.txt")
     if not os.path.exists(test_file):
-        return _empty_snapshot(None)
+        return _no_session_snapshot()
 
     topics = {}
     try:
@@ -1291,10 +1122,6 @@ def _live_state_test():
                 except (ValueError, SyntaxError):
                     pass
     except Exception:
-        return _empty_snapshot(None)
+        return _no_session_snapshot()
 
-    current = _current_session()
-    if current is None:
-        return _empty_snapshot(None)
-
-    return _live_snapshot(current, topics)
+    return _live_snapshot(topics)

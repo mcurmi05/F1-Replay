@@ -20,11 +20,12 @@ interface Option {
   value: string
 }
 
-function isUpcoming(eventDate: string | null): boolean {
-  if (!eventDate) {
-    return false
+function sessionStarted(dateUtc: string | null, eventDate: string | null): boolean {
+  const ref = dateUtc ?? eventDate
+  if (!ref) {
+    return true
   }
-  return new Date(eventDate).getTime() > Date.now()
+  return new Date(ref).getTime() <= Date.now()
 }
 
 function formatDateRange(start: string | null, end: string | null): string {
@@ -49,9 +50,13 @@ function sessionsForEvent(sessions: ScheduleEvent['sessions']) {
     .map((info) => {
       const type = SESSION_TYPES.find((t) => t.names.includes(info.name))
       if (!type) return null
-      return { ...type, date_local: info.date_local }
+      return { ...type, date_local: info.date_local, date_utc: info.date_utc }
     })
     .filter((t): t is NonNullable<typeof t> => t !== null)
+}
+
+function availableSessionsForEvent(event: ScheduleEvent) {
+  return sessionsForEvent(event.sessions).filter((s) => sessionStarted(s.date_utc, event.event_date))
 }
 
 function formatSessionTime(dateLocal: string | null): string {
@@ -126,15 +131,15 @@ export default function Home() {
 
   const schedule = useSchedule(Number(year))
   const allRaces = (schedule.data ?? []).filter((event) => event.round !== null)
-  const pastRaces = allRaces.filter((event) => !isUpcoming(event.event_date))
+  const openableRaces = allRaces.filter((event) => availableSessionsForEvent(event).length > 0)
 
-  const eventOptions = pastRaces.map((event) => ({
+  const eventOptions = openableRaces.map((event) => ({
     label: event.event_name ?? `Round ${event.round}`,
     value: String(event.round),
   }))
 
   const selectedEvent = allRaces.find((event) => String(event.round) === round)
-  const sessionOptions = selectedEvent ? sessionsForEvent(selectedEvent.sessions) : SESSION_TYPES
+  const sessionOptions = selectedEvent ? availableSessionsForEvent(selectedEvent) : SESSION_TYPES
 
   const canView = year !== '' && round !== '' && session !== ''
 
@@ -226,7 +231,7 @@ export default function Home() {
         {schedule.loading ? <p className="text-sm text-zinc-500">Loading schedule...</p> : null}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {allRaces.map((event) => {
-            const upcoming = isUpcoming(event.event_date)
+            const upcoming = availableSessionsForEvent(event).length === 0
             const details = (
               <>
                 <p className="text-xs text-zinc-500">
@@ -287,7 +292,7 @@ export default function Home() {
             <h2 className="mt-1 text-lg font-bold text-white">{pickerEvent.event_name}</h2>
             <p className="mt-3 text-sm text-zinc-400">Select a session to load.</p>
             <div className="mt-4 grid gap-2">
-              {sessionsForEvent(pickerEvent.sessions).map((type) => (
+              {availableSessionsForEvent(pickerEvent).map((type) => (
                 <button
                   key={type.value}
                   type="button"
