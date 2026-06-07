@@ -336,6 +336,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       label={session && !session.total_laps ? session.session_name : null}
       hideHours={sessionType === 'Q' || sessionType === 'SQ'}
       elapsed={elapsed}
+      lapsPrimary={!lapMode}
     />
   ) : undefined
 

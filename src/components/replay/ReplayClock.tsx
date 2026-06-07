@@ -18,6 +18,7 @@ export default function ReplayClock({
   label,
   hideHours = false,
   elapsed = null,
+  lapsPrimary = false,
 }: {
   relative: number | null
   lap: number
@@ -25,12 +26,28 @@ export default function ReplayClock({
   label?: string | null
   hideHours?: boolean
   elapsed?: number | null
+  lapsPrimary?: boolean
 }) {
   const lapDisplay = relative !== null && relative < 0 ? '-' : lap
+  const lapText = totalLaps ? `Lap ${lapDisplay}/${totalLaps}` : `Lap ${lapDisplay}`
+
+  if (lapsPrimary) {
+    return (
+      <div className="relative flex items-center px-2 py-2">
+        <span className="text-sm font-medium tabular-nums text-zinc-500">
+          {elapsed != null ? formatRaceTime(elapsed, hideHours) : ''}
+        </span>
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-2xl font-bold tabular-nums text-white">
+          {lapText}
+        </span>
+      </div>
+    )
+  }
+
   return (
     <div className="relative flex items-center px-2 py-2">
       <span className="text-sm font-medium text-zinc-400">
-        {label ? label : totalLaps ? `Lap ${lapDisplay} / ${totalLaps}` : `Lap ${lapDisplay}`}
+        {label ? label : lapText}
       </span>
       <span className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-2 font-mono font-bold tabular-nums text-white">
         <span className="text-2xl">{relative === null ? '--:--' : formatRaceTime(relative, hideHours)}</span>

@@ -2,14 +2,16 @@ import { useEffect, useRef } from 'react'
 import type { RaceControlMessage } from '../../lib/api/types'
 
 function formatTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600)
-  const mins = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
+  const sign = seconds < 0 ? '-' : ''
+  const abs = Math.abs(seconds)
+  const hours = Math.floor(abs / 3600)
+  const mins = Math.floor((abs % 3600) / 60)
+  const secs = Math.floor(abs % 60)
 
   if (hours > 0) {
-    return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    return `${sign}${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
   }
-  return `${mins}:${String(secs).padStart(2, '0')}`
+  return `${sign}${mins}:${String(secs).padStart(2, '0')}`
 }
 
 export default function RaceControlFeed({
@@ -46,7 +48,7 @@ export default function RaceControlFeed({
               className="rounded border border-zinc-700 bg-zinc-900/60 px-2 py-1.5"
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="font-normal text-zinc-200">{msg.message}</p>
+                <p className="text-[11px] font-normal text-zinc-200">{msg.message}</p>
                 {msg.time !== null && (
                   <div className="shrink-0 text-right text-xs text-zinc-400">
                     {origin !== null ? (

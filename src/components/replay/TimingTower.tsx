@@ -194,7 +194,7 @@ export default function TimingTower({
     tyre: Math.round(fs * 4.4),
     bestTyre: Math.round(fs * 3.4),
   }
-  const driverWidth = Math.round(fs * 5) + 19
+  const driverWidth = Math.round(fs * 7) + 19
 
   function headerCell(id: TimingColumnId) {
     switch (id) {
@@ -253,7 +253,10 @@ export default function TimingTower({
           <span key={id} style={{ width: driverWidth }} className="flex shrink-0 items-center gap-2">
             <span className="shrink-0 rounded-full" style={{ height: barH, width: barW, backgroundColor: teamColor(row.team_colour) }} />
             <span className="relative shrink-0 font-semibold text-white">
-              {row.abbreviation ?? row.number}
+              <span className="mr-2 inline-block" style={{ width: Math.round(fs * 1.9) }}>{row.abbreviation ?? row.number}</span>
+              {row.abbreviation ? (
+                <span className="font-normal text-zinc-500" style={{ fontSize: moveSz }}>(#{row.number})</span>
+              ) : null}
               {move ? (
                 <span
                   style={{ fontSize: moveSz }}

@@ -231,6 +231,7 @@ export default function TeamRadioFeed({
   }, [])
 
   useEffect(() => {
+    if (live) return
     const prev = lastTimeRef.current
     lastTimeRef.current = currentTime
     if (prev === null || !autoPlay || currentTime <= prev) return
@@ -255,6 +256,32 @@ export default function TeamRadioFeed({
     }
     queueRef.current = [...queueRef.current, ...rest.map((c) => c.url)]
   }, [currentTime, autoPlay, teamRadio, burstEnd, activeUrl])
+
+  // Live autoplay: the clock never advances (currentTime is pinned to "now"), so
+  // new clips can't be detected by a clock crossing. Instead watch the radio list
+  // grow and play whatever arrives after the initial backlog baseline.
+  const seenRef = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (!live) return
+    if (seenRef.current === null) {
+      if (teamRadio.length === 0) return
+      seenRef.current = new Set(teamRadio.map((c) => c.url))
+      return
+    }
+    const seen = seenRef.current
+    const fresh = teamRadio.filter((c) => c.time !== null && !seen.has(c.url))
+    for (const c of teamRadio) seen.add(c.url)
+    if (!autoPlay || fresh.length === 0) return
+    fresh.sort((a, b) => (a.time as number) - (b.time as number))
+    const audio = audioRef.current
+    const busy = !!audio && !audio.paused && activeUrl !== null
+    let rest = fresh
+    if (!busy) {
+      playUrl(fresh[0].url)
+      rest = fresh.slice(1)
+    }
+    queueRef.current = [...queueRef.current, ...rest.map((c) => c.url)]
+  }, [live, teamRadio, autoPlay, activeUrl])
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
@@ -315,7 +342,9 @@ export default function TeamRadioFeed({
       />
       <div ref={scrollRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto text-xs">
         {relevant.length === 0 ? (
-          (replay.team_radio ?? []).length === 0 ? (
+          live ? (
+            <p className="text-zinc-500">No team radios yet</p>
+          ) : (replay.team_radio ?? []).length === 0 ? (
             <div>
               <p className="font-medium text-zinc-400">Team radio isn't public for this session.</p>
               <p className="mt-1 text-[11px] leading-snug text-zinc-600">
@@ -382,7 +411,7 @@ export default function TeamRadioFeed({
                   <span className={`font-semibold ${flagged ? 'text-zinc-500' : 'text-zinc-200'}`}>{label}</span>
                   {clip.time !== null && (
                     <span className="ml-auto flex items-center gap-1.5">
-                      <span className="font-mono text-zinc-400">
+                      <span className="text-zinc-400">
                         {radioTime(clip.time)}
                       </span>
                       {(() => {

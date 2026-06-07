@@ -30,6 +30,16 @@ SESSION_TYPES = {
     "Race": "R",
 }
 
+RACE_POINTS = {1: 25, 2: 18, 3: 15, 4: 12, 5: 10, 6: 8, 7: 6, 8: 4, 9: 2, 10: 1}
+SPRINT_POINTS = {1: 8, 2: 7, 3: 6, 4: 5, 5: 4, 6: 3, 7: 2, 8: 1}
+
+
+def _session_points(position, session_type):
+    if position is None:
+        return 0.0
+    table = SPRINT_POINTS if session_type == "Sprint" else RACE_POINTS
+    return float(table.get(position, 0))
+
 TRACK_STATUS = {
     "1": "Track Clear",
     "2": "Yellow Flag",
@@ -601,42 +611,77 @@ def _timing_stats_live(topics):
     return result
 
 
+def _assign_predicted_positions(entries):
+    ranked = sorted(
+        (e for e in entries if e["predicted_points"] is not None),
+        key=lambda e: e["predicted_points"],
+        reverse=True,
+    )
+    for i, entry in enumerate(ranked, 1):
+        entry["predicted_position"] = i
+
+
 def _championship_live(topics):
     champ = topics.get("ChampionshipPrediction")
     if not isinstance(champ, dict):
         return None
+    meta = _session_info_meta(topics) or {}
+    session_type = meta.get("session_type")
     drivers_info = _drivers_from_topics(topics)
+    timing = topics.get("TimingData", {}).get("Lines", {})
+
+    def _track_position(number):
+        line = timing.get(str(number))
+        if not isinstance(line, dict):
+            line = timing.get(number)
+        if not isinstance(line, dict):
+            return None
+        return _to_int(line.get("Position"))
+
     drivers = []
+    team_session = {}
     raw_drivers = champ.get("Drivers")
     if isinstance(raw_drivers, dict):
         for number, entry in raw_drivers.items():
             if not isinstance(entry, dict):
                 continue
             info = drivers_info.get(str(number), {})
+            current_points = _to_float(entry.get("CurrentPoints"))
+            session_points = _session_points(_track_position(number), session_type)
+            predicted_points = (current_points + session_points) if current_points is not None else None
             drivers.append({
                 "driver_number": str(number),
                 "abbreviation": info.get("abbreviation"),
                 "team_colour": info.get("team_colour"),
                 "current_position": _to_int(entry.get("CurrentPosition")),
                 "predicted_position": _to_int(entry.get("PredictedPosition")),
-                "current_points": _to_float(entry.get("CurrentPoints")),
-                "predicted_points": _to_float(entry.get("PredictedPoints")),
+                "current_points": current_points,
+                "predicted_points": predicted_points,
             })
+            team_name = info.get("team_name")
+            if team_name:
+                team_session[team_name] = team_session.get(team_name, 0.0) + session_points
     teams = []
     raw_teams = champ.get("Teams")
     if isinstance(raw_teams, dict):
         for key, entry in raw_teams.items():
             if not isinstance(entry, dict):
                 continue
+            team_name = entry.get("TeamName") or str(key)
+            current_points = _to_float(entry.get("CurrentPoints"))
+            session_points = team_session.get(team_name, 0.0)
+            predicted_points = (current_points + session_points) if current_points is not None else None
             teams.append({
-                "team_name": entry.get("TeamName") or str(key),
+                "team_name": team_name,
                 "current_position": _to_int(entry.get("CurrentPosition")),
                 "predicted_position": _to_int(entry.get("PredictedPosition")),
-                "current_points": _to_float(entry.get("CurrentPoints")),
-                "predicted_points": _to_float(entry.get("PredictedPoints")),
+                "current_points": current_points,
+                "predicted_points": predicted_points,
             })
     if not drivers and not teams:
         return None
+    _assign_predicted_positions(drivers)
+    _assign_predicted_positions(teams)
     drivers.sort(key=lambda d: d["predicted_position"] if d["predicted_position"] is not None else 999)
     teams.sort(key=lambda t: t["predicted_position"] if t["predicted_position"] is not None else 999)
     return {"drivers": drivers, "teams": teams}
