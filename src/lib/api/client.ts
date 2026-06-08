@@ -99,6 +99,11 @@ export const api = {
       `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/cached`,
       signal,
     ),
+  sessionAvailable: (year: number, event: string, sessionType: string, signal?: AbortSignal) =>
+    get<{ available: boolean }>(
+      `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/available`,
+      signal,
+    ),
   session: (year: number, event: string, sessionType: string, signal?: AbortSignal) =>
     get<SessionData>(
       `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}`,

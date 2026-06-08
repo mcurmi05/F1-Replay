@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom'
 
 import { ArrowRightIcon, ChevronDownIcon } from '../components/icons'
 import { useSchedule, useYears } from '../hooks/useApi'
+import { api } from '../lib/api/client'
 import type { ScheduleEvent } from '../lib/api/types'
+
+type SessionStatus = 'available' | 'soon' | 'checking'
 
 const SESSION_TYPES = [
   { label: 'Practice 1', value: 'FP1', names: ['Practice 1'] },
@@ -34,13 +37,20 @@ function utcMs(value: string | null): number | null {
   return Number.isFinite(t) ? t : null
 }
 
-// A session is replayable once it has finished and its data has had time to be
-// published, so gate by the estimated end time, not the start.
-function sessionAvailable(type: string, dateUtc: string | null, eventDate: string | null): boolean {
+// Estimated time a session's data could first be published: its start plus the
+// session length plus a publish buffer.
+function sessionEndMs(type: string, dateUtc: string | null, eventDate: string | null): number | null {
   const startMs = utcMs(dateUtc) ?? utcMs(eventDate)
-  if (startMs === null) return true
-  const endMs = startMs + ((SESSION_DURATION_MIN[type] ?? 90) + AVAILABILITY_BUFFER_MIN) * 60000
-  return Date.now() >= endMs
+  if (startMs === null) return null
+  return startMs + ((SESSION_DURATION_MIN[type] ?? 90) + AVAILABILITY_BUFFER_MIN) * 60000
+}
+
+// A session has finished (by the clock) once past that estimated end time. This
+// is a necessary-but-not-sufficient condition: the freshly finished session may
+// still be awaiting its data, which is confirmed with a probe.
+function sessionFinished(type: string, dateUtc: string | null, eventDate: string | null): boolean {
+  const endMs = sessionEndMs(type, dateUtc, eventDate)
+  return endMs === null || Date.now() >= endMs
 }
 
 function formatDateRange(start: string | null, end: string | null): string {
@@ -70,8 +80,8 @@ function sessionsForEvent(sessions: ScheduleEvent['sessions']) {
     .filter((t): t is NonNullable<typeof t> => t !== null)
 }
 
-function availableSessionsForEvent(event: ScheduleEvent) {
-  return sessionsForEvent(event.sessions).filter((s) => sessionAvailable(s.value, s.date_utc, event.event_date))
+function finishedSessionsForEvent(event: ScheduleEvent) {
+  return sessionsForEvent(event.sessions).filter((s) => sessionFinished(s.value, s.date_utc, event.event_date))
 }
 
 function formatSessionTime(dateLocal: string | null): string {
@@ -146,7 +156,7 @@ export default function Home() {
 
   const schedule = useSchedule(Number(year))
   const allRaces = (schedule.data ?? []).filter((event) => event.round !== null)
-  const openableRaces = allRaces.filter((event) => availableSessionsForEvent(event).length > 0)
+  const openableRaces = allRaces.filter((event) => finishedSessionsForEvent(event).length > 0)
 
   const eventOptions = openableRaces.map((event) => ({
     label: event.event_name ?? `Round ${event.round}`,
@@ -154,9 +164,59 @@ export default function Home() {
   }))
 
   const selectedEvent = allRaces.find((event) => String(event.round) === round)
-  const sessionOptions = selectedEvent ? availableSessionsForEvent(selectedEvent) : SESSION_TYPES
+  const sessionOptions = selectedEvent ? finishedSessionsForEvent(selectedEvent) : SESSION_TYPES
 
-  const canView = year !== '' && round !== '' && session !== ''
+  // The single most recently finished session is the only one whose data might
+  // not be published yet; everything older is assumed available. We probe just
+  // that one against the F1 archive.
+  const latestFinished = allRaces
+    .flatMap((event) =>
+      sessionsForEvent(event.sessions)
+        .filter((s) => sessionFinished(s.value, s.date_utc, event.event_date))
+        .map((s) => ({
+          round: event.round,
+          value: s.value,
+          endMs: sessionEndMs(s.value, s.date_utc, event.event_date),
+        })),
+    )
+    .reduce<{ round: number | null; value: string; endMs: number | null } | null>(
+      (best, x) => (best === null || (x.endMs ?? 0) > (best.endMs ?? 0) ? x : best),
+      null,
+    )
+
+  const [probe, setProbe] = useState<boolean | null>(null)
+  const latestKey = latestFinished ? `${latestFinished.round}/${latestFinished.value}` : null
+  useEffect(() => {
+    if (!latestFinished || !year) {
+      setProbe(null)
+      return
+    }
+    setProbe(null)
+    let cancelled = false
+    api
+      .sessionAvailable(Number(year), String(latestFinished.round), latestFinished.value)
+      .then((r) => { if (!cancelled) setProbe(r.available) })
+      .catch(() => { if (!cancelled) setProbe(true) })
+    return () => { cancelled = true }
+  }, [year, latestKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function statusFor(event: ScheduleEvent, value: string, dateUtc: string | null): SessionStatus {
+    if (!sessionFinished(value, dateUtc, event.event_date)) return 'soon'
+    if (latestFinished && event.round === latestFinished.round && value === latestFinished.value) {
+      return probe === null ? 'checking' : probe ? 'available' : 'soon'
+    }
+    return 'available'
+  }
+
+  const selectedSession = selectedEvent
+    ? sessionsForEvent(selectedEvent.sessions).find((s) => s.value === session)
+    : undefined
+  const selectedStatus =
+    selectedEvent && selectedSession
+      ? statusFor(selectedEvent, selectedSession.value, selectedSession.date_utc)
+      : null
+
+  const canView = year !== '' && round !== '' && session !== '' && selectedStatus === 'available'
 
   function openSession() {
     if (!canView) {
@@ -167,75 +227,69 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-14 pb-10">
-      <section className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-surface to-[#0a0a0f] px-8 py-16 sm:px-12">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-f1-red/10 blur-3xl" />
-        <div className="relative max-w-2xl">
-          <span className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/60 px-3 py-1 text-xs font-medium uppercase tracking-wider text-zinc-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-f1-red" />
-            Telemetry dashboard
-          </span>
-          <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
-            Replay every moment of every F1 session.
-          </h1>
-          <p className="mt-5 text-lg leading-relaxed text-zinc-400">
-            Live timing, track maps, tyre strategy and lap-by-lap telemetry, for
-            the session happening right now or any session from the past.
-          </p>
-        </div>
-      </section>
-
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Open a session
         </h2>
         <div className="rounded-2xl border border-zinc-800 bg-surface p-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <SelectField
-              label="Year"
-              value={year}
-              placeholder="Select year"
-              options={(yearsQuery.data ?? []).map((value) => ({ label: String(value), value: String(value) }))}
-              onChange={(next) => {
-                setYear(next)
-                setRound('')
-              }}
-            />
-            <SelectField
-              label="Grand Prix"
-              value={round}
-              placeholder={schedule.loading ? 'Loading...' : 'Select Grand Prix'}
-              options={eventOptions}
-              disabled={schedule.loading || eventOptions.length === 0}
-              onChange={(next) => {
-                setRound(next)
-                setSession('')
-              }}
-            />
-            <SelectField
-              label="Session"
-              value={session}
-              placeholder="Select session"
-              options={sessionOptions}
-              disabled={!round}
-              onChange={setSession}
-            />
-          </div>
-          {schedule.error ? (
-            <p className="mt-4 text-sm text-f1-red">
-              Could not load the schedule. Is the data server running?
-            </p>
-          ) : null}
-          <div className="mt-5 flex justify-end">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="flex flex-1 flex-col gap-4 sm:flex-row">
+              <div className="sm:w-36">
+                <SelectField
+                  label="Year"
+                  value={year}
+                  placeholder="Select year"
+                  options={(yearsQuery.data ?? []).map((value) => ({ label: String(value), value: String(value) }))}
+                  onChange={(next) => {
+                    setYear(next)
+                    setRound('')
+                  }}
+                />
+              </div>
+              <div className="flex-1">
+                <SelectField
+                  label="Grand Prix"
+                  value={round}
+                  placeholder={schedule.loading ? 'Loading...' : 'Select Grand Prix'}
+                  options={eventOptions}
+                  disabled={schedule.loading || eventOptions.length === 0}
+                  onChange={(next) => {
+                    setRound(next)
+                    setSession('')
+                  }}
+                />
+              </div>
+              <div className="flex-1">
+                <SelectField
+                  label="Session"
+                  value={session}
+                  placeholder="Select session"
+                  options={sessionOptions}
+                  disabled={!round}
+                  onChange={setSession}
+                />
+              </div>
+            </div>
             <button
               type="button"
               onClick={openSession}
               disabled={!canView}
-              className="inline-flex items-center gap-2 rounded-lg bg-f1-red px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-f1-red px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Open replay
               <ArrowRightIcon className="h-4 w-4" />
             </button>
           </div>
+          {selectedStatus === 'soon' ? (
+            <p className="mt-4 text-sm text-zinc-500">Replay data for this session isn't available yet.</p>
+          ) : selectedStatus === 'checking' ? (
+            <p className="mt-4 text-sm text-zinc-500">Checking availability...</p>
+          ) : null}
+          {schedule.error ? (
+            <p className="mt-4 text-sm text-f1-red">
+              Could not load the schedule. Is the data server running?
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -246,7 +300,7 @@ export default function Home() {
         {schedule.loading ? <p className="text-sm text-zinc-500">Loading schedule...</p> : null}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {allRaces.map((event) => {
-            const upcoming = availableSessionsForEvent(event).length === 0
+            const upcoming = finishedSessionsForEvent(event).length === 0
             const details = (
               <>
                 <p className="text-xs text-zinc-500">
@@ -306,27 +360,69 @@ export default function Home() {
             <p className="text-xs text-zinc-500">Round {pickerEvent.round}</p>
             <h2 className="mt-1 text-lg font-bold text-white">{pickerEvent.event_name}</h2>
             <p className="mt-3 text-sm text-zinc-400">Select a session to load.</p>
-            <div className="mt-4 grid gap-2">
-              {availableSessionsForEvent(pickerEvent).map((type) => (
-                <button
-                  key={type.value}
-                  type="button"
-                  onClick={() => navigate(`/replay/${year}/${pickerEvent.round}/${type.value}`)}
-                  className="flex items-center justify-between rounded-lg border border-zinc-700 px-4 py-2.5 text-sm transition hover:border-f1-red hover:bg-zinc-800"
-                >
-                  <span className="flex items-center gap-2 font-medium text-zinc-200">
-                    {type.label}
-                    {formatSessionTime(type.date_local) && (
-                      <>
-                        <span className="text-zinc-600">·</span>
-                        <span className="text-zinc-500">{formatSessionTime(type.date_local)}</span>
-                      </>
-                    )}
-                  </span>
-                  <ArrowRightIcon className="h-4 w-4 shrink-0 text-zinc-500" />
-                </button>
-              ))}
-            </div>
+            <p className="mt-1 text-xs text-zinc-500">(times shown are track location time)</p>
+            {(() => {
+              const sessions = sessionsForEvent(pickerEvent.sessions).map((type) => ({
+                ...type,
+                status: statusFor(pickerEvent, type.value, type.date_utc),
+                time: formatSessionTime(type.date_local),
+              }))
+              const ready = sessions.filter((s) => s.status === 'available')
+              const soon = sessions.filter((s) => s.status !== 'available')
+              return (
+                <>
+                  <div className="mt-4 grid gap-2">
+                    {ready.map((type) => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => navigate(`/replay/${year}/${pickerEvent.round}/${type.value}`)}
+                        className="flex items-center justify-between rounded-lg border border-zinc-700 px-4 py-2.5 text-sm transition hover:border-f1-red hover:bg-zinc-800"
+                      >
+                        <span className="flex items-center gap-2 font-medium text-zinc-200">
+                          {type.label}
+                          {type.time && (
+                            <>
+                              <span className="text-zinc-600">·</span>
+                              <span className="text-zinc-500">{type.time}</span>
+                            </>
+                          )}
+                        </span>
+                        <ArrowRightIcon className="h-4 w-4 shrink-0 text-zinc-500" />
+                      </button>
+                    ))}
+                  </div>
+                  {soon.length > 0 ? (
+                    <>
+                      <p className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                        Available soon
+                      </p>
+                      <div className="grid gap-2">
+                        {soon.map((type) => (
+                          <div
+                            key={type.value}
+                            className="flex items-center justify-between rounded-lg border border-zinc-800 px-4 py-2.5 text-sm opacity-60"
+                          >
+                            <span className="flex items-center gap-2 font-medium text-zinc-400">
+                              {type.label}
+                              {type.time && (
+                                <>
+                                  <span className="text-zinc-600">·</span>
+                                  <span className="text-zinc-500">{type.time}</span>
+                                </>
+                              )}
+                            </span>
+                            {type.status === 'checking' ? (
+                              <span className="shrink-0 text-xs font-medium text-zinc-500">Checking...</span>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </>
+              )
+            })()}
             <button
               type="button"
               onClick={() => setPickerEvent(null)}

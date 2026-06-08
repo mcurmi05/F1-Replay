@@ -187,6 +187,15 @@ def session_cached(year: int, event: str, session_type: str):
     return {"cached": f1data.is_session_cached(year, event, session_type)}
 
 
+@api.get("/session/{year}/{event}/{session_type}/available")
+def session_available(year: int, event: str, session_type: str):
+    _require_cache()
+    try:
+        return {"available": f1data.replay_available(year, event, session_type)}
+    except RateLimitExceededError:
+        raise HTTPException(status_code=429, detail="FastF1 rate limit reached, try again later")
+
+
 @api.get("/session/{year}/{event}/{session_type}")
 def session(year: int, event: str, session_type: str):
     loaded = _load(year, event, session_type)

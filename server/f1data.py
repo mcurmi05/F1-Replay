@@ -262,6 +262,43 @@ def is_session_cached(year, event, session_type):
         return False
 
 
+_availability_cache = {}
+_AVAILABILITY_TTL = 120
+
+
+def replay_available(year, event, session_type):
+    # Only the most recently finished session has uncertain availability; the
+    # caller is expected to probe just that one. Result is cached briefly so a
+    # picker that asks repeatedly does not hammer the F1 archive.
+    key = (year, str(event), str(session_type))
+    now = time.time()
+    cached = _availability_cache.get(key)
+    if cached is not None and now - cached[1] < _AVAILABILITY_TTL:
+        return cached[0]
+    available = _probe_replay_available(year, event, session_type)
+    _availability_cache[key] = (available, now)
+    return available
+
+
+def _probe_replay_available(year, event, session_type):
+    if is_session_cached(year, event, session_type):
+        return True
+    try:
+        gp = int(event) if str(event).isdigit() else event
+        path = fastf1.get_session(year, gp, session_type).api_path
+    except Exception:
+        return False
+    if not path:
+        return False
+    try:
+        import fastf1._api as ff1_api
+
+        data = ff1_api.fetch_page(path, "session_status")
+        return bool(data)
+    except Exception:
+        return False
+
+
 def load_session(year, event, session_type):
     gp = int(event) if str(event).isdigit() else event
     with _load_lock:
