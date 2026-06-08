@@ -326,8 +326,15 @@ function LiveBoard({ data }: { data: LiveState }) {
   }, [isLive, session, weatherSample, setStatusInfo])
 
   const sessionStartMs = session?.started_at ? Date.parse(session.started_at) : null
+  const lastDataMs = session?.data_utc
+    ? Date.parse(session.data_utc)
+    : view.updated_at
+      ? Date.parse(view.updated_at)
+      : null
   const elapsed =
-    running && sessionStartMs !== null ? (Date.now() - sessionStartMs) / 1000 : null
+    sessionStartMs !== null && lastDataMs !== null
+      ? (lastDataMs - sessionStartMs) / 1000
+      : null
   const liveHeader = isLive ? (
     <ReplayClock
       relative={parseLapTime(session?.time_remaining)}
@@ -377,7 +384,7 @@ function LiveBoard({ data }: { data: LiveState }) {
     speedTrap: isLive ? <SpeedTrapFeed replay={replay} currentTime={LIVE_NOW} /> : <EmptyPanel title="Speed Trap" />,
     teamRadio: isLive ? <TeamRadioFeed replay={replay} currentTime={LIVE_NOW} live /> : <EmptyPanel title="Team Radio" />,
     commentary: isLive ? <CommentaryAudio commentary={view.commentary ?? null} currentTime={0} playing speed={1} live /> : <EmptyPanel title="Commentary" />,
-    championship: isLive ? <ChampionshipPrediction data={view.championship ?? null} /> : <EmptyPanel title="Projected Standings" />,
+    championship: isLive ? <ChampionshipPrediction data={view.championship ?? null} /> : <EmptyPanel title="Standings" />,
   }
 
   return (

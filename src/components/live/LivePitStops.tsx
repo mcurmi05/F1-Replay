@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
+import questionIcon from '../../assets/question.png'
 import type { LivePitTime, LiveRow } from '../../lib/api/types'
 
 function getDriverInfo(driverNumber: string, rows: LiveRow[]): { abbr: string; color: string } {
@@ -16,12 +19,36 @@ export default function LivePitStops({
   drivers: LiveRow[]
 }) {
   const sorted = [...times].sort((a, b) => (b.lap ?? 0) - (a.lap ?? 0))
+  const [tip, setTip] = useState<{ x: number; y: number } | null>(null)
   return (
     <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Pit Stops</p>
-      <div className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Pit Stops</p>
+        <div
+          className="relative"
+          onMouseEnter={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            setTip({ x: r.left, y: r.bottom + 6 })
+          }}
+          onMouseLeave={() => setTip(null)}
+        >
+          <div className="flex h-5 w-5 cursor-help items-center justify-center rounded text-zinc-500 opacity-70 hover:bg-zinc-800 hover:opacity-100">
+            <img src={questionIcon} alt="Help" className="h-3.5 w-3.5" />
+          </div>
+        </div>
+      </div>
+      {tip ? createPortal(
+        <div
+          style={{ position: 'fixed', left: tip.x, top: tip.y, zIndex: 60 }}
+          className="pointer-events-none w-56 rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-[11px] leading-snug text-zinc-300 shadow-xl"
+        >
+          The F1 api live data stream doesn't persist pit stop data so only recent pit stops are shown, not the entire history of pit stops in this session.
+        </div>,
+        document.body,
+      ) : null}
+      <div className="thin-scroll mt-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
         {sorted.length === 0 ? (
-          <p className="text-xs text-zinc-600">No pit stops yet</p>
+          <p className="text-xs text-zinc-600">No recent pit stops</p>
         ) : (
           sorted.map((pit, idx) => {
             const driver = getDriverInfo(pit.driver_number, drivers)

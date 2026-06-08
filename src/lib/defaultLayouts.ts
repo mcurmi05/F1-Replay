@@ -162,6 +162,33 @@ export type LayoutCategory =
   | 'live-qualifying'
   | 'live-race'
 
+export const CATEGORY_ORDER: LayoutCategory[] = [
+  'practice',
+  'qualifying',
+  'race',
+  'live-practice',
+  'live-qualifying',
+  'live-race',
+]
+
+export const CATEGORY_LABELS: Record<LayoutCategory, string> = {
+  practice: 'Practice',
+  qualifying: 'Qualifying',
+  race: 'Race',
+  'live-practice': 'Live · Practice',
+  'live-qualifying': 'Live · Qualifying',
+  'live-race': 'Live · Race',
+}
+
+export const CATEGORY_DEFAULTS: Record<LayoutCategory, SessionDefault> = {
+  practice: PRACTICE,
+  qualifying: QUALIFYING,
+  race: RACE,
+  'live-practice': LIVE_NONRACE,
+  'live-qualifying': LIVE_NONRACE,
+  'live-race': LIVE_RACE,
+}
+
 export function sessionCategory(session: string): 'practice' | 'qualifying' | 'race' {
   if (session === 'R' || session === 'Sprint') return 'race'
   if (session === 'Q' || session === 'SQ') return 'qualifying'

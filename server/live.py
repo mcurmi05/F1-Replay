@@ -480,6 +480,38 @@ def _values(coll):
     return []
 
 
+def _gap_interval(line, session_type):
+    # Race and sprint rank on live on-track gaps (GapToLeader /
+    # IntervalToPositionAhead). Qualifying and practice rank on best-lap
+    # deltas, which the feed sends as TimeDiffToFastest /
+    # TimeDiffToPositionAhead: top-level in practice, and per qualifying
+    # segment inside the Stats collection. The on-track gap fields are present
+    # in qualifying too but are meaningless for that leaderboard, so they must
+    # not be used there.
+    if session_type in ("R", "Sprint"):
+        gap = _clean(line.get("GapToLeader")) or _clean(line.get("TimeDiffToFastest"))
+        interval = (
+            _clean(_nested(line, "IntervalToPositionAhead", "Value"))
+            or _clean(line.get("TimeDiffToPositionAhead"))
+        )
+        return gap, interval
+
+    gap = None
+    interval = None
+    for stat in _values(line.get("Stats")):
+        if not isinstance(stat, dict):
+            continue
+        fastest = _clean(stat.get("TimeDiffToFastest"))
+        ahead = _clean(stat.get("TimeDiffToPositionAhead"))
+        if fastest is not None:
+            gap = fastest
+        if ahead is not None:
+            interval = ahead
+    gap = gap or _clean(line.get("TimeDiffToFastest"))
+    interval = interval or _clean(line.get("TimeDiffToPositionAhead"))
+    return gap, interval
+
+
 def _race_control_live(topics):
     rcm = topics.get("RaceControlMessages", {})
     if not isinstance(rcm, dict):
@@ -803,6 +835,7 @@ def _live_snapshot(topics, retired_set=None):
 
         sectors = _sectors(line)
         speeds = _speeds(line)
+        gap, interval = _gap_interval(line, session.get("session_type"))
 
         rows.append({
             "position": position,
@@ -812,8 +845,8 @@ def _live_snapshot(topics, retired_set=None):
             "team_name": info.get("team_name"),
             "team_colour": info.get("team_colour"),
             "headshot_url": info.get("headshot_url"),
-            "gap": _clean(line.get("GapToLeader")) or _clean(line.get("TimeDiffToFastest")),
-            "interval": _clean(_nested(line, "IntervalToPositionAhead", "Value")) or _clean(line.get("TimeDiffToPositionAhead")),
+            "gap": gap,
+            "interval": interval,
             "last_lap": _clean(_nested(line, "LastLapTime", "Value")),
             "best_lap": _clean(_nested(line, "BestLapTime", "Value")),
             "compound": _compound(stint.get("Compound")),
@@ -851,6 +884,7 @@ def _live_snapshot(topics, retired_set=None):
     track_status_code = _clean(_nested(topics, "TrackStatus", "Status"))
     lap_count = topics.get("LapCount", {})
     clock = topics.get("ExtrapolatedClock", {})
+    heartbeat = topics.get("Heartbeat", {})
     weather = topics.get("WeatherData", {})
 
     live = bool(session_status) and session_status not in FINISHED_STATES
@@ -874,6 +908,7 @@ def _live_snapshot(topics, retired_set=None):
             "total_laps": _to_int(lap_count.get("TotalLaps")),
             "time_remaining": _extrapolated_remaining(clock),
             "started_at": session["start_utc"].isoformat() if session["start_utc"] else None,
+            "data_utc": _clean(heartbeat.get("Utc")) if isinstance(heartbeat, dict) else None,
         },
         "weather": _weather(weather),
         "rows": rows,

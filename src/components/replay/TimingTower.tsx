@@ -345,26 +345,30 @@ export default function TimingTower({
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface px-1 py-2">
-      {header ? <div className="mb-1 flex-none border-b border-zinc-800 pb-1.5 pr-7">{header}</div> : null}
-      {onColumnsChange ? (
-        <>
-          <div className="group absolute right-9 top-2 z-20">
-            <div className="flex h-6 w-6 cursor-help items-center justify-center rounded text-zinc-500 opacity-70 hover:bg-zinc-800 hover:opacity-100">
-              <img src={questionIcon} alt="Help" className="h-4 w-4" />
+      {header ? (
+        <div className="relative mb-1 flex-none border-b border-zinc-800 pb-1.5 pr-7">
+          {header}
+          {onColumnsChange ? (
+            <div className="absolute bottom-1.5 right-2 top-0 z-20 flex items-center gap-1">
+              <div className="group relative">
+                <div className="flex h-6 w-6 cursor-help items-center justify-center rounded text-zinc-500 opacity-70 hover:bg-zinc-800 hover:opacity-100">
+                  <img src={questionIcon} alt="Help" className="h-4 w-4" />
+                </div>
+                <div className="pointer-events-none absolute right-0 top-8 z-40 hidden w-56 rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-[11px] leading-snug text-zinc-300 shadow-xl group-hover:block">
+                  Use the settings button to edit columns so you can see as much as you want, otherwise shift around other components to widen this timing tower component for a better view.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="flex h-6 w-6 items-center justify-center rounded text-zinc-500 opacity-70 hover:bg-zinc-800 hover:opacity-100"
+                title="Columns"
+              >
+                <img src={settingsCogIcon} alt="Columns" className="h-4 w-4" />
+              </button>
             </div>
-            <div className="pointer-events-none absolute right-0 top-8 z-40 hidden w-56 rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-[11px] leading-snug text-zinc-300 shadow-xl group-hover:block">
-              Use the settings button to edit columns so you can see as much as you want, otherwise shift around other components to widen this timing tower component for a better view.
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            className="absolute right-2 top-2 z-20 flex h-6 w-6 items-center justify-center rounded text-zinc-500 opacity-70 hover:bg-zinc-800 hover:opacity-100"
-            title="Columns"
-          >
-            <img src={settingsCogIcon} alt="Columns" className="h-4 w-4" />
-          </button>
-        </>
+          ) : null}
+        </div>
       ) : null}
 
       {menuOpen ? (
@@ -414,7 +418,7 @@ export default function TimingTower({
 
       <div ref={wrapRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent -ml-1 flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden pl-1">
         <div className="flex min-h-0 w-max min-w-full flex-1 flex-col">
-          <div ref={headRef} className="flex w-full flex-none items-center gap-2 pl-0.5 pr-1 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+          <div ref={headRef} className="flex w-full flex-none items-center justify-center gap-2 pl-0.5 pr-1 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
             {visible.map((col) => headerCell(col.id))}
           </div>
           <ul ref={listRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent relative flex min-h-0 w-full flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
@@ -426,7 +430,7 @@ export default function TimingTower({
                     type="button"
                     onClick={() => onSelect?.(row.number)}
                     style={{ fontSize: fs }}
-                    className={['flex h-full w-full items-center gap-2 rounded-md pl-0.5 pr-1 transition', isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'].join(' ')}
+                    className={['flex h-full w-full items-center justify-center gap-2 rounded-md pl-0.5 pr-1 transition', isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'].join(' ')}
                   >
                     {visible.map((col) => bodyCell(col.id, row, idx))}
                   </button>

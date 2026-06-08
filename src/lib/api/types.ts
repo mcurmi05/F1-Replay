@@ -121,6 +121,7 @@ export interface LiveSession {
   total_laps: number | null
   time_remaining: string | null
   started_at: string | null
+  data_utc: string | null
 }
 
 export interface LiveWeather {

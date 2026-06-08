@@ -108,7 +108,7 @@ export default function ChampionshipPrediction({ data }: { data: ChampionshipPre
   return (
     <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Projected Standings</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Standings</p>
         {hasData ? (
           <div className="flex items-center gap-1">
             {(['drivers', 'teams'] as const).map((key) => (

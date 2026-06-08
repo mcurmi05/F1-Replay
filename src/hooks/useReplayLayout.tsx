@@ -8,12 +8,14 @@ import editPencilIcon from '../assets/edit_pencil.png'
 import binDeleteIcon from '../assets/bin_delete.png'
 import skipBackwardIcon from '../assets/skip_backward.png'
 import skipForwardIcon from '../assets/skip_forward.png'
+import liveDataIcon from '../assets/livedata.png'
 import { api } from '../lib/api/client'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 import { BASE_COLS, COLS, scaleLayout } from '../lib/layoutGrid'
 import { toggleRawStream } from '../lib/debugStream'
 import type { TimingColumnState } from '../lib/timingColumns'
 import type { SessionDefault, LayoutCategory } from '../lib/defaultLayouts'
+import { CATEGORY_ORDER, CATEGORY_LABELS, CATEGORY_DEFAULTS } from '../lib/defaultLayouts'
 import type { WeatherSample } from '../lib/api/types'
 
 const HIDDEN_PANELS_KEY = 'f1replay.hiddenPanels.v2'
@@ -349,6 +351,12 @@ export function ReplayStatusBar() {
   )
 }
 
+const keyOf = (cat: LayoutCategory, id: string) => `${cat}/${id}`
+const defaultNameFor = (cat: LayoutCategory) => {
+  const leaf = cat.split('-').pop()!
+  return `${leaf[0].toUpperCase()}${leaf.slice(1)} Default`
+}
+
 export function ReplayLayoutControls() {
   const {
     active, editMode, toggleEditMode, reset,
@@ -363,21 +371,19 @@ export function ReplayLayoutControls() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const [showLayouts, setShowLayouts] = useState(false)
-  const [layouts, setLayouts] = useState<SavedLayoutMeta[]>([])
+  const [layoutsByCat, setLayoutsByCat] = useState<Record<LayoutCategory, SavedLayoutMeta[]>>(
+    () => Object.fromEntries(CATEGORY_ORDER.map((c) => [c, []])) as Record<LayoutCategory, SavedLayoutMeta[]>,
+  )
   const [layoutsLoading, setLayoutsLoading] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
+  const [busyKey, setBusyKey] = useState<string | null>(null)
   const [modalError, setModalError] = useState<string | null>(null)
 
   if (!active) return null
 
   const hiddenDefs = panelDefs.filter((p) => hiddenPanels.has(p.id))
-  const leaf = category ? category.split('-').pop()! : ''
-  const defaultName = leaf ? `${leaf[0].toUpperCase()}${leaf.slice(1)} Default` : 'Default'
-  const savedDefault = layouts.find((l) => l.name === defaultName)
-  const customLayouts = layouts.filter((l) => l.name !== defaultName)
 
   function openSaveModal() {
     setSaveName('')
@@ -402,75 +408,101 @@ export function ReplayLayoutControls() {
 
   function openLayoutsModal() {
     if (!category) return
-    setEditingId(null)
-    setConfirmDeleteId(null)
+    setEditingKey(null)
+    setConfirmDeleteKey(null)
     setModalError(null)
     setShowLayouts(true)
     setLayoutsLoading(true)
-    api
-      .listLayouts(category)
-      .then(setLayouts)
+    Promise.all(
+      CATEGORY_ORDER.map((c) =>
+        api.listLayouts(c).then((items) => [c, items] as const).catch(() => [c, []] as const)),
+    )
+      .then((entries) => {
+        setLayoutsByCat(Object.fromEntries(entries) as Record<LayoutCategory, SavedLayoutMeta[]>)
+      })
       .catch(() => setModalError('No cache folder selected, or could not load layouts.'))
       .finally(() => setLayoutsLoading(false))
   }
 
-  async function doLoad(id: string) {
-    if (!category) return
-    setBusyId(id)
+  // Apply a layout that may come from a different category. Panels the loaded
+  // layout shows are placed; any panel on the current screen that the layout
+  // does not show is hidden, and layout entries for panels that don't exist on
+  // this screen simply never render.
+  function applyLayout(layoutItems: Layout, hiddenList: string[], timingCols: TimingColumnState[] | null) {
+    const hiddenInLayout = new Set(hiddenList)
+    const visibleInLayout = new Set(layoutItems.map((i) => i.i).filter((id) => !hiddenInLayout.has(id)))
+    const hideIds = panelDefs.map((p) => p.id).filter((id) => !visibleInLayout.has(id))
+    callSetLayout(layoutItems)
+    replaceHiddenPanels(hideIds)
+    setTimingColumns(timingCols)
+  }
+
+  function applyDefault(cat: LayoutCategory) {
+    if (cat === category) {
+      reset()
+    } else {
+      const def = CATEGORY_DEFAULTS[cat]
+      applyLayout(def.layout as unknown as Layout, def.hiddenPanels, def.timingColumns)
+    }
+    setShowLayouts(false)
+  }
+
+  async function doLoad(cat: LayoutCategory, id: string) {
+    setBusyKey(keyOf(cat, id))
     setModalError(null)
     try {
-      const full: SavedLayoutFull = await api.getLayout(category, id)
+      const full: SavedLayoutFull = await api.getLayout(cat, id)
       const savedCols = full.cols ?? BASE_COLS
-      callSetLayout(scaleLayout(full.layout as unknown as Layout, COLS / savedCols))
-      replaceHiddenPanels(full.hiddenPanels)
-      setTimingColumns((full.timingColumns as TimingColumnState[] | null | undefined) ?? null)
+      applyLayout(
+        scaleLayout(full.layout as unknown as Layout, COLS / savedCols),
+        full.hiddenPanels,
+        (full.timingColumns as TimingColumnState[] | null | undefined) ?? null,
+      )
       setShowLayouts(false)
     } catch {
       setModalError('Could not load layout.')
     } finally {
-      setBusyId(null)
+      setBusyKey(null)
     }
   }
 
-  async function doRename(id: string) {
+  async function doRename(cat: LayoutCategory, id: string) {
     const name = editName.trim()
-    if (!name || !category) return
-    setBusyId(id)
+    if (!name) return
+    setBusyKey(keyOf(cat, id))
     try {
-      const updated = await api.updateLayout(category, id, name)
-      setLayouts((prev) => prev.map((l) => (l.id === id ? updated : l)))
-      setEditingId(null)
+      const updated = await api.updateLayout(cat, id, name)
+      setLayoutsByCat((prev) => ({ ...prev, [cat]: prev[cat].map((l) => (l.id === id ? updated : l)) }))
+      setEditingKey(null)
     } catch {
       setModalError('Could not rename layout.')
     } finally {
-      setBusyId(null)
+      setBusyKey(null)
     }
   }
 
-  async function doOverwrite(id: string) {
-    if (!category) return
-    setBusyId(id)
+  async function doOverwrite(cat: LayoutCategory, id: string) {
+    setBusyKey(keyOf(cat, id))
     try {
-      await api.updateLayout(category, id, undefined, callGetLayout() as unknown[], [...hiddenPanels], timingColumns, COLS)
-      setEditingId(null)
+      await api.updateLayout(cat, id, undefined, callGetLayout() as unknown[], [...hiddenPanels], timingColumns, COLS)
+      setEditingKey(null)
     } catch {
       setModalError('Could not update layout.')
     } finally {
-      setBusyId(null)
+      setBusyKey(null)
     }
   }
 
-  async function doDelete(id: string) {
-    if (!category) return
-    setBusyId(id)
+  async function doDelete(cat: LayoutCategory, id: string) {
+    setBusyKey(keyOf(cat, id))
     try {
-      await api.deleteLayout(category, id)
-      setLayouts((prev) => prev.filter((l) => l.id !== id))
-      setConfirmDeleteId(null)
+      await api.deleteLayout(cat, id)
+      setLayoutsByCat((prev) => ({ ...prev, [cat]: prev[cat].filter((l) => l.id !== id) }))
+      setConfirmDeleteKey(null)
     } catch {
       setModalError('Could not delete layout.')
     } finally {
-      setBusyId(null)
+      setBusyKey(null)
     }
   }
 
@@ -506,20 +538,14 @@ export function ReplayLayoutControls() {
               {p.label}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={reset}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-white"
-          >
-            Reset
-          </button>
           {category?.startsWith('live-') ? (
             <button
               type="button"
               onClick={() => toggleRawStream()}
-              className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900/80 px-2 py-1.5 text-xs font-medium text-zinc-400 transition hover:border-f1-red/50 hover:text-zinc-200"
+              title="SignalR stream"
+              className="inline-flex items-center rounded border border-zinc-700 bg-zinc-900/80 px-1.5 py-1 text-zinc-500 transition hover:border-f1-red/50 hover:text-zinc-300"
             >
-              SignalR Stream
+              <img src={liveDataIcon} alt="SignalR stream" className="h-4 w-4" />
             </button>
           ) : null}
         </>
@@ -585,133 +611,167 @@ export function ReplayLayoutControls() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-4 text-lg font-bold text-white">Saved layouts</h2>
-            <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
-              <li className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2">
-                <span className="flex-1 truncate text-sm text-zinc-200">
-                  {defaultName}
-                  {savedDefault ? <span className="ml-1.5 text-[10px] uppercase tracking-wider text-zinc-500">saved</span> : null}
-                </span>
-                {savedDefault ? (
-                  <button
-                    type="button"
-                    onClick={() => { reset(); setShowLayouts(false) }}
-                    disabled={busyId === savedDefault.id}
-                    className="shrink-0 rounded border border-zinc-600 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-700"
-                  >
-                    Built-in
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => { if (savedDefault) { void doLoad(savedDefault.id) } else { reset(); setShowLayouts(false) } }}
-                  disabled={savedDefault ? busyId === savedDefault.id : false}
-                  className="shrink-0 rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
-                >
-                  Load
-                </button>
-              </li>
+            <div className="thin-scroll max-h-[28rem] space-y-4 overflow-y-auto pr-1">
               {layoutsLoading ? (
-                <li className="text-sm text-zinc-500 px-1 py-1">Loading...</li>
-              ) : customLayouts.length === 0 && !modalError ? (
-                <li className="text-sm text-zinc-500 px-1 py-1">No saved layouts yet.</li>
-              ) : customLayouts.map((item) => {
-                  const isEditing = editingId === item.id
-                  const isConfirmDelete = confirmDeleteId === item.id
-                  const busy = busyId === item.id
-
-                  if (isConfirmDelete) {
+                <p className="px-1 py-1 text-sm text-zinc-500">Loading...</p>
+              ) : (
+              <>
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Defaults</h3>
+                <ul className="space-y-2">
+                  {CATEGORY_ORDER.map((cat) => {
+                    const items = layoutsByCat[cat] ?? []
+                    const savedDefault = items.find((l) => l.name === defaultNameFor(cat))
+                    const isCurrent = cat === category
                     return (
-                      <li key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2.5">
-                        <span className="truncate text-sm text-zinc-300">Delete {item.name}?</span>
-                        <div className="flex shrink-0 gap-2">
+                      <li key={cat} className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2">
+                        <span className="flex-1 truncate text-sm text-zinc-200">
+                          {CATEGORY_LABELS[cat]}
+                          {isCurrent ? <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wider text-f1-red">(current)</span> : null}
+                          {savedDefault ? <span className="ml-1.5 text-[10px] uppercase tracking-wider text-zinc-500">saved</span> : null}
+                        </span>
+                        {savedDefault ? (
                           <button
                             type="button"
-                            onClick={() => setConfirmDeleteId(null)}
-                            className="text-xs text-zinc-500 hover:text-zinc-300"
+                            onClick={() => applyDefault(cat)}
+                            className="shrink-0 rounded border border-zinc-600 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-700"
                           >
-                            Cancel
+                            Built-in
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void doDelete(item.id)}
-                            disabled={busy}
-                            className="rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => { if (savedDefault) { void doLoad(cat, savedDefault.id) } else { applyDefault(cat) } }}
+                          disabled={savedDefault ? busyKey === keyOf(cat, savedDefault.id) : false}
+                          className="shrink-0 rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                        >
+                          Load
+                        </button>
                       </li>
                     )
-                  }
+                  })}
+                </ul>
+              </div>
+              {CATEGORY_ORDER.map((cat) => {
+                const items = layoutsByCat[cat] ?? []
+                const defName = defaultNameFor(cat)
+                const customLayouts = items.filter((l) => l.name !== defName)
+                if (customLayouts.length === 0) return null
+                const isCurrent = cat === category
+                return (
+                  <div key={cat} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{CATEGORY_LABELS[cat]}</h3>
+                      {isCurrent ? (
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-f1-red">(current)</span>
+                      ) : null}
+                    </div>
+                    <ul className="space-y-2">
+                      {customLayouts.map((item) => {
+                        const itemKey = keyOf(cat, item.id)
+                        const isEditing = editingKey === itemKey
+                        const isConfirmDelete = confirmDeleteKey === itemKey
+                        const busy = busyKey === itemKey
 
-                  if (isEditing) {
-                    return (
-                      <li key={item.id} className="space-y-2 rounded-lg border border-f1-red/40 bg-zinc-900/60 px-3 py-2.5">
-                        <input
-                          autoFocus
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') void doRename(item.id) }}
-                          className="w-full rounded border border-zinc-600 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-f1-red focus:outline-none"
-                        />
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void doRename(item.id)}
-                            disabled={busy || !editName.trim()}
-                            className="rounded border border-zinc-600 px-2.5 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
-                          >
-                            Rename
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void doOverwrite(item.id)}
-                            disabled={busy}
-                            className="rounded bg-f1-red/20 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-f1-red/35 disabled:opacity-50"
-                          >
-                            Overwrite with current layout
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingId(null)}
-                            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </li>
-                    )
-                  }
+                        if (isConfirmDelete) {
+                          return (
+                            <li key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2.5">
+                              <span className="truncate text-sm text-zinc-300">Delete {item.name}?</span>
+                              <div className="flex shrink-0 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteKey(null)}
+                                  className="text-xs text-zinc-500 hover:text-zinc-300"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void doDelete(cat, item.id)}
+                                  disabled={busy}
+                                  className="rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </li>
+                          )
+                        }
 
-                  return (
-                    <li key={item.id} className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2">
-                      <span className="flex-1 truncate text-sm text-zinc-200">{item.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => { setEditingId(item.id); setEditName(item.name) }}
-                        className="shrink-0 p-1 opacity-50 hover:opacity-100"
-                      >
-                        <img src={editPencilIcon} alt="Edit" className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteId(item.id)}
-                        className="shrink-0 p-1 opacity-50 hover:opacity-100"
-                      >
-                        <img src={binDeleteIcon} alt="Delete" className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void doLoad(item.id)}
-                        disabled={busy}
-                        className="shrink-0 rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
-                      >
-                        Load
-                      </button>
-                    </li>
-                  )
-                })}
-            </ul>
+                        if (isEditing) {
+                          return (
+                            <li key={item.id} className="space-y-2 rounded-lg border border-f1-red/40 bg-zinc-900/60 px-3 py-2.5">
+                              <input
+                                autoFocus
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') void doRename(cat, item.id) }}
+                                className="w-full rounded border border-zinc-600 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-f1-red focus:outline-none"
+                              />
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void doRename(cat, item.id)}
+                                  disabled={busy || !editName.trim()}
+                                  className="rounded border border-zinc-600 px-2.5 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
+                                >
+                                  Rename
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void doOverwrite(cat, item.id)}
+                                  disabled={busy}
+                                  className="rounded bg-f1-red/20 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-f1-red/35 disabled:opacity-50"
+                                >
+                                  Overwrite with current layout
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingKey(null)}
+                                  className="ml-auto text-xs text-zinc-500 hover:text-zinc-300"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </li>
+                          )
+                        }
+
+                        return (
+                          <li key={item.id} className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2">
+                            <span className="flex-1 truncate text-sm text-zinc-200">{item.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setEditingKey(itemKey); setEditName(item.name) }}
+                              className="shrink-0 p-1 opacity-50 hover:opacity-100"
+                            >
+                              <img src={editPencilIcon} alt="Edit" className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteKey(itemKey)}
+                              className="shrink-0 p-1 opacity-50 hover:opacity-100"
+                            >
+                              <img src={binDeleteIcon} alt="Delete" className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void doLoad(cat, item.id)}
+                              disabled={busy}
+                              className="shrink-0 rounded bg-f1-red px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                            >
+                              Load
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )
+              })}
+              </>
+              )}
+            </div>
             {modalError ? <p className="mt-3 text-xs text-f1-red">{modalError}</p> : null}
             <button
               type="button"
