@@ -66,7 +66,7 @@ export default function Layout() {
             ))}
             <ReplayLayoutControls />
             {pathname === '/live' && !__HOSTED__ ? <LiveSignInButton /> : null}
-            {pathname === '/home' ? (
+            {pathname === '/home' && !__HOSTED__ ? (
               <>
                 <span className="mx-1 h-5 w-px bg-zinc-800" />
                 <CacheSettings />

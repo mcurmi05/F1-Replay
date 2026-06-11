@@ -84,6 +84,15 @@ passes CACHE_MAX_GB (default 30). The live page itself barely uses this cache.
 Check it: systemctl list-timers f1-replay-prune. Run a prune by hand any time
 with: sudo systemctl start f1-replay-prune, then journalctl -u f1-replay-prune.
 
+## Updating a running deployment
+
+After updates, redeploy in one step:
+
+    sudo /opt/f1-replay/deploy/update.sh
+
+It pulls, rebuilds the hosted frontend, refreshes Python deps and the systemd
+units, restores f1replay ownership, and restarts the service and prune timer.
+
 ## Token refresh
 
 The F1TV subscription token lasts about four days. When it lapses the gated

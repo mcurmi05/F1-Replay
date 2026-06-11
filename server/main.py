@@ -35,6 +35,12 @@ api = APIRouter(prefix="/api")
 # works unchanged.
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "").strip()
 
+# A server deployment sets FASTF1_CACHE_DIR to a fixed, operator-managed path
+# (pruned by the cache timer). The Electron app never sets it; there the user
+# picks the folder. When it is set, the cache location is locked: the change-dir
+# endpoint is refused so a visitor cannot repoint or wipe the shared cache.
+CACHE_DIR_LOCKED = bool(os.environ.get("FASTF1_CACHE_DIR", "").strip())
+
 
 def require_admin(x_admin_token: str | None = Header(default=None)):
     if not ADMIN_TOKEN:
@@ -148,6 +154,8 @@ def cache_status():
 
 @api.post("/cache")
 def set_cache_dir(request: CacheRequest):
+    if CACHE_DIR_LOCKED:
+        raise HTTPException(status_code=403, detail="Cache location is fixed on this server")
     previous = f1data.get_cache()
     f1data.set_cache(request.dir)
     deleted = False
