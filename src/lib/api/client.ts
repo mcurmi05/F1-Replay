@@ -1,4 +1,5 @@
 import { adminHeaders } from './admin'
+import * as localLayouts from './localLayouts'
 import type {
   LiveAuthStatus,
   LiveState,
@@ -128,12 +129,21 @@ export const api = {
       `/session/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/replay`,
       signal,
     ),
+  // In a hosted deployment layouts are per-browser (localStorage) so visitors
+  // do not share and overwrite one set on the server. Desktop/dev keep using
+  // the server-side layout files.
   listLayouts: (category: string, signal?: AbortSignal) =>
-    get<SavedLayoutMeta[]>(`/layouts/${encodeURIComponent(category)}`, signal),
+    __HOSTED__
+      ? localLayouts.listLayouts(category)
+      : get<SavedLayoutMeta[]>(`/layouts/${encodeURIComponent(category)}`, signal),
   getLayout: (category: string, id: string, signal?: AbortSignal) =>
-    get<SavedLayoutFull>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`, signal),
+    __HOSTED__
+      ? localLayouts.getLayout(category, id)
+      : get<SavedLayoutFull>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`, signal),
   saveLayout: (category: string, name: string, layout: unknown[], hiddenPanels: string[], timingColumns?: unknown[] | null, cols?: number) =>
-    post<SavedLayoutMeta>(`/layouts/${encodeURIComponent(category)}`, { name, layout, hidden_panels: hiddenPanels, timing_columns: timingColumns ?? null, cols: cols ?? null }),
+    __HOSTED__
+      ? localLayouts.saveLayout(category, name, layout, hiddenPanels, timingColumns, cols)
+      : post<SavedLayoutMeta>(`/layouts/${encodeURIComponent(category)}`, { name, layout, hidden_panels: hiddenPanels, timing_columns: timingColumns ?? null, cols: cols ?? null }),
   updateLayout: (
     category: string,
     id: string,
@@ -143,13 +153,17 @@ export const api = {
     timingColumns?: unknown[] | null,
     cols?: number,
   ) =>
-    put<SavedLayoutMeta>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`, {
-      ...(name !== undefined ? { name } : {}),
-      ...(layout !== undefined ? { layout } : {}),
-      ...(hiddenPanels !== undefined ? { hidden_panels: hiddenPanels } : {}),
-      ...(timingColumns !== undefined ? { timing_columns: timingColumns } : {}),
-      ...(cols !== undefined ? { cols } : {}),
-    }),
+    __HOSTED__
+      ? localLayouts.updateLayout(category, id, name, layout, hiddenPanels, timingColumns, cols)
+      : put<SavedLayoutMeta>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`, {
+          ...(name !== undefined ? { name } : {}),
+          ...(layout !== undefined ? { layout } : {}),
+          ...(hiddenPanels !== undefined ? { hidden_panels: hiddenPanels } : {}),
+          ...(timingColumns !== undefined ? { timing_columns: timingColumns } : {}),
+          ...(cols !== undefined ? { cols } : {}),
+        }),
   deleteLayout: (category: string, id: string) =>
-    del<{ ok: boolean }>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`),
+    __HOSTED__
+      ? localLayouts.deleteLayout(category, id)
+      : del<{ ok: boolean }>(`/layouts/${encodeURIComponent(category)}/${encodeURIComponent(id)}`),
 }
