@@ -1,0 +1,8 @@
+[Unit]
+Description=Prune the F1-Replay FastF1 cache to its size cap
+
+[Service]
+Type=oneshot
+User=f1replay
+EnvironmentFile=/opt/f1-replay/deploy/f1-replay.env
+ExecStart=/opt/f1-replay/deploy/prune-cache.sh

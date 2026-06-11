@@ -6,6 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=f1replay
+# The service user has no home directory (--no-create-home). Point HOME at the
+# writable state dir so platformdirs can create its config.json there.
+Environment=HOME=/var/lib/f1-replay
 WorkingDirectory=/opt/f1-replay/server
 EnvironmentFile=/opt/f1-replay/deploy/f1-replay.env
 ExecStart=/opt/f1-replay/.venv/bin/python launcher.py

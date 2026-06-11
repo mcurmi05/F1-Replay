@@ -69,6 +69,21 @@ Create the service user and grant cache ownership:
 2. Follow the bookmarklet steps to copy an F1TV token from f1tv.com.
 3. Paste the token and set it. The gated panels unlock for all visitors.
 
+## Cache size cap
+
+The replay feature caches each loaded session under FASTF1_CACHE_DIR. To stop it
+filling the disk, an hourly timer prunes the oldest sessions once the cache
+passes CACHE_MAX_GB (default 30). The live page itself barely uses this cache.
+
+    chmod +x deploy/prune-cache.sh
+    sudo cp deploy/f1-replay-prune.service /etc/systemd/system/
+    sudo cp deploy/f1-replay-prune.timer /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now f1-replay-prune.timer
+
+Check it: systemctl list-timers f1-replay-prune. Run a prune by hand any time
+with: sudo systemctl start f1-replay-prune, then journalctl -u f1-replay-prune.
+
 ## Token refresh
 
 The F1TV subscription token lasts about four days. When it lapses the gated
