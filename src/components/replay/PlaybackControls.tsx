@@ -162,7 +162,7 @@ export default function PlaybackControls({
   // timeline, then the speed buttons - instead of one wrapping row.
   if (isMobile) {
     return (
-      <div className="flex h-full flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-surface p-3">
+      <div className="flex h-full flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-surface px-3 py-5">
         <div className="flex items-center justify-center gap-4">{controlButtons}</div>
         <div className="flex flex-col gap-1">
           <div className="text-center">{clock}</div>
