@@ -234,7 +234,7 @@ export default function ReplayViewer({
       switch (id) {
         case 'trackmap': return { className: 'aspect-[4/3] w-full' }
         case 'timingTower': return { style: { height: towerHeight } }
-        case 'playback': return { className: 'h-28' }
+        case 'playback': return { className: 'h-36' }
         case 'telemetry': return { className: 'h-80' }
         case 'commentary': return { className: 'h-24' }
         case 'raceControl': return { className: 'h-72' }

@@ -2,6 +2,7 @@ import raceStartIcon from '../../assets/race_start.png'
 import skipBackwardIcon from '../../assets/skip_backward.png'
 import skipForwardIcon from '../../assets/skip_forward.png'
 import { PauseIcon, PlayIcon } from '../icons'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { formatClockHours } from '../../lib/format'
 import type { Playback } from '../../hooks/usePlayback'
 
@@ -24,6 +25,7 @@ export default function PlaybackControls({
   markers?: PlaybackMarker[]
 }) {
   const { currentTime, playing, speed, setSpeed, toggle, seek } = playback
+  const isMobile = useIsMobile()
 
   const rendered: PlaybackMarker[] = []
   const seen = new Set<number>()
@@ -49,8 +51,8 @@ export default function PlaybackControls({
     toggle()
   }
 
-  return (
-    <div className="flex h-full flex-wrap items-center gap-4 rounded-2xl border border-zinc-800 bg-surface p-4">
+  const controlButtons = (
+    <>
       {raceStart !== null ? (
         <button
           type="button"
@@ -87,70 +89,96 @@ export default function PlaybackControls({
       >
         <img src={skipForwardIcon} alt="Skip forward 5 seconds" className="h-5 w-5" style={{ transform: 'translateX(2px)' }} />
       </button>
+    </>
+  )
 
-      <span className="shrink-0 font-mono text-sm text-zinc-300">
-        {formatClockHours(currentTime)} / {formatClockHours(duration)}
-      </span>
+  const clock = (
+    <span className="font-mono text-sm text-zinc-300">
+      {formatClockHours(currentTime)} / {formatClockHours(duration)}
+    </span>
+  )
 
-      <div className="flex min-w-40 flex-1 flex-col gap-1">
-        <div className="relative flex items-center">
-          <input
-            type="range"
-            min={0}
-            max={duration}
-            step={0.1}
-            value={currentTime}
-            onChange={(event) => seek(Number(event.target.value))}
-            className="playback-range h-3.5 w-full cursor-pointer"
-          />
+  const slider = (
+    <>
+      <div className="relative flex items-center">
+        <input
+          type="range"
+          min={0}
+          max={duration}
+          step={0.1}
+          value={currentTime}
+          onChange={(event) => seek(Number(event.target.value))}
+          className="playback-range h-3.5 w-full cursor-pointer"
+        />
+        {rendered.map((marker) => {
+          const pct = (marker.time / duration) * 100
+          return (
+            <span
+              key={marker.time}
+              className="pointer-events-none absolute top-1/2 h-3 w-0.5 rounded bg-zinc-200"
+              style={{ left: markerLeft(pct), transform: 'translateX(-50%) translateY(-50%)' }}
+            />
+          )
+        })}
+      </div>
+      {rendered.length > 0 ? (
+        <div className="relative h-4">
           {rendered.map((marker) => {
             const pct = (marker.time / duration) * 100
             return (
-              <span
+              <button
                 key={marker.time}
-                className="pointer-events-none absolute top-1/2 h-3 w-0.5 rounded bg-zinc-200"
-                style={{ left: markerLeft(pct), transform: 'translateX(-50%) translateY(-50%)' }}
-              />
+                type="button"
+                onClick={() => seek(marker.time)}
+                style={{ left: markerLeft(pct), transform: markerTransform(pct) }}
+                className="absolute text-[10px] font-semibold uppercase tracking-wider text-zinc-500 transition hover:text-white"
+              >
+                {marker.label}
+              </button>
             )
           })}
         </div>
-        {rendered.length > 0 ? (
-          <div className="relative h-4">
-            {rendered.map((marker) => {
-              const pct = (marker.time / duration) * 100
-              return (
-                <button
-                  key={marker.time}
-                  type="button"
-                  onClick={() => seek(marker.time)}
-                  style={{ left: markerLeft(pct), transform: markerTransform(pct) }}
-                  className="absolute text-[10px] font-semibold uppercase tracking-wider text-zinc-500 transition hover:text-white"
-                >
-                  {marker.label}
-                </button>
-              )
-            })}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
+    </>
+  )
 
-      <div className="flex shrink-0 items-center gap-1">
-        {SPEEDS.map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setSpeed(value)}
-            className={[
-              'rounded-md px-2.5 py-1 text-xs font-semibold transition',
-              value === speed
-                ? 'bg-zinc-700 text-white'
-                : 'text-zinc-400 hover:bg-zinc-800 hover:text-white',
-            ].join(' ')}
-          >
-            {value}x
-          </button>
-        ))}
+  const speedButtons = SPEEDS.map((value) => (
+    <button
+      key={value}
+      type="button"
+      onClick={() => setSpeed(value)}
+      className={[
+        'rounded-md px-2.5 py-1 text-xs font-semibold transition',
+        value === speed
+          ? 'bg-zinc-700 text-white'
+          : 'text-zinc-400 hover:bg-zinc-800 hover:text-white',
+      ].join(' ')}
+    >
+      {value}x
+    </button>
+  ))
+
+  // Narrow phone width: stack into three centred rows - controls, then the
+  // timeline, then the speed buttons - instead of one wrapping row.
+  if (isMobile) {
+    return (
+      <div className="flex h-full flex-col justify-center gap-2 rounded-2xl border border-zinc-800 bg-surface p-3">
+        <div className="flex items-center justify-center gap-4">{controlButtons}</div>
+        <div className="flex flex-col gap-1">
+          <div className="text-center">{clock}</div>
+          {slider}
+        </div>
+        <div className="flex items-center justify-center gap-1">{speedButtons}</div>
       </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full flex-wrap items-center gap-4 rounded-2xl border border-zinc-800 bg-surface p-4">
+      {controlButtons}
+      <span className="shrink-0">{clock}</span>
+      <div className="flex min-w-40 flex-1 flex-col gap-1">{slider}</div>
+      <div className="flex shrink-0 items-center gap-1">{speedButtons}</div>
     </div>
   )
 }
