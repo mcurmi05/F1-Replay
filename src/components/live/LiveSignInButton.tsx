@@ -1,7 +1,8 @@
 import { useF1Login } from './useF1Login'
 
-// Top-bar F1TV sign-in control. Hidden once signed in; while signed out it lets
-// the user unlock the gated live panels (car positions and telemetry).
+// Top-bar F1TV sign-in CTA, shown only while signed out so users can unlock the
+// gated live panels (car positions, telemetry, standings). Signing out lives in
+// the layout burger menu instead.
 export default function LiveSignInButton() {
   const { authenticated, working, pending, connect } = useF1Login()
 

@@ -52,6 +52,19 @@ export function useF1Login() {
     }
   }, [])
 
+  const disconnect = useCallback(async () => {
+    setWorking(true)
+    setError(null)
+    try {
+      setStatus(await api.liveAuthLogout())
+      setLoginUrl(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign out')
+    } finally {
+      setWorking(false)
+    }
+  }, [])
+
   return {
     authenticated: status?.authenticated ?? false,
     pending: status?.pending ?? false,
@@ -59,5 +72,6 @@ export function useF1Login() {
     working,
     error,
     connect,
+    disconnect,
   }
 }

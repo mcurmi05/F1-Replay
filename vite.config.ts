@@ -9,6 +9,7 @@ export default defineConfig(({ command }) => ({
     'process.env.DRAGGABLE_DEBUG': 'false',
   },
   server: {
+    host: true,
     proxy: {
       '/api': 'http://localhost:8000',
     },

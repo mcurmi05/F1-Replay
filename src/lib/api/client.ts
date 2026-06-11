@@ -87,6 +87,7 @@ export const api = {
   liveAuthStatus: (signal?: AbortSignal) => get<LiveAuthStatus>('/live/auth', signal),
   liveAuthLogin: () => post<{ url: string }>('/live/auth/login', {}),
   liveAuthLogout: () => post<LiveAuthStatus>('/live/auth/logout', {}),
+  liveAuthSetToken: (token: string) => post<LiveAuthStatus>('/live/auth/token', { token }),
   setCache: (dir: string, deletePrevious = false) =>
     post<{ dir: string | null; previous: string | null; deleted: boolean }>('/cache', {
       dir,

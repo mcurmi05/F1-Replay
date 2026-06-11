@@ -251,6 +251,13 @@ class LiveManager:
                 # signalrcore raises when the key is present and not callable,
                 # so an unauthenticated connection never gets off the ground.
                 self._output_file = open(self.filename, self.filemode)
+                # Present as the official F1 app (Unity "BestHTTP"). The live feed
+                # serves car positions (Position.z) and telemetry (CarData.z) to
+                # clients with this User-Agent without any F1TV login - this is how
+                # f1-dash streams them unauthenticated. fastf1 sends empty headers,
+                # which is why its no-auth connection appeared to lack those topics.
+                self.headers.setdefault("User-Agent", "BestHTTP")
+                self.headers.setdefault("Accept-Encoding", "gzip,identity")
                 r = requests.options(self._negotiate_url, headers=self.headers)
                 self.headers.update({"Cookie": f"AWSALBCORS={r.cookies['AWSALBCORS']}"})
                 options = {"verify_ssl": True, "headers": self.headers}

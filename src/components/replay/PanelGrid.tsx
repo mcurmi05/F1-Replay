@@ -8,7 +8,7 @@ import type { PanelDef } from '../../hooks/useReplayLayout'
 import { BASE_COLS, COLS, FINE } from '../../lib/layoutGrid'
 import type { SessionDefault, LayoutCategory } from '../../lib/defaultLayouts'
 
-const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v10'
+export const LAYOUT_STORAGE_KEY = 'f1replay.replayLayout.v10'
 const GRID_MARGIN = 8
 const HEADER_H = 64
 const PAD_TOP = 16

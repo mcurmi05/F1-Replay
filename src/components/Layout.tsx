@@ -16,8 +16,8 @@ export default function Layout() {
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-10 border-b border-zinc-800/80 bg-[#0a0a0f]/80 backdrop-blur">
         <div className="mx-auto flex h-16 w-full items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <NavLink to="/home" className="flex translate-y-0.5 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <NavLink to="/home" className="flex shrink-0 translate-y-0.5 items-center gap-3">
               <span className="h-5 w-1.5 rounded-full bg-f1-red" />
               <span className="text-lg font-semibold tracking-tight text-white">
                 F1<span className="text-zinc-500"> Replay</span>
@@ -27,7 +27,7 @@ export default function Layout() {
               to="/home"
               className={({ isActive }) =>
                 [
-                  'inline-flex items-center rounded-md px-2 py-1.5 transition-colors',
+                  'hidden items-center rounded-md px-2 py-1.5 transition-colors sm:inline-flex',
                   isActive
                     ? 'bg-zinc-800 text-white'
                     : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-white',
@@ -36,10 +36,12 @@ export default function Layout() {
             >
               <img src={homeIcon} alt="Home" className="h-6 w-6" />
             </NavLink>
-            <ReplayTitleBadge />
-            <ReplayStatusBar />
+            <div className="hidden min-w-0 items-center md:flex">
+              <ReplayTitleBadge />
+              <ReplayStatusBar />
+            </div>
           </div>
-          <nav className="flex items-center gap-1">
+          <nav className="flex shrink-0 items-center gap-1">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}

@@ -1,8 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 import CommentaryAudio from '../components/replay/CommentaryAudio'
-import PanelGrid from '../components/replay/PanelGrid'
+import PanelGrid, { LAYOUT_STORAGE_KEY } from '../components/replay/PanelGrid'
 import RaceControlFeed from '../components/replay/RaceControlFeed'
 import ReplayClock from '../components/replay/ReplayClock'
 import SessionBestsFeed from '../components/replay/SessionBestsFeed'
@@ -16,13 +16,19 @@ import LivePitStops from '../components/live/LivePitStops'
 import LiveTelemetry from '../components/live/LiveTelemetry'
 import ChampionshipPrediction from '../components/live/ChampionshipPrediction'
 import { useLive } from '../hooks/useApi'
+import { useIsMobile } from '../hooks/useIsMobile'
+import { usePersistedLayout } from '../hooks/usePersistedLayout'
 import { useReplayLayout } from '../hooks/useReplayLayout'
 import type { PanelDef } from '../hooks/useReplayLayout'
+import type { LayoutCategory, SessionDefault } from '../lib/defaultLayouts'
 import { liveDefaultsFor, liveCategoryFor, sessionCategory } from '../lib/defaultLayouts'
 import { trackStatusInfo } from '../lib/replay'
 import type { SectorCell } from '../lib/replay'
+import { defaultColumns } from '../lib/timingColumns'
+import type { TimingColumnId, TimingColumnState } from '../lib/timingColumns'
 import type {
   LiveRow,
+  LiveSession,
   LiveState,
   LiveWeather,
   RaceControlMessage,
@@ -78,6 +84,51 @@ function relSeconds(value: string | number | null | undefined, startMs: number):
   return (t - startMs) / 1000
 }
 
+const MOBILE_COLUMNS_KEY = 'f1replay.liveMobileColumns.v1'
+const MOBILE_RACE_VISIBLE: TimingColumnId[] = ['pos', 'driver', 'interval', 'lastLap', 'tyre']
+const MOBILE_LAP_VISIBLE: TimingColumnId[] = ['pos', 'driver', 'bestLap', 'lastLap', 'tyre']
+
+function mobileDefaultColumns(mode: 'race' | 'lap'): TimingColumnState[] {
+  const visible = new Set(mode === 'lap' ? MOBILE_LAP_VISIBLE : MOBILE_RACE_VISIBLE)
+  return defaultColumns(mode).map((c) => ({ id: c.id, visible: visible.has(c.id) }))
+}
+
+function loadMobileColumns(): TimingColumnState[] | null {
+  try {
+    const raw = localStorage.getItem(MOBILE_COLUMNS_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) && parsed.length > 0 ? (parsed as TimingColumnState[]) : null
+  } catch {
+    return null
+  }
+}
+
+const MOBILE_ORDER_KEY = 'f1replay.mobileOrder.v1'
+const MOBILE_DEFAULT_ORDER = [
+  'trackmap',
+  'timingTower',
+  'telemetry',
+  'commentary',
+  'raceControl',
+  'sessionBests',
+  'speedTrap',
+  'pitStops',
+  'teamRadio',
+  'championship',
+]
+
+function loadMobileOrder(scopeKey: string): string[] | null {
+  try {
+    const raw = localStorage.getItem(`${MOBILE_ORDER_KEY}.${scopeKey}`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as string[]) : null
+  } catch {
+    return null
+  }
+}
+
 function countdown(startUtc: string): string {
   const diff = new Date(startUtc).getTime() - Date.now()
   if (diff <= 0) return 'starting soon'
@@ -97,6 +148,268 @@ function EmptyPanel({ title }: { title: string }) {
       <div className="flex flex-1 items-center justify-center text-center text-sm text-zinc-500">
         No current session
       </div>
+    </div>
+  )
+}
+
+function fmtStat(value: number | null, suffix: string, digits = 0): string {
+  return value === null ? '-' : `${value.toFixed(digits)}${suffix}`
+}
+
+function MobileStat({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">{label}</span>
+      <span className="font-mono text-xs font-semibold text-white">{value}</span>
+    </span>
+  )
+}
+
+function MobileSessionHeader({
+  session,
+  running,
+  next,
+  weather,
+}: {
+  session: LiveSession | null
+  running: boolean
+  next: LiveState['next_session']
+  weather: LiveWeather | null
+}) {
+  const status = session ? trackStatusInfo(session.track_status.code ?? null) : null
+  const year = session?.started_at ? new Date(session.started_at).getFullYear() : null
+  const nextLabel = next
+    ? `${new Date(next.start_utc).getFullYear()} ${next.event_name} ${next.session_name} ${countdown(next.start_utc)}`
+    : null
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-surface p-3">
+      {session ? (
+        <>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">
+                {year !== null ? <span className="text-zinc-400">{year} </span> : null}
+                {session.event_name}
+              </p>
+              <p className="text-xs text-zinc-400">
+                {session.session_name}
+                {!running ? ' (ENDED)' : ''}
+              </p>
+            </div>
+            {status ? (
+              <span
+                className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-bold"
+                style={{ color: status.color, backgroundColor: status.background }}
+              >
+                <img src={status.flag} alt="" className="h-4 w-4" />
+                {status.label}
+              </span>
+            ) : null}
+          </div>
+          {weather ? (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {weather.rainfall ? (
+                <span className="inline-flex items-center gap-1 rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-blue-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                  Rain
+                </span>
+              ) : null}
+              <MobileStat label="Track" value={fmtStat(weather.track_temp, '°', 1)} />
+              <MobileStat label="Air" value={fmtStat(weather.air_temp, '°', 1)} />
+              <MobileStat label="Hum" value={fmtStat(weather.humidity, '%', 0)} />
+              <MobileStat label="Wind" value={fmtStat(weather.wind_speed, ' m/s', 1)} />
+            </div>
+          ) : null}
+          {!running && nextLabel ? <p className="mt-2 text-xs text-zinc-500">Next: {nextLabel}</p> : null}
+        </>
+      ) : (
+        <>
+          <p className="text-sm font-semibold text-white">No current session</p>
+          {nextLabel ? <p className="mt-1 text-xs text-zinc-500">Next: {nextLabel}</p> : null}
+        </>
+      )}
+    </div>
+  )
+}
+
+function MobileEditControls({
+  onUp,
+  onDown,
+  onHide,
+  canUp,
+  canDown,
+}: {
+  onUp: () => void
+  onDown: () => void
+  onHide: () => void
+  canUp: boolean
+  canDown: boolean
+}) {
+  return (
+    <div className="absolute right-2 top-2 z-30 flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900/95 p-0.5 shadow-lg">
+      <button
+        type="button"
+        onClick={onUp}
+        disabled={!canUp}
+        className="flex h-6 w-6 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30"
+        title="Move up"
+      >
+        <svg viewBox="0 0 10 10" className="h-3 w-3" fill="currentColor"><path d="M5 2l4 5H1z" /></svg>
+      </button>
+      <button
+        type="button"
+        onClick={onDown}
+        disabled={!canDown}
+        className="flex h-6 w-6 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30"
+        title="Move down"
+      >
+        <svg viewBox="0 0 10 10" className="h-3 w-3" fill="currentColor"><path d="M5 8L1 3h8z" /></svg>
+      </button>
+      <button
+        type="button"
+        onClick={onHide}
+        className="flex h-6 w-6 items-center justify-center rounded text-zinc-400 hover:bg-f1-red/20 hover:text-f1-red"
+        title="Hide panel"
+      >
+        <svg viewBox="0 0 8 8" className="h-2.5 w-2.5" stroke="currentColor" strokeWidth="1.5" fill="none">
+          <path d="M1 1l6 6M7 1l-6 6" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+// Mobile rendering of the live board: a single scrolling column instead of the
+// draggable grid. It still registers with the layout context (active, panel
+// defs, scope, layout accessors) so the burger menu works the same as desktop;
+// editing here means hide/show and reorder rather than drag/resize.
+function MobileLiveStack({
+  scopeKey,
+  category,
+  sessionDefault,
+  panelDefs,
+  panels,
+  header,
+  heightFor,
+}: {
+  scopeKey: string
+  category: LayoutCategory
+  sessionDefault: SessionDefault
+  panelDefs: PanelDef[]
+  panels: Record<string, ReactNode>
+  header: ReactNode
+  heightFor: (id: string) => { className?: string; style?: CSSProperties }
+}) {
+  const {
+    setActive, setEditMode, registerReset, registerPanelDefs, applyScope,
+    registerShowPanel, registerLayoutAccessors,
+    editMode, hiddenPanels, hidePanel, handleShowPanel,
+  } = useReplayLayout()
+
+  const { layout, setLayout, reset } = usePersistedLayout(`${LAYOUT_STORAGE_KEY}.${scopeKey}`, sessionDefault.layout)
+  const layoutRef = useRef(layout)
+  useEffect(() => { layoutRef.current = layout }, [layout])
+
+  // Keyed by scopeKey at the call site, so this remounts (and the initializer
+  // re-reads the saved order) when the live session category changes.
+  const [order, setOrderState] = useState<string[]>(() => loadMobileOrder(scopeKey) ?? MOBILE_DEFAULT_ORDER)
+  const setOrder = useCallback((next: string[]) => {
+    setOrderState(next)
+    try {
+      localStorage.setItem(`${MOBILE_ORDER_KEY}.${scopeKey}`, JSON.stringify(next))
+    } catch {
+      return
+    }
+  }, [scopeKey])
+
+  useEffect(() => {
+    applyScope(scopeKey, sessionDefault, category)
+  }, [scopeKey, sessionDefault, category, applyScope])
+
+  useEffect(() => {
+    setActive(true)
+    registerReset(() => { reset(); setOrder(MOBILE_DEFAULT_ORDER) })
+    registerShowPanel(null)
+    registerLayoutAccessors(() => layoutRef.current, (l) => setLayout(l))
+    return () => {
+      setActive(false)
+      setEditMode(false)
+      registerReset(null)
+      registerShowPanel(null)
+      registerLayoutAccessors(null, null)
+    }
+  }, [setActive, setEditMode, registerReset, registerShowPanel, registerLayoutAccessors, reset, setOrder, setLayout])
+
+  useEffect(() => {
+    registerPanelDefs(panelDefs)
+    return () => registerPanelDefs([])
+  }, [registerPanelDefs, panelDefs])
+
+  // The mobile order is independent of the desktop grid; panels present in the
+  // board but missing from a saved order (e.g. newly added) are appended.
+  const present = panelDefs.map((p) => p.id).filter((id) => panels[id] !== undefined)
+  const presentSet = new Set(present)
+  const fullOrder = [
+    ...order.filter((id) => presentSet.has(id)),
+    ...present.filter((id) => !order.includes(id)),
+  ]
+  const visibleOrder = fullOrder.filter((id) => !hiddenPanels.has(id))
+  const labelById = Object.fromEntries(panelDefs.map((p) => [p.id, p.label]))
+  const hiddenDefs = panelDefs.filter((p) => hiddenPanels.has(p.id) && panels[p.id] !== undefined)
+
+  function movePanel(id: string, dir: -1 | 1) {
+    const vi = visibleOrder.indexOf(id)
+    const target = vi + dir
+    if (target < 0 || target >= visibleOrder.length) return
+    const neighbor = visibleOrder[target]
+    const next = [...fullOrder]
+    const ia = next.indexOf(id)
+    const ib = next.indexOf(neighbor)
+    ;[next[ia], next[ib]] = [next[ib], next[ia]]
+    setOrder(next)
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-3 pb-8">
+      {header}
+      {visibleOrder.map((id, idx) => {
+        const { className, style } = heightFor(id)
+        return (
+          <div key={id} className={`relative ${className ?? ''}`} style={style}>
+            {editMode ? (
+              <MobileEditControls
+                onUp={() => movePanel(id, -1)}
+                onDown={() => movePanel(id, 1)}
+                onHide={() => hidePanel(id)}
+                canUp={idx > 0}
+                canDown={idx < visibleOrder.length - 1}
+              />
+            ) : null}
+            {panels[id]}
+          </div>
+        )
+      })}
+      {editMode && hiddenDefs.length > 0 ? (
+        <div className="rounded-2xl border border-dashed border-zinc-700 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Hidden panels</p>
+          <div className="flex flex-wrap gap-2">
+            {hiddenDefs.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleShowPanel(p.id)}
+                className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900/80 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-f1-red/50 hover:text-white"
+              >
+                <svg viewBox="0 0 8 8" className="h-2.5 w-2.5 shrink-0" stroke="currentColor" strokeWidth="1.5" fill="none">
+                  <path d="M4 1v6M1 4h6" />
+                </svg>
+                {labelById[p.id] ?? p.id}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -270,6 +583,17 @@ function LiveBoard({ data }: { data: LiveState }) {
     setSelected((prev) => (prev === id ? null : id))
   }, [])
   const { editMode, setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
+  const isMobile = useIsMobile()
+
+  const [mobileColumns, setMobileColumnsState] = useState<TimingColumnState[] | null>(loadMobileColumns)
+  const setMobileColumns = useCallback((next: TimingColumnState[]) => {
+    setMobileColumnsState(next)
+    try {
+      localStorage.setItem(MOBILE_COLUMNS_KEY, JSON.stringify(next))
+    } catch {
+      return
+    }
+  }, [])
 
   const isLive = data.source === 'live'
   const running = isLive && data.live
@@ -303,8 +627,16 @@ function LiveBoard({ data }: { data: LiveState }) {
     () => view.rows.some((r) => r.speed !== null || r.gear !== null || r.rpm !== null),
     [view.rows],
   )
+  const hasChampionship = useMemo(
+    () => !!view.championship && (view.championship.drivers.length > 0 || view.championship.teams.length > 0),
+    [view.championship],
+  )
   const trackMapLocked = isLive && !authenticated && !hasCarPositions
   const telemetryLocked = isLive && !authenticated && !hasCarData
+  // The projected standings are derived from the auth-gated timing feed. They
+  // only exist for race sessions, so for practice/qualifying the panel keeps its
+  // normal "race sessions only" message rather than a sign-in overlay.
+  const championshipLocked = isLive && !authenticated && !lapMode && !hasChampionship
 
   const next = data.next_session
   useEffect(() => {
@@ -397,8 +729,8 @@ function LiveBoard({ data }: { data: LiveState }) {
         selected={selected}
         onSelect={toggleSelected}
         mode={lapMode ? 'lap' : 'race'}
-        columns={timingColumns}
-        onColumnsChange={setTimingColumns}
+        columns={isMobile ? mobileColumns ?? mobileDefaultColumns(lapMode ? 'lap' : 'race') : timingColumns}
+        onColumnsChange={isMobile ? setMobileColumns : setTimingColumns}
         header={liveHeader}
       />
     ),
@@ -408,7 +740,40 @@ function LiveBoard({ data }: { data: LiveState }) {
     speedTrap: isLive ? <SpeedTrapFeed replay={replay} currentTime={LIVE_NOW} /> : <EmptyPanel title="Speed Trap" />,
     teamRadio: isLive ? <TeamRadioFeed replay={replay} currentTime={LIVE_NOW} live /> : <EmptyPanel title="Team Radio" />,
     commentary: isLive ? <CommentaryAudio commentary={view.commentary ?? null} currentTime={0} playing speed={1} live /> : <EmptyPanel title="Commentary" />,
-    championship: isLive ? <ChampionshipPrediction data={view.championship ?? null} /> : <EmptyPanel title="Standings" />,
+    championship: isLive ? (
+      <div className="relative h-full w-full">
+        <ChampionshipPrediction data={view.championship ?? null} />
+        {championshipLocked && <LiveAuthOverlay label="The projected standings" />}
+      </div>
+    ) : <EmptyPanel title="Standings" />,
+  }
+
+  if (isMobile) {
+    const towerHeight = Math.max(board.length * 30 + 100, 220)
+    const heightFor = (id: string): { className?: string; style?: CSSProperties } => {
+      switch (id) {
+        case 'trackmap': return { className: 'aspect-[4/3] w-full' }
+        case 'timingTower': return { style: { height: towerHeight } }
+        case 'telemetry': return { className: 'h-56' }
+        case 'commentary': return { className: 'h-24' }
+        case 'raceControl': return { className: 'h-72' }
+        case 'teamRadio': return { className: 'h-72' }
+        case 'championship': return { className: 'h-96' }
+        default: return { className: 'h-64' }
+      }
+    }
+    return (
+      <MobileLiveStack
+        key={scopeKey}
+        scopeKey={scopeKey}
+        category={category}
+        sessionDefault={sessionDefault}
+        panelDefs={LIVE_PANEL_DEFS}
+        panels={panels}
+        header={<MobileSessionHeader session={session} running={running} next={next} weather={view.weather} />}
+        heightFor={heightFor}
+      />
+    )
   }
 
   return (

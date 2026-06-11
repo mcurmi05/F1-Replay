@@ -119,3 +119,19 @@ def _await_login(server):
 def logout():
     _f1auth().clear_auth_token()
     return {"authenticated": False, "pending": False}
+
+
+def set_token(token):
+    token = (token or "").strip()
+    if not token:
+        raise ValueError("No token provided.")
+    claims = _decode_claims(token)
+    if claims is None:
+        raise ValueError("That does not look like a valid F1TV token.")
+    exp = claims.get("exp")
+    if exp is not None and exp < time.time():
+        raise ValueError("That token has already expired.")
+    f1auth = _f1auth()
+    f1auth.AUTH_DATA_FILE.write_text(token)
+    f1auth._subscription_token = token
+    return status()

@@ -50,6 +50,10 @@ class UpdateLayoutRequest(BaseModel):
     cols: int | None = None
 
 
+class SetTokenRequest(BaseModel):
+    token: str
+
+
 LAYOUT_CATEGORY_DIRS = {
     "practice": ("practice",),
     "qualifying": ("qualifying",),
@@ -168,6 +172,14 @@ def live_auth_login():
 @api.post("/live/auth/logout")
 def live_auth_logout():
     return liveauth.logout()
+
+
+@api.post("/live/auth/token")
+def live_auth_set_token(request: SetTokenRequest):
+    try:
+        return liveauth.set_token(request.token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @api.get("/schedule/{year}")

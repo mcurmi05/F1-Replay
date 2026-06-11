@@ -10,6 +10,8 @@ import skipBackwardIcon from '../assets/skip_backward.png'
 import skipForwardIcon from '../assets/skip_forward.png'
 import liveDataIcon from '../assets/livedata.png'
 import { api } from '../lib/api/client'
+import { useIsMobile } from './useIsMobile'
+import LiveSignOutMenuItem from '../components/live/LiveSignOutMenuItem'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 import { BASE_COLS, COLS, scaleLayout } from '../lib/layoutGrid'
 import { toggleRawStream } from '../lib/debugStream'
@@ -365,7 +367,7 @@ export function ReplayLayoutControls() {
 
   const [showLayouts, setShowLayouts] = useState(false)
   const [layoutsByCat, setLayoutsByCat] = useState<Record<LayoutCategory, SavedLayoutMeta[]>>(
-    () => Object.fromEntries(CATEGORY_ORDER.map((c) => [c, []])) as Record<LayoutCategory, SavedLayoutMeta[]>,
+    () => Object.fromEntries(CATEGORY_ORDER.map((c) => [c, [] as SavedLayoutMeta[]])) as Record<LayoutCategory, SavedLayoutMeta[]>,
   )
   const [layoutsLoading, setLayoutsLoading] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -374,6 +376,7 @@ export function ReplayLayoutControls() {
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [modalError, setModalError] = useState<string | null>(null)
 
+  const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -515,7 +518,7 @@ export function ReplayLayoutControls() {
       <span className="mx-1 h-5 w-px bg-zinc-800" />
       {editMode ? (
         <>
-          {hiddenDefs.map((p) => (
+          {!isMobile && hiddenDefs.map((p) => (
             <button
               key={p.id}
               type="button"
@@ -528,7 +531,7 @@ export function ReplayLayoutControls() {
               {p.label}
             </button>
           ))}
-          {category?.startsWith('live-') ? (
+          {!isMobile && category?.startsWith('live-') ? (
             <button
               type="button"
               onClick={() => toggleRawStream()}
@@ -579,6 +582,9 @@ export function ReplayLayoutControls() {
             >
               {editMode ? 'Done editing' : 'Edit UI'}
             </button>
+            {category?.startsWith('live-') ? (
+              <LiveSignOutMenuItem onDone={() => setMenuOpen(false)} />
+            ) : null}
           </div>
         ) : null}
       </div>
