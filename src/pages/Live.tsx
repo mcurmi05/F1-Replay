@@ -16,7 +16,7 @@ import LivePitStops from '../components/live/LivePitStops'
 import LiveTelemetry from '../components/live/LiveTelemetry'
 import ChampionshipPrediction from '../components/live/ChampionshipPrediction'
 import { useLive } from '../hooks/useApi'
-import { useIsMobile } from '../hooks/useIsMobile'
+import { useIsMobile, useMobileColumns } from '../hooks/useIsMobile'
 import { usePersistedLayout } from '../hooks/usePersistedLayout'
 import { useReplayLayout } from '../hooks/useReplayLayout'
 import type { PanelDef } from '../hooks/useReplayLayout'
@@ -292,6 +292,7 @@ function MobileLiveStack({
   panels,
   header,
   heightFor,
+  columns,
 }: {
   scopeKey: string
   category: LayoutCategory
@@ -300,6 +301,7 @@ function MobileLiveStack({
   panels: Record<string, ReactNode>
   header: ReactNode
   heightFor: (id: string) => { className?: string; style?: CSSProperties }
+  columns: number
 }) {
   const {
     setActive, setEditMode, registerReset, registerPanelDefs, applyScope,
@@ -370,26 +372,39 @@ function MobileLiveStack({
     setOrder(next)
   }
 
+  // In landscape the board splits into columns. A CSS multi-column (masonry)
+  // flow is used rather than a grid so panels of differing heights pack tightly
+  // with no row gaps; a single column keeps the original centred flex stack.
+  const multi = columns > 1
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-3 pb-8">
-      {header}
-      {visibleOrder.map((id, idx) => {
-        const { className, style } = heightFor(id)
-        return (
-          <div key={id} className={`relative ${className ?? ''}`} style={style}>
-            {editMode ? (
-              <MobileEditControls
-                onUp={() => movePanel(id, -1)}
-                onDown={() => movePanel(id, 1)}
-                onHide={() => hidePanel(id)}
-                canUp={idx > 0}
-                canDown={idx < visibleOrder.length - 1}
-              />
-            ) : null}
-            {panels[id]}
-          </div>
-        )
-      })}
+    <div className={multi ? 'w-full pb-8' : 'mx-auto w-full max-w-xl pb-8'}>
+      <div className="mb-3">{header}</div>
+      <div
+        className={multi ? '' : 'flex flex-col gap-3'}
+        style={multi ? { columnCount: columns, columnGap: 12 } : undefined}
+      >
+        {visibleOrder.map((id, idx) => {
+          const { className, style } = heightFor(id)
+          return (
+            <div
+              key={id}
+              className={`relative ${multi ? 'mb-3 break-inside-avoid' : ''} ${className ?? ''}`}
+              style={multi ? { ...style, breakInside: 'avoid' } : style}
+            >
+              {editMode ? (
+                <MobileEditControls
+                  onUp={() => movePanel(id, -1)}
+                  onDown={() => movePanel(id, 1)}
+                  onHide={() => hidePanel(id)}
+                  canUp={idx > 0}
+                  canDown={idx < visibleOrder.length - 1}
+                />
+              ) : null}
+              {panels[id]}
+            </div>
+          )
+        })}
+      </div>
       {editMode && hiddenDefs.length > 0 ? (
         <div className="rounded-2xl border border-dashed border-zinc-700 p-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Hidden panels</p>
@@ -584,6 +599,7 @@ function LiveBoard({ data }: { data: LiveState }) {
   }, [])
   const { editMode, setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
   const isMobile = useIsMobile()
+  const mobileColumnCount = useMobileColumns()
 
   const [mobileColumns, setMobileColumnsState] = useState<TimingColumnState[] | null>(loadMobileColumns)
   const setMobileColumns = useCallback((next: TimingColumnState[]) => {
@@ -772,6 +788,7 @@ function LiveBoard({ data }: { data: LiveState }) {
         panels={panels}
         header={<MobileSessionHeader session={session} running={running} next={next} weather={view.weather} />}
         heightFor={heightFor}
+        columns={mobileColumnCount}
       />
     )
   }
