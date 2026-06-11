@@ -40,10 +40,12 @@ export default function Layout() {
                 <img src={homeIcon} alt="Home" className="h-6 w-6" />
               </NavLink>
             ) : null}
-            <div className="hidden min-w-0 items-center md:flex">
-              <ReplayTitleBadge />
-              {!landscapeMobile ? <ReplayStatusBar /> : null}
-            </div>
+            {!landscapeMobile ? (
+              <div className="hidden min-w-0 items-center md:flex">
+                <ReplayTitleBadge />
+                <ReplayStatusBar />
+              </div>
+            ) : null}
           </div>
           <nav className="flex shrink-0 items-center gap-1">
             {navItems.map((item) => (
