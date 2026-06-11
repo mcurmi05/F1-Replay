@@ -68,9 +68,9 @@ export default function ReplayViewer({
   const { data: schedule } = useSchedule(year)
 
   useEffect(() => {
-    setTitleInfo({ year, eventName: summary.event_name, sessionName: summary.session_name, location: summary.location })
+    setTitleInfo({ year, eventName: summary.event_name, sessionName: summary.session_name })
     return () => setTitleInfo(null)
-  }, [year, summary.event_name, summary.session_name, summary.location, setTitleInfo])
+  }, [year, summary.event_name, summary.session_name, setTitleInfo])
 
   useEffect(() => {
     if (!schedule) return

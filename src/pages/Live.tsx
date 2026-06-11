@@ -11,7 +11,7 @@ import TeamRadioFeed from '../components/replay/TeamRadioFeed'
 import TimingTower from '../components/replay/TimingTower'
 import type { TimingTowerRow } from '../components/replay/TimingTower'
 import TrackMap from '../components/replay/TrackMap'
-import LiveAuthGate from '../components/live/LiveAuthGate'
+import LiveAuthOverlay from '../components/live/LiveAuthOverlay'
 import LivePitStops from '../components/live/LivePitStops'
 import LiveTelemetry from '../components/live/LiveTelemetry'
 import ChampionshipPrediction from '../components/live/ChampionshipPrediction'
@@ -290,23 +290,41 @@ function LiveBoard({ data }: { data: LiveState }) {
   )
   const weatherSample = useMemo(() => liveWeatherToSample(view.weather), [view.weather])
 
+  // Car positions (Position.z) and telemetry (CarData.z) are the only live
+  // topics F1 gates behind an F1TV login. When signed out and that data is
+  // absent, overlay those panels with a sign-in prompt; everything else streams
+  // freely. Once signed in, the feed reconnects with auth and the overlays drop.
+  const authenticated = data.authenticated ?? false
+  const hasCarPositions = useMemo(
+    () => view.rows.some((r) => r.x !== null && r.y !== null),
+    [view.rows],
+  )
+  const hasCarData = useMemo(
+    () => view.rows.some((r) => r.speed !== null || r.gear !== null || r.rpm !== null),
+    [view.rows],
+  )
+  const trackMapLocked = isLive && !authenticated && !hasCarPositions
+  const telemetryLocked = isLive && !authenticated && !hasCarData
+
   const next = data.next_session
   useEffect(() => {
     if (isLive && session) {
       const endedTag = !running ? ' (ENDED)' : ''
-      const upNext = !running && next ? ` · Next: ${next.session_name} ${countdown(next.start_utc)}` : ''
+      const upNext = !running && next
+        ? ` · Next: ${new Date(next.start_utc).getFullYear()} ${next.event_name} ${next.session_name} ${countdown(next.start_utc)}`
+        : ''
       setTitleInfo({
         year: session.started_at ? new Date(session.started_at).getFullYear() : null,
         eventName: session.event_name,
         sessionName: `${session.session_name ?? ''}${endedTag}${upNext}`,
-        location: session.location,
       })
     } else {
       setTitleInfo({
         year: null,
         eventName: 'No current session',
-        sessionName: next ? `Next: ${next.event_name} · ${next.session_name}` : null,
-        location: next ? countdown(next.start_utc) : null,
+        sessionName: next
+          ? `Next: ${new Date(next.start_utc).getFullYear()} ${next.event_name} ${next.session_name} ${countdown(next.start_utc)}`
+          : null,
       })
     }
     setSessionNav(null)
@@ -364,9 +382,15 @@ function LiveBoard({ data }: { data: LiveState }) {
             </div>
           )}
         </div>
+        {trackMapLocked && <LiveAuthOverlay label="The live track map" />}
       </div>
     ),
-    telemetry: <LiveTelemetry row={selectedRow} />,
+    telemetry: (
+      <div className="relative h-full w-full">
+        <LiveTelemetry row={selectedRow} />
+        {telemetryLocked && <LiveAuthOverlay label="Live telemetry" />}
+      </div>
+    ),
     timingTower: (
       <TimingTower
         rows={board}
@@ -417,8 +441,6 @@ export default function Live() {
     )
   } else if (!data) {
     content = null
-  } else if (data.auth_required) {
-    content = <LiveAuthGate next={data.next_session} />
   } else {
     content = <LiveBoard data={data} />
   }

@@ -128,7 +128,7 @@ export default function ChampionshipPrediction({ data }: { data: ChampionshipPre
       </div>
       <div ref={listRef} className="scrollbar scrollbar-thumb-zinc-700 scrollbar-track-transparent mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
         {!hasData ? (
-          <p className="text-xs text-zinc-500">No projection (race sessions only)</p>
+          <p className="text-xs text-zinc-500">No projection (live race sessions only)</p>
         ) : view === 'drivers' ? (
           data.drivers.map((d) => (
             <Row

@@ -205,14 +205,29 @@ class LiveManager:
         self._lock = threading.Lock()
         self._feed = LiveFeed()
         self._thread = None
-        self._no_auth = os.environ.get("F1_LIVE_NO_AUTH", "").lower() in {"1", "true", "yes"}
+        self._client = None
+        # Mode the running client was started in, so we can restart it when the
+        # user signs in or out mid-session.
+        self._client_no_auth = None
+        self._force_no_auth = os.environ.get("F1_LIVE_NO_AUTH", "").lower() in {"1", "true", "yes"}
 
-    def _start_client(self):
+    def _desired_no_auth(self):
+        # The F1 SignalR feed serves most topics without authentication; only
+        # the car position and telemetry streams require an F1TV login. So we
+        # connect without auth whenever the user is not signed in and surface
+        # whatever partial data the feed provides, rather than blocking.
+        return self._force_no_auth or not liveauth.is_authenticated()
+
+    def _start_client(self, no_auth):
         from fastf1.livetiming.client import SignalRClient
         from signalrcore.messages.completion_message import CompletionMessage
+        from signalrcore.hub_connection_builder import HubConnectionBuilder
+        from fastf1.internals.f1auth import get_auth_token
+        import logging as _logging
+
+        import requests
 
         feed = self._feed
-        no_auth = self._no_auth
 
         class _InMemoryClient(SignalRClient):
             def __init__(self):
@@ -228,6 +243,51 @@ class LiveManager:
                 for extra in ("PitLaneTimeCollection", "ChampionshipPrediction"):
                     if extra not in self.topics:
                         self.topics = list(self.topics) + [extra]
+                self._stopped = False
+
+            def _run(self):
+                # Reimplements SignalRClient._run so the no_auth path omits the
+                # access_token_factory entirely. fastf1 passes it as None, but
+                # signalrcore raises when the key is present and not callable,
+                # so an unauthenticated connection never gets off the ground.
+                self._output_file = open(self.filename, self.filemode)
+                r = requests.options(self._negotiate_url, headers=self.headers)
+                self.headers.update({"Cookie": f"AWSALBCORS={r.cookies['AWSALBCORS']}"})
+                options = {"verify_ssl": True, "headers": self.headers}
+                if not self._no_auth:
+                    options["access_token_factory"] = get_auth_token
+                self._connection = (
+                    HubConnectionBuilder()
+                    .with_url(self._connection_url, options=options)
+                    .configure_logging(_logging.WARNING)
+                    .build()
+                )
+                self._connection.on_open(self._on_connect)
+                self._connection.on_close(self._on_close)
+                self._connection.on("feed", self._on_message)
+                self._connection.start()
+                while not self._is_connected:
+                    time.sleep(0.1)
+                self._connection.send("Subscribe", [self.topics], on_invocation=self._on_message)
+
+            def _supervise(self):
+                self._t_last_message = time.time()
+                while not self._stopped:
+                    if self.timeout != 0 and time.time() - self._t_last_message > self.timeout:
+                        self.logger.warning("Live timing timeout - no data received")
+                        break
+                    time.sleep(1)
+                try:
+                    self._exit()
+                except Exception:
+                    pass
+
+            def stop(self):
+                self._stopped = True
+                try:
+                    self._connection.stop()
+                except Exception:
+                    pass
 
             def _on_message(self, msg):
                 self._t_last_message = time.time()
@@ -240,27 +300,41 @@ class LiveManager:
                 except Exception:
                     self.logger.exception("Error handling live message")
 
+        client = _InMemoryClient()
+
         def run():
             try:
-                _InMemoryClient().start()
+                client.start()
             except Exception:
                 logger.exception("Live timing client stopped with an error")
 
+        self._client = client
         thread = threading.Thread(target=run, name="f1-live", daemon=True)
         thread.start()
         return thread
 
-    def _ensure_client(self):
-        if self._thread is None or not self._thread.is_alive():
-            self._thread = self._start_client()
+    def _ensure_client(self, no_auth):
+        if self._thread is not None and self._thread.is_alive():
+            if self._client_no_auth == no_auth:
+                return
+            # Auth mode changed (e.g. the user just signed in); stop the old
+            # client so a new one reconnects with the right credentials. The
+            # incoming client's Subscribe snapshot overwrites the feed.
+            try:
+                if self._client is not None:
+                    self._client.stop()
+            except Exception:
+                pass
+            self._thread = None
+        self._client_no_auth = no_auth
+        self._thread = self._start_client(no_auth)
 
     def state(self):
         with self._lock:
             if not f1data.cache_valid():
                 return _no_session_snapshot()
-            if not self._no_auth and not liveauth.is_authenticated():
-                return _auth_required_snapshot()
-            self._ensure_client()
+            authenticated = liveauth.is_authenticated()
+            self._ensure_client(self._desired_no_auth())
             topics, retired = self._feed.snapshot()
         info = topics.get("SessionInfo")
         timing = topics.get("TimingData")
@@ -268,16 +342,14 @@ class LiveManager:
             isinstance(timing, dict) and bool(timing.get("Lines"))
         )
         if has_session:
-            return _live_snapshot(topics, retired)
-        return _no_session_snapshot()
+            return _live_snapshot(topics, retired, authenticated=authenticated)
+        return _no_session_snapshot(authenticated=authenticated)
 
     def raw_topics(self):
         with self._lock:
             if not f1data.cache_valid():
                 return {"available": False, "source": "none", "topics": {}}
-            if not self._no_auth and not liveauth.is_authenticated():
-                return {"available": False, "source": "none", "topics": {}}
-            self._ensure_client()
+            self._ensure_client(self._desired_no_auth())
             topics, _ = self._feed.snapshot()
         info = topics.get("SessionInfo")
         key = (info.get("Key") or info.get("Name")) if isinstance(info, dict) else None
@@ -783,7 +855,7 @@ def _car_data_live(topics):
     return result
 
 
-def _live_snapshot(topics, retired_set=None):
+def _live_snapshot(topics, retired_set=None, authenticated=False):
     retired_set = retired_set or set()
     session = _session_info_meta(topics) or {
         "event_name": None, "location": None, "country": None,
@@ -892,6 +964,7 @@ def _live_snapshot(topics, retired_set=None):
     return {
         "available": True,
         "live": live,
+        "authenticated": authenticated,
         "source": "live",
         "session": {
             "event_name": session["event_name"],
@@ -924,31 +997,11 @@ def _live_snapshot(topics, retired_set=None):
     }
 
 
-def _auth_required_snapshot():
+def _no_session_snapshot(authenticated=False):
     return {
         "available": False,
         "live": False,
-        "auth_required": True,
-        "source": "live",
-        "session": None,
-        "weather": None,
-        "rows": [],
-        "race_control_messages": [],
-        "team_radio": [],
-        "pit_times": [],
-        "timing_stats": {},
-        "commentary": None,
-        "championship": None,
-        "track": {"x": [], "y": []},
-        "next_session": _next_upcoming(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-def _no_session_snapshot():
-    return {
-        "available": False,
-        "live": False,
+        "authenticated": authenticated,
         "source": "none",
         "session": None,
         "weather": None,

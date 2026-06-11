@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
@@ -27,7 +27,6 @@ interface TitleInfo {
   year: number | null
   eventName: string | null
   sessionName: string | null
-  location: string | null
 }
 
 interface StatusInfo {
@@ -256,12 +255,6 @@ export function ReplayTitleBadge() {
           <span className="font-semibold text-zinc-400">{titleInfo.year}</span>
         ) : null}
         <span className="font-semibold text-white">{titleInfo.eventName}</span>
-        {titleInfo.location ? (
-          <>
-            <span className="text-zinc-600">·</span>
-            <span className="text-zinc-500">{titleInfo.location}</span>
-          </>
-        ) : null}
         {titleInfo.sessionName ? (
           <>
             <span className="text-zinc-600">·</span>
@@ -380,6 +373,17 @@ export function ReplayLayoutControls() {
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [modalError, setModalError] = useState<string | null>(null)
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    function onPointerDown(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [menuOpen])
 
   if (!active) return null
 
@@ -509,20 +513,6 @@ export function ReplayLayoutControls() {
   return (
     <>
       <span className="mx-1 h-5 w-px bg-zinc-800" />
-      <button
-        type="button"
-        onClick={openLayoutsModal}
-        className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-white"
-      >
-        Layouts
-      </button>
-      <button
-        type="button"
-        onClick={openSaveModal}
-        className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-white"
-      >
-        Save layout
-      </button>
       {editMode ? (
         <>
           {hiddenDefs.map((p) => (
@@ -550,15 +540,48 @@ export function ReplayLayoutControls() {
           ) : null}
         </>
       ) : null}
-      <button
-        type="button"
-        onClick={toggleEditMode}
-        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-800/50 ${
-          editMode ? 'text-f1-red hover:text-red-400' : 'text-zinc-400 hover:text-white'
-        }`}
-      >
-        {editMode ? 'Done' : 'Edit UI'}
-      </button>
+      <div className="relative" ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-label="Layout menu"
+          aria-expanded={menuOpen}
+          className={`inline-flex items-center rounded-md px-2 py-1.5 transition-colors hover:bg-zinc-800/50 ${
+            menuOpen || editMode ? 'text-white' : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <svg viewBox="0 0 16 16" className="h-5 w-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none">
+            <path d="M2 4h12M2 8h12M2 12h12" />
+          </svg>
+        </button>
+        {menuOpen ? (
+          <div className="absolute right-0 top-full z-40 mt-1.5 w-48 rounded-lg border border-zinc-800 bg-surface p-1.5 shadow-xl shadow-black/40">
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); openLayoutsModal() }}
+              className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+            >
+              Layouts
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); openSaveModal() }}
+              className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+            >
+              Save layout
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); toggleEditMode() }}
+              className={`block w-full rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-zinc-800 ${
+                editMode ? 'text-f1-red hover:text-red-400' : 'text-zinc-300 hover:text-white'
+              }`}
+            >
+              {editMode ? 'Done editing' : 'Edit UI'}
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       {showSave ? createPortal(
         <div

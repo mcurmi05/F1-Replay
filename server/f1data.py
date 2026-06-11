@@ -416,6 +416,38 @@ def _grid_values(grid, times, values, ndigits=0):
     return out
 
 
+def _grid_positions(grid, times, xs, ys, max_hole=5.0):
+    # Position feeds park cars at (0, 0) before they start, during dropouts,
+    # and after they retire. Interpolating across those points draws a smooth
+    # line to the origin, so drop them and blank (None) any grid point that
+    # lands in a hole wider than max_hole between real samples. A None x/y is
+    # the frontend's signal to hide the car rather than connect across it.
+    valid = ~(np.isnan(xs) | np.isnan(ys)) & ~((xs == 0) & (ys == 0))
+    if valid.sum() < 2:
+        empty = [None] * len(grid)
+        return list(empty), list(empty)
+    t = times[valid]
+    vx = xs[valid]
+    vy = ys[valid]
+    order = np.argsort(t)
+    t, vx, vy = t[order], vx[order], vy[order]
+    ix = np.interp(grid, t, vx, left=np.nan, right=np.nan)
+    iy = np.interp(grid, t, vy, left=np.nan, right=np.nan)
+    idx = np.searchsorted(t, grid, side="right") - 1
+    last = len(t) - 1
+    out_x = []
+    out_y = []
+    for gi, gx, gy in zip(idx, ix, iy):
+        in_hole = 0 <= gi < last and (t[gi + 1] - t[gi]) > max_hole
+        if in_hole or np.isnan(gx) or np.isnan(gy):
+            out_x.append(None)
+            out_y.append(None)
+        else:
+            out_x.append(int(round(gx)))
+            out_y.append(int(round(gy)))
+    return out_x, out_y
+
+
 def _parse_gap(value):
     if not isinstance(value, str):
         return float("nan")
@@ -905,6 +937,54 @@ def _replay_time_bounds(session):
     return lo, hi
 
 
+_TRACK_FALLBACK_SESSIONS = ("Q", "SQ", "FP3", "FP2", "FP1", "S")
+
+
+def _fastest_lap_xy(session):
+    # Returns (fastest_lap, lap_tel) with usable X/Y telemetry, or (None, None).
+    try:
+        fastest_lap = session.laps.pick_fastest()
+    except Exception:
+        return None, None
+    if fastest_lap is None:
+        return None, None
+    try:
+        lap_tel = fastest_lap.get_telemetry()
+    except Exception:
+        return None, None
+    if "X" not in lap_tel or "Y" not in lap_tel or len(lap_tel) == 0:
+        return None, None
+    return fastest_lap, lap_tel
+
+
+def _track_reference(session):
+    # Returns (fastest_lap, lap_tel, info_session) describing a clean track
+    # outline. Prefer the session itself; if its fastest-lap telemetry is
+    # broken (incomplete sessions can drop the Date column the merge needs),
+    # fall back to other sessions from the same event weekend (qualifying
+    # first). The X/Y coordinate frame is shared across the weekend, so the
+    # outline still lines up with this session's car positions.
+    fastest_lap, lap_tel = _fastest_lap_xy(session)
+    if lap_tel is not None:
+        return fastest_lap, lap_tel, session
+
+    year = getattr(session.event, "year", None)
+    rnd = session.event.get("RoundNumber")
+    if year is None or rnd is None:
+        return None, None, None
+    for name in _TRACK_FALLBACK_SESSIONS:
+        if name == session.name:
+            continue
+        try:
+            other = load_session(year, rnd, name)
+        except Exception:
+            continue
+        fastest_lap, lap_tel = _fastest_lap_xy(other)
+        if lap_tel is not None:
+            return fastest_lap, lap_tel, other
+    return None, None, None
+
+
 def build_replay(session, step=0.5):
     results_by_number = {
         str(row.get("DriverNumber")): row for _, row in session.results.iterrows()
@@ -923,14 +1003,20 @@ def build_replay(session, step=0.5):
         ends.append(times[-1])
 
     has_position = bool(samples)
+    # Bound the replay by every data source, not just position. Position feeds
+    # can stop early (incomplete sessions, retirements) while timing, laps,
+    # weather and race control keep going; extend the grid so the rest of the
+    # race still plays out even where there are no car positions.
+    data_bounds = _replay_time_bounds(session)
     if has_position:
         start = float(min(starts))
         end = float(max(ends))
+        if data_bounds is not None:
+            end = max(end, data_bounds[1])
     else:
-        time_bounds = _replay_time_bounds(session)
-        if time_bounds is None:
+        if data_bounds is None:
             return _empty_replay(step)
-        start, end = time_bounds
+        start, end = data_bounds
     grid = np.arange(start, end, step)
     if grid.size == 0:
         return _empty_replay(step)
@@ -951,10 +1037,8 @@ def build_replay(session, step=0.5):
         sample = samples.get(number)
         if sample is not None:
             times, pos = sample
-            entry = {
-                "x": _grid_values(grid, times, pos["X"].to_numpy()),
-                "y": _grid_values(grid, times, pos["Y"].to_numpy()),
-            }
+            px, py = _grid_positions(grid, times, pos["X"].to_numpy(), pos["Y"].to_numpy())
+            entry = {"x": px, "y": py}
         else:
             entry = {"x": [], "y": []}
         car = session.car_data.get(number)
@@ -1005,11 +1089,24 @@ def build_replay(session, step=0.5):
         positions[number] = {"x": [], "y": []}
 
     if has_position:
-        fastest_lap = session.laps.pick_fastest()
-        lap_tel = fastest_lap.get_telemetry()
+        fastest_lap, lap_tel, info_session = _track_reference(session)
+
+        if lap_tel is None:
+            # No session in the weekend has usable fastest-lap telemetry; fall
+            # back to the raw position data we already collected so the track
+            # outline still renders.
+            longest = max(samples.values(), key=lambda s: len(s[1]))
+            lap_tel = longest[1]
+
         tx = lap_tel["X"].to_numpy()
         ty = lap_tel["Y"].to_numpy()
         mask = ~(np.isnan(tx) | np.isnan(ty))
+        # Raw position data marks off-track/garage samples with Status and
+        # parks them at (0, 0); drop those so the outline doesn't draw a line
+        # back to the origin.
+        if "Status" in lap_tel:
+            mask &= lap_tel["Status"].to_numpy() == "OnTrack"
+        mask &= ~((tx == 0) & (ty == 0))
         track = {
             "x": [int(round(v)) for v in tx[mask]],
             "y": [int(round(v)) for v in ty[mask]],
@@ -1017,7 +1114,7 @@ def build_replay(session, step=0.5):
 
         sector_markers = []
         try:
-            if "SessionTime" in lap_tel:
+            if fastest_lap is not None and "SessionTime" in lap_tel:
                 sess_arr = lap_tel["SessionTime"].dt.total_seconds().to_numpy()
                 for col in ("Sector1SessionTime", "Sector2SessionTime"):
                     st = fastest_lap.get(col)
@@ -1032,7 +1129,12 @@ def build_replay(session, step=0.5):
         track["sector_markers"] = sector_markers
 
         corners = []
-        info = session.get_circuit_info()
+        info = None
+        if info_session is not None:
+            try:
+                info = info_session.get_circuit_info()
+            except Exception:
+                info = None
         if info is not None:
             for _, corner in info.corners.iterrows():
                 corners.append({

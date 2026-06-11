@@ -180,7 +180,7 @@ export interface ChampionshipPrediction {
 export interface LiveState {
   available: boolean
   live: boolean
-  auth_required?: boolean
+  authenticated?: boolean
   source: 'live' | 'historical' | 'none'
   session: LiveSession | null
   weather: LiveWeather | null

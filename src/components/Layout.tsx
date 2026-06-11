@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import homeIcon from '../assets/home.png'
 import CacheSettings from './CacheSettings'
+import LiveSignInButton from './live/LiveSignInButton'
 import { ReplayLayoutControls, ReplayLayoutProvider, ReplayStatusBar, ReplayTitleBadge } from '../hooks/useReplayLayout'
 
 const navItems: { to: string; label: string; live?: boolean }[] = [
@@ -62,6 +63,7 @@ export default function Layout() {
               </NavLink>
             ))}
             <ReplayLayoutControls />
+            {pathname === '/live' ? <LiveSignInButton /> : null}
             {pathname === '/home' ? (
               <>
                 <span className="mx-1 h-5 w-px bg-zinc-800" />
