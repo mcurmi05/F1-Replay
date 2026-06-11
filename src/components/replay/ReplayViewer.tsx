@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 import StatusCard from '../StatusCard'
 import CommentaryAudio from './CommentaryAudio'
+import MobileStack from './MobileStack'
 import PanelGrid from './PanelGrid'
 import PitStopFeed from './PitStopFeed'
 import PlaybackControls from './PlaybackControls'
@@ -15,10 +16,13 @@ import TelemetryPanel from './TelemetryPanel'
 import TimingTower from './TimingTower'
 import TrackMap from './TrackMap'
 import { useReplay, useSchedule } from '../../hooks/useApi'
+import { useIsMobile, useMobileColumns } from '../../hooks/useIsMobile'
 import { usePlayback } from '../../hooks/usePlayback'
 import { useReplayLayout } from '../../hooks/useReplayLayout'
 import type { PanelDef } from '../../hooks/useReplayLayout'
 import { defaultsFor, sessionCategory } from '../../lib/defaultLayouts'
+import { mobileDefaultColumns, loadMobileColumns, MOBILE_COLUMNS_KEY } from '../../lib/mobileColumns'
+import type { TimingColumnState } from '../../lib/timingColumns'
 import {
   currentLapNumber,
   currentRaceControlFlag,
@@ -45,6 +49,21 @@ const PANEL_DEFS: PanelDef[] = [
   { id: 'playback',    label: 'Playback' },
 ]
 
+// Default top-to-bottom order for the stacked mobile board; playback sits near
+// the top so the scrubber is reachable without scrolling.
+const MOBILE_DEFAULT_ORDER = [
+  'trackmap',
+  'timingTower',
+  'playback',
+  'telemetry',
+  'commentary',
+  'raceControl',
+  'sessionBests',
+  'speedTrap',
+  'pitStops',
+  'teamRadio',
+]
+
 export default function ReplayViewer({
   year,
   event,
@@ -66,6 +85,17 @@ export default function ReplayViewer({
   const sessionDefault = useMemo(() => defaultsFor(session), [session])
   const { editMode, setTitleInfo, setStatusInfo, setSessionNav, timingColumns, setTimingColumns } = useReplayLayout()
   const { data: schedule } = useSchedule(year)
+  const isMobile = useIsMobile()
+  const mobileColumnCount = useMobileColumns()
+  const [mobileColumns, setMobileColumnsState] = useState<TimingColumnState[] | null>(loadMobileColumns)
+  const setMobileColumns = useCallback((next: TimingColumnState[]) => {
+    setMobileColumnsState(next)
+    try {
+      localStorage.setItem(MOBILE_COLUMNS_KEY, JSON.stringify(next))
+    } catch {
+      return
+    }
+  }, [])
 
   useEffect(() => {
     setTitleInfo({ year, eventName: summary.event_name, sessionName: summary.session_name })
@@ -179,8 +209,8 @@ export default function ReplayViewer({
         selected={selected}
         onSelect={toggleSelected}
         mode={lapMode ? 'lap' : 'race'}
-        columns={timingColumns}
-        onColumnsChange={setTimingColumns}
+        columns={isMobile ? mobileColumns ?? mobileDefaultColumns(lapMode ? 'lap' : 'race') : timingColumns}
+        onColumnsChange={isMobile ? setMobileColumns : setTimingColumns}
         header={<ReplayClock relative={clockRelative} lap={lap} totalLaps={data.total_laps} label={segmentLabel} hideHours={isQualifying} />}
       />
     ),
@@ -196,6 +226,35 @@ export default function ReplayViewer({
       />
     ),
     playback: <PlaybackControls playback={playback} duration={data.duration} raceStart={data.race_start} markers={markers} />,
+  }
+
+  if (isMobile) {
+    const towerHeight = Math.max(board.length * 30 + 100, 220)
+    const heightFor = (id: string): { className?: string; style?: CSSProperties } => {
+      switch (id) {
+        case 'trackmap': return { className: 'aspect-[4/3] w-full' }
+        case 'timingTower': return { style: { height: towerHeight } }
+        case 'playback': return { className: 'h-28' }
+        case 'telemetry': return { className: 'h-80' }
+        case 'commentary': return { className: 'h-24' }
+        case 'raceControl': return { className: 'h-72' }
+        case 'teamRadio': return { className: 'h-72' }
+        default: return { className: 'h-64' }
+      }
+    }
+    return (
+      <MobileStack
+        key={session}
+        scopeKey={session}
+        category={sessionCategory(session)}
+        sessionDefault={sessionDefault}
+        panelDefs={PANEL_DEFS}
+        panels={panels}
+        heightFor={heightFor}
+        columns={mobileColumnCount}
+        defaultOrder={MOBILE_DEFAULT_ORDER}
+      />
+    )
   }
 
   return (
