@@ -68,6 +68,7 @@ export function useF1Login() {
   return {
     authenticated: status?.authenticated ?? false,
     pending: status?.pending ?? false,
+    expiresAt: status?.expires_at ?? null,
     loginUrl,
     working,
     error,
