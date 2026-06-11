@@ -5,7 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,6 +27,20 @@ app.add_middleware(
 )
 
 api = APIRouter(prefix="/api")
+
+# When ADMIN_TOKEN is set (hosted deployments) the endpoints that change the
+# server's F1TV credentials require a matching X-Admin-Token header, so a public
+# visitor cannot sign the shared session out or overwrite its token. When it is
+# unset (desktop and dev) those endpoints stay open and the normal sign-in flow
+# works unchanged.
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "").strip()
+
+
+def require_admin(x_admin_token: str | None = Header(default=None)):
+    if not ADMIN_TOKEN:
+        return
+    if x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Admin access required")
 
 
 class CacheRequest(BaseModel):
@@ -164,17 +178,17 @@ def live_auth_status():
     return liveauth.status()
 
 
-@api.post("/live/auth/login")
+@api.post("/live/auth/login", dependencies=[Depends(require_admin)])
 def live_auth_login():
     return liveauth.start_login()
 
 
-@api.post("/live/auth/logout")
+@api.post("/live/auth/logout", dependencies=[Depends(require_admin)])
 def live_auth_logout():
     return liveauth.logout()
 
 
-@api.post("/live/auth/token")
+@api.post("/live/auth/token", dependencies=[Depends(require_admin)])
 def live_auth_set_token(request: SetTokenRequest):
     try:
         return liveauth.set_token(request.token)

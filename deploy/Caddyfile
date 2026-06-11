@@ -1,0 +1,8 @@
+# Replace f1.example.com with the live subdomain.
+# Caddy obtains and renews a TLS certificate automatically over ports 80 and 443.
+# The DNS record for this name must point straight at the server (Cloudflare
+# proxy disabled / grey cloud) so the certificate challenge reaches Caddy.
+f1.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8000
+}

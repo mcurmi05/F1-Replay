@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import CacheGate from './components/CacheGate'
 import Layout from './components/Layout'
+import Admin from './pages/Admin'
 import Home from './pages/Home'
 import Live from './pages/Live'
 import Replay from './pages/Replay'
@@ -9,6 +10,7 @@ function App() {
   return (
     <CacheGate>
       <Routes>
+        <Route path="admin" element={<Admin />} />
         <Route element={<Layout />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />

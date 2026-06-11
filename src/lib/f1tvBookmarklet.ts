@@ -1,0 +1,7 @@
+// Bookmarklet the operator runs while logged in at f1tv.com. It pulls the F1TV
+// subscriptionToken out of the login-session cookie (falling back to a JWT in
+// web storage that carries the subscription claims) and copies it to the
+// clipboard, so it can be pasted into the /admin console. Backslashes are
+// doubled because this lives in a JS string; the copied text contains single
+// backslashes.
+export const BOOKMARKLET = `javascript:(function(){function d(j){try{var p=j.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');while(p.length%4)p+='=';return JSON.parse(atob(p))}catch(e){return null}}var t=null,m=document.cookie.match(/(?:^|;\\s*)login-session=([^;]+)/);if(m){try{var c=JSON.parse(decodeURIComponent(m[1]));t=c&&c.data&&c.data.subscriptionToken}catch(e){}}if(!t){var S=[localStorage,sessionStorage];for(var i=0;i<S.length&&!t;i++){for(var k=0;k<S[i].length;k++){var v=S[i].getItem(S[i].key(k))||'';var mm=v.match(/eyJ[\\w-]+\\.[\\w-]+\\.[\\w-]+/);if(mm){var pl=d(mm[0]);if(pl&&(pl.SubscriptionStatus||pl.SubscribedProduct)){t=mm[0];break}}}}}if(!t){alert('No F1TV token found. Make sure you are logged in at f1tv.com, or use the FastF1 Companion extension.');return}function f(){window.prompt('F1TV token - copy this, then paste it into F1 Replay:',t)}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){alert('F1TV token copied! Switch back to F1 Replay and paste it.')},f)}else{f()}})();`

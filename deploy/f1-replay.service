@@ -1,0 +1,16 @@
+[Unit]
+Description=F1-Replay live server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=f1replay
+WorkingDirectory=/opt/f1-replay/server
+EnvironmentFile=/opt/f1-replay/deploy/f1-replay.env
+ExecStart=/opt/f1-replay/.venv/bin/python launcher.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

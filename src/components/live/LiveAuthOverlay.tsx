@@ -6,6 +6,22 @@ import { useF1Login } from './useF1Login'
 export default function LiveAuthOverlay({ label }: { label: string }) {
   const { working, pending, loginUrl, error, connect } = useF1Login()
 
+  // On a hosted deployment the server holds the F1TV subscription, so a visitor
+  // cannot sign in. When the operator's token lapses, show a passive notice
+  // rather than a sign-in button the visitor can't action.
+  if (__HOSTED__) {
+    return (
+      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#0a0a0f]/70 p-4 text-center backdrop-blur-sm">
+        <div className="max-w-xs">
+          <p className="text-sm font-semibold text-white">Temporarily unavailable</p>
+          <p className="mt-1.5 text-xs text-zinc-400">
+            {label} is briefly offline. It will return shortly.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#0a0a0f]/70 p-4 text-center backdrop-blur-sm">
       <div className="max-w-xs">

@@ -1,3 +1,4 @@
+import { adminHeaders } from './admin'
 import type {
   LiveAuthStatus,
   LiveState,
@@ -32,10 +33,10 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return (await response.json()) as T
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+async function post<T>(path: string, body: unknown, extraHeaders?: Record<string, string>): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
   })
   if (!response.ok) {
@@ -85,9 +86,10 @@ export const api = {
     get<{ dir: string | null; deleted?: boolean }>('/cache', signal),
   live: (signal?: AbortSignal) => get<LiveState>('/live', signal),
   liveAuthStatus: (signal?: AbortSignal) => get<LiveAuthStatus>('/live/auth', signal),
-  liveAuthLogin: () => post<{ url: string }>('/live/auth/login', {}),
-  liveAuthLogout: () => post<LiveAuthStatus>('/live/auth/logout', {}),
-  liveAuthSetToken: (token: string) => post<LiveAuthStatus>('/live/auth/token', { token }),
+  liveAuthLogin: () => post<{ url: string }>('/live/auth/login', {}, adminHeaders()),
+  liveAuthLogout: () => post<LiveAuthStatus>('/live/auth/logout', {}, adminHeaders()),
+  liveAuthSetToken: (token: string) =>
+    post<LiveAuthStatus>('/live/auth/token', { token }, adminHeaders()),
   setCache: (dir: string, deletePrevious = false) =>
     post<{ dir: string | null; previous: string | null; deleted: boolean }>('/cache', {
       dir,

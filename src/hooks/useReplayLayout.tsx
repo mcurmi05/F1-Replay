@@ -12,7 +12,6 @@ import liveDataIcon from '../assets/livedata.png'
 import { api } from '../lib/api/client'
 import { useIsMobile } from './useIsMobile'
 import LiveSignOutMenuItem from '../components/live/LiveSignOutMenuItem'
-import LiveTokenModal from '../components/live/LiveTokenModal'
 import type { SavedLayoutMeta, SavedLayoutFull } from '../lib/api/client'
 import { BASE_COLS, COLS, scaleLayout } from '../lib/layoutGrid'
 import { toggleRawStream } from '../lib/debugStream'
@@ -379,7 +378,6 @@ export function ReplayLayoutControls() {
 
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [showToken, setShowToken] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!menuOpen) return
@@ -584,24 +582,12 @@ export function ReplayLayoutControls() {
             >
               {editMode ? 'Done editing' : 'Edit UI'}
             </button>
-            {category?.startsWith('live-') ? (
-              <>
-                <div className="my-1 h-px bg-zinc-800" />
-                <button
-                  type="button"
-                  onClick={() => { setMenuOpen(false); setShowToken(true) }}
-                  className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
-                >
-                  Enter F1TV token
-                </button>
-                <LiveSignOutMenuItem onDone={() => setMenuOpen(false)} />
-              </>
+            {category?.startsWith('live-') && !__HOSTED__ ? (
+              <LiveSignOutMenuItem onDone={() => setMenuOpen(false)} />
             ) : null}
           </div>
         ) : null}
       </div>
-
-      <LiveTokenModal open={showToken} onClose={() => setShowToken(false)} />
 
       {showSave ? createPortal(
         <div
