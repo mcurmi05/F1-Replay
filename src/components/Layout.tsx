@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import homeIcon from '../assets/home.png'
 import CacheSettings from './CacheSettings'
 import LiveSignInButton from './live/LiveSignInButton'
+import { useIsLandscapeMobile } from '../hooks/useIsMobile'
 import { ReplayLayoutControls, ReplayLayoutProvider, ReplayStatusBar, ReplayTitleBadge } from '../hooks/useReplayLayout'
 
 const navItems: { to: string; label: string; live?: boolean }[] = [
@@ -11,6 +12,7 @@ const navItems: { to: string; label: string; live?: boolean }[] = [
 
 export default function Layout() {
   const { pathname } = useLocation()
+  const landscapeMobile = useIsLandscapeMobile()
   return (
     <ReplayLayoutProvider>
     <div className="flex min-h-full flex-col">
@@ -23,22 +25,24 @@ export default function Layout() {
                 F1<span className="text-zinc-500"> Replay</span>
               </span>
             </NavLink>
-            <NavLink
-              to="/home"
-              className={({ isActive }) =>
-                [
-                  'hidden items-center rounded-md px-2 py-1.5 transition-colors sm:inline-flex',
-                  isActive
-                    ? 'bg-zinc-800 text-white'
-                    : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-white',
-                ].join(' ')
-              }
-            >
-              <img src={homeIcon} alt="Home" className="h-6 w-6" />
-            </NavLink>
+            {!landscapeMobile ? (
+              <NavLink
+                to="/home"
+                className={({ isActive }) =>
+                  [
+                    'hidden items-center rounded-md px-2 py-1.5 transition-colors sm:inline-flex',
+                    isActive
+                      ? 'bg-zinc-800 text-white'
+                      : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-white',
+                  ].join(' ')
+                }
+              >
+                <img src={homeIcon} alt="Home" className="h-6 w-6" />
+              </NavLink>
+            ) : null}
             <div className="hidden min-w-0 items-center md:flex">
               <ReplayTitleBadge />
-              <ReplayStatusBar />
+              {!landscapeMobile ? <ReplayStatusBar /> : null}
             </div>
           </div>
           <nav className="flex shrink-0 items-center gap-1">

@@ -6,17 +6,31 @@ import { useEffect, useState } from 'react'
 const QUERY =
   '(max-width: 767px), (max-height: 600px) and (orientation: landscape) and (pointer: coarse)'
 
-export function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia(QUERY).matches)
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
 
   useEffect(() => {
-    const mql = window.matchMedia(QUERY)
-    const onChange = (event: MediaQueryListEvent) => setIsMobile(event.matches)
+    const mql = window.matchMedia(query)
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches)
     mql.addEventListener('change', onChange)
     return () => mql.removeEventListener('change', onChange)
-  }, [])
+  }, [query])
 
-  return isMobile
+  return matches
+}
+
+export function useIsMobile(): boolean {
+  return useMediaQuery(QUERY)
+}
+
+// A phone held in landscape: wide enough to clear the desktop breakpoints but
+// too short to spend header space on the home icon and the weather/flag status
+// bar. Used to trim those from the top bar there.
+const LANDSCAPE_PHONE_QUERY =
+  '(orientation: landscape) and (max-height: 600px) and (pointer: coarse)'
+
+export function useIsLandscapeMobile(): boolean {
+  return useMediaQuery(LANDSCAPE_PHONE_QUERY)
 }
 
 function computeColumns(): number {
