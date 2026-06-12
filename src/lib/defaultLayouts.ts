@@ -126,16 +126,16 @@ const LIVE_NONRACE: SessionDefault = {
 
 const LIVE_RACE: SessionDefault = {
   layout: [
-    { i: 'trackmap', x: 0, y: 0, w: 44, h: 53, minW: 20, minH: 20 },
-    { i: 'raceControl', x: 44, y: 20, w: 22, h: 33, minW: 10, minH: 10 },
-    { i: 'pitStops', x: 66, y: 53, w: 22, h: 17, minW: 10, minH: 10 },
-    { i: 'telemetry', x: 0, y: 53, w: 44, h: 17, minW: 20, minH: 10 },
+    { i: 'trackmap', x: 0, y: 0, w: 44, h: 51, minW: 20, minH: 20 },
+    { i: 'raceControl', x: 44, y: 20, w: 22, h: 31, minW: 10, minH: 10 },
+    { i: 'pitStops', x: 66, y: 51, w: 22, h: 19, minW: 10, minH: 10 },
+    { i: 'telemetry', x: 0, y: 51, w: 44, h: 19, minW: 20, minH: 10 },
     { i: 'timingTower', x: 88, y: 0, w: 72, h: 70, minW: 30, minH: 30 },
-    { i: 'teamRadio', x: 66, y: 26, w: 22, h: 27, minW: 15, minH: 10 },
+    { i: 'teamRadio', x: 66, y: 25, w: 22, h: 26, minW: 15, minH: 10 },
     { i: 'sessionBests', x: 44, y: 0, w: 22, h: 20, minW: 20, minH: 10 },
-    { i: 'speedTrap', x: 44, y: 53, w: 22, h: 17, minW: 15, minH: 10 },
+    { i: 'speedTrap', x: 44, y: 51, w: 22, h: 19, minW: 15, minH: 10 },
     { i: 'commentary', x: 66, y: 0, w: 22, h: 10, minW: 15, minH: 10 },
-    { i: 'championship', x: 66, y: 10, w: 22, h: 16, minW: 20, minH: 12 },
+    { i: 'championship', x: 66, y: 10, w: 22, h: 15, minW: 20, minH: 12 },
     { i: 'playback', x: 0, y: 60, w: 79, h: 10, minW: 30, minH: 10 },
   ],
   hiddenPanels: [],
