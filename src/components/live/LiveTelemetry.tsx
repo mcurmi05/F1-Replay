@@ -220,16 +220,16 @@ export default function LiveTelemetry({ row }: { row: LiveRow | null }) {
   )
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-3">
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 whitespace-nowrap">
         <span
-          className="h-4 w-1.5 rounded-full"
+          className="h-4 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: teamColor(row?.team_colour ?? null) }}
         />
         <span className="font-semibold text-white">
           {row?.full_name ?? row?.abbreviation ?? row?.driver_number ?? '-'}
         </span>
         {row?.team_name ? <span className="text-sm text-zinc-500">{row.team_name}</span> : null}
-        <span className="ml-auto font-mono text-2xl font-bold text-white">
+        <span className="ml-auto shrink-0 font-mono text-2xl font-bold text-white">
           {speed === null ? '-' : Math.round(speed)}
           <span className="text-sm font-normal text-zinc-500"> km/h</span>
         </span>

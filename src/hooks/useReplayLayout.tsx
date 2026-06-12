@@ -252,7 +252,7 @@ export function ReplayTitleBadge() {
           </span>
         )
       ) : null}
-      <div className="flex items-center gap-2 text-sm">
+      <div className="mr-2 flex items-center gap-2 text-sm">
         {titleInfo.year !== null ? (
           <span className="font-semibold text-zinc-400">{titleInfo.year}</span>
         ) : null}

@@ -218,9 +218,9 @@ export default function TelemetryPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-surface p-3 pr-2">
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 whitespace-nowrap">
         <span
-          className="h-4 w-1.5 rounded-full"
+          className="h-4 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: teamColor(info?.team_colour ?? null) }}
         />
         <span className="font-semibold text-white">

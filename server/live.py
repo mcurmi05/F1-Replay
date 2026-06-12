@@ -472,7 +472,30 @@ def _drivers_from_topics(topics):
             "team_colour": info.get("TeamColour"),
             "headshot_url": _clean(info.get("HeadshotUrl")),
         }
+    if any(not d.get("team_colour") for d in drivers.values()):
+        _fill_team_meta(drivers, topics)
     return drivers
+
+
+def _fill_team_meta(drivers, topics):
+    meta_info = _session_info_meta(topics)
+    if not meta_info:
+        return
+    fallback = f1data.live_driver_meta(
+        meta_info.get("year"),
+        meta_info.get("round"),
+        skip_name=meta_info.get("session_name"),
+    )
+    if not fallback:
+        return
+    for number, driver in drivers.items():
+        entry = fallback.get(str(number))
+        if not entry:
+            continue
+        if not driver.get("team_colour"):
+            driver["team_colour"] = entry.get("team_colour")
+        if not driver.get("team_name"):
+            driver["team_name"] = entry.get("team_name")
 
 
 def _current_stint(app_line):

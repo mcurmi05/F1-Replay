@@ -112,6 +112,17 @@ function countdown(startUtc: string): string {
   return `in ${mins}m`
 }
 
+const SHORT_SESSION_NAMES: Record<string, string> = {
+  'Practice 1': 'FP1',
+  'Practice 2': 'FP2',
+  'Practice 3': 'FP3',
+}
+
+function shortSessionName(name: string | null | undefined): string | null {
+  if (!name) return null
+  return SHORT_SESSION_NAMES[name] ?? name
+}
+
 function EmptyPanel({ title }: { title: string }) {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-surface p-3">
@@ -481,7 +492,7 @@ function LiveBoard({ data }: { data: LiveState }) {
       relative={parseLapTime(session?.time_remaining)}
       lap={session?.current_lap ?? 0}
       totalLaps={session?.total_laps ?? null}
-      label={session && !session.total_laps ? session.session_name : null}
+      label={session && !session.total_laps ? shortSessionName(session.session_name) : null}
       hideHours={sessionType === 'Q' || sessionType === 'SQ'}
       elapsed={elapsed}
       lapsPrimary={!lapMode}

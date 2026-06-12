@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import questionIcon from '../../assets/question.png'
+import { teamColor } from '../../lib/format'
 import type { LivePitTime, LiveRow } from '../../lib/api/types'
 
 function getDriverInfo(driverNumber: string, rows: LiveRow[]): { abbr: string; color: string } {
   const row = rows.find((r) => r.driver_number === driverNumber)
   return {
     abbr: row?.abbreviation || driverNumber,
-    color: row?.team_colour || '#71717a',
+    color: teamColor(row?.team_colour),
   }
 }
 

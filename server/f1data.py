@@ -130,6 +130,57 @@ def _driver_colour(row, colour_map=None):
     return TEAM_COLORS.get(key)
 
 
+_live_driver_meta_cache = {}
+_LIVE_META_EMPTY_TTL = 60
+
+
+def _driver_meta_from_session(year, rnd, ident, skip_name=None):
+    try:
+        sib = fastf1.get_session(year, rnd, ident)
+        if skip_name is not None and getattr(sib, "name", None) == skip_name:
+            return {}
+        with _load_lock:
+            sib.load(laps=False, telemetry=False, weather=False, messages=False)
+        meta = {}
+        for _, row in sib.results.iterrows():
+            number = _text(row.get("DriverNumber"))
+            if not number:
+                continue
+            colour = _driver_colour(row)
+            team = _text(row.get("TeamName"))
+            if colour or team:
+                meta[number] = {"team_name": team or None, "team_colour": colour}
+        return meta
+    except Exception:
+        return {}
+
+
+def live_driver_meta(year, rnd, skip_name=None):
+    if year is None:
+        return {}
+    cached = _live_driver_meta_cache.get(year)
+    if cached is not None:
+        meta, stamp = cached
+        if meta or (time.time() - stamp) < _LIVE_META_EMPTY_TTL:
+            return meta
+    meta = {}
+    if rnd is not None:
+        for ident in ("R", "Sprint", "Q", "SQ", "FP3", "FP2", "FP1"):
+            meta = _driver_meta_from_session(year, rnd, ident, skip_name=skip_name)
+            if meta:
+                break
+        if not meta:
+            for r in range(int(rnd) - 1, 0, -1):
+                for ident in ("R", "Sprint", "Q"):
+                    meta = _driver_meta_from_session(year, r, ident)
+                    if meta:
+                        break
+                if meta:
+                    break
+    _live_driver_meta_cache[year] = (meta, time.time())
+    return meta
+
+
 def set_cache(directory):
     global _cache_dir, _cache_deleted
     if os.path.basename(os.path.normpath(directory)) == CACHE_FOLDER_NAME:

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 
+import { teamColor } from '../../lib/format'
 import type { ChampionshipPrediction as ChampionshipPredictionData } from '../../lib/api/types'
 
 function fmtPoints(value: number | null): string {
@@ -136,7 +137,7 @@ export default function ChampionshipPrediction({ data }: { data: ChampionshipPre
               id={d.driver_number}
               position={d.predicted_position}
               label={d.abbreviation || d.driver_number}
-              color={d.team_colour}
+              color={teamColor(d.team_colour)}
               current={d.current_position}
               predicted={d.predicted_position}
               currentPoints={d.current_points}
