@@ -2,7 +2,7 @@
 
 A dashboard for replaying live and past Formula 1 sessions: live timing, track maps, tyre strategy and lap by lap telemetry, powered by the [FastF1 Python package](https://github.com/theOehrly/Fast-F1).
 
-Live demo: https://f1-live.charliedogdingus.com - public, no login needed.
+Live demo (ran on my AWS lightsail instance): https://f1-live.charliedogdingus.com
 
 ## Tech stack
 
