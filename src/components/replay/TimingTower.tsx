@@ -33,6 +33,7 @@ export default function TimingTower({
   mode = 'race',
   columns,
   onColumnsChange,
+  excludeColumns,
 }: {
   rows: TimingTowerRow[]
   selected?: string | null
@@ -41,6 +42,7 @@ export default function TimingTower({
   mode?: 'race' | 'lap'
   columns?: TimingColumnState[] | null
   onColumnsChange?: (next: TimingColumnState[]) => void
+  excludeColumns?: TimingColumnId[]
 }) {
   const listRef = useRef<HTMLUListElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -56,7 +58,12 @@ export default function TimingTower({
   const [rowH, setRowH] = useState(28)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const resolved = useMemo(() => normalizeColumns(columns, mode), [columns, mode])
+  const resolved = useMemo(() => {
+    const cols = normalizeColumns(columns, mode)
+    if (!excludeColumns || excludeColumns.length === 0) return cols
+    const excluded = new Set(excludeColumns)
+    return cols.filter((c) => !excluded.has(c.id))
+  }, [columns, mode, excludeColumns])
   const visible = useMemo(() => resolved.filter((c) => c.visible), [resolved])
 
   useEffect(() => {

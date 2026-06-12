@@ -24,7 +24,7 @@ import { liveDefaultsFor, liveCategoryFor, sessionCategory } from '../lib/defaul
 import { mobileDefaultColumns, loadMobileColumns, MOBILE_COLUMNS_KEY } from '../lib/mobileColumns'
 import { trackStatusInfo } from '../lib/replay'
 import type { SectorCell } from '../lib/replay'
-import type { TimingColumnState } from '../lib/timingColumns'
+import type { TimingColumnId, TimingColumnState } from '../lib/timingColumns'
 import type {
   LiveRow,
   LiveSession,
@@ -35,6 +35,10 @@ import type {
   SessionBestRecord,
   WeatherSample,
 } from '../lib/api/types'
+
+// Best Lap Sectors and Best Tyre are not populated by the live feed, so they
+// are not offered as timing-tower columns on the live page.
+const LIVE_EXCLUDED_COLUMNS: TimingColumnId[] = ['bestSectors', 'bestTyre']
 
 // Everything in the live snapshot is point-in-time, so the replay feeds (which
 // reveal records as a clock advances) are fed a clock that is always "now".
@@ -518,6 +522,7 @@ function LiveBoard({ data }: { data: LiveState }) {
         mode={lapMode ? 'lap' : 'race'}
         columns={isMobile ? mobileColumns ?? mobileDefaultColumns(lapMode ? 'lap' : 'race') : timingColumns}
         onColumnsChange={isMobile ? setMobileColumns : setTimingColumns}
+        excludeColumns={LIVE_EXCLUDED_COLUMNS}
         header={liveHeader}
       />
     ),
