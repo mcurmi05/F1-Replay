@@ -1,0 +1,21 @@
+services:
+  f1-replay:
+    build:
+      context: .
+      args:
+        #set to "true" for a public multi visitor deployment (hides the
+        #operator only F1TV controls). Leave false for private/single user.
+        HOSTED: "false"
+    image: f1-replay
+    container_name: f1-replay
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      #persist the FastF1 session cache and live track geometry across restarts
+      - f1-cache:/data/cache
+
+volumes:
+  f1-cache:

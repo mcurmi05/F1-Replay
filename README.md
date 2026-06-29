@@ -44,41 +44,52 @@ Frontend: /home, /live, /replay/:year/:event/:session, /admin.
 
 API (prefixed with /api): /years, /schedule/{year}, /session/{year}/{event}/{type} and its /cached, /available, /replay and /telemetry/{driver} variants, /live, /live/raw, /live/auth with /login, /logout and /token, /cache, and /layouts/{category}.
 
-## Running locally
+## Running with Docker
 
-Start the backend:
+The prebuilt image is on Docker Hub as `mcurmi05/f1-replay`. Save this as `docker-compose.yml`:
 
-    cd server
-    python3 -m venv .venv
-    .venv/bin/pip install -r requirements.txt
-    .venv/bin/python launcher.py
+```yaml
+services:
+  f1-replay:
+    image: mcurmi05/f1-replay:latest
+    container_name: f1-replay
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Required only to unlock the live gated panels at /admin (see below).
+      - ADMIN_TOKEN=change-me-to-a-long-random-string
+    volumes:
+      # Persist the FastF1 session cache across restarts.
+      - f1-cache:/data/cache
 
-It serves on http://127.0.0.1:8000 and opens a browser unless F1_NO_BROWSER is set.
+volumes:
+  f1-cache:
+```
 
-In a second terminal start the Vite dev server, which hot reloads the frontend and proxies /api to the backend:
+Then start it:
 
-    npm install
-    npm run dev
+    docker compose up -d
 
-The dev UI runs on http://localhost:5173.
+Open http://localhost:8000. The FastF1 cache lives on the `f1-cache` volume, so replay sessions stay cached across restarts. Update later with `docker compose pull && docker compose up -d`.
 
-For a production like run, build the frontend once and let the backend serve it directly:
+### Unlocking the live gated panels (F1TV token)
 
-    npm run build
+Replay and the free live panels (timing tower, race control, weather) work with no login. Live car positions and telemetry (track map, standings) are gated by F1 behind a paid F1TV subscription. The server holds one token and unlocks those panels for everyone (PERSONAL USE ONLY).
 
-Then start the backend as above, it serves both the page and the API on port 8000.
+1. Set `ADMIN_TOKEN` in `.env` to a long random string before starting the container.
+2. Open http://localhost:8000/admin and enter that `ADMIN_TOKEN`.
+3. Follow the on-screen bookmarklet steps to copy an F1TV token from f1tv.com (requires an active F1TV subscription).
+4. Paste the token and set it. The gated live panels unlock.
 
-The first load of a replay session downloads it through FastF1 and caches it on disk (under FASTF1_CACHE_DIR when set, otherwise the platform cache directory), so later loads are fast.
+The F1TV token lasts about four days. When it lapses the gated panels show a passive "temporarily unavailable" notice; repeat steps 2-4 at /admin to restore them. The free panels keep working without a token.
 
-## Deployment
+Common commands:
 
-The live page runs as a public webapp behind Caddy and systemd on a small Linux box. One server holds a single F1TV token and fans the live feed out to all visitors (PERSONAL USE) only the operator, holding ADMIN_TOKEN, can set or clear that token at /admin.
+    docker compose logs -f        # follow logs
+    docker compose down           # stop and remove the container
+    docker compose up -d --build  # rebuild after pulling updates
 
-- `HOSTED=true npm run build` hides the operator only F1TV controls and routes layout storage to each visitor's browser.
-- uvicorn runs launcher.py on 127.0.0.1:8000, Caddy terminates TLS on 443 and reverse proxies to it.
-- ADMIN_TOKEN gates the /admin console and the token-mutating API endpoints.
-- FASTF1_CACHE_DIR locks the cache to an operator-managed path; an hourly systemd timer prunes it once it grows past CACHE_MAX_GB.
-- The F1TV subscription token lasts about four days, when it lapses the gated panels show a passive notice and the free panels keep working.
-- `sudo /opt/f1-replay/deploy/update.sh` redeploys in one step: pull, rebuild the hosted frontend, refresh Python deps and the systemd units, restart.
+To build the image yourself from a clone of this repo (for example the public, multi-visitor variant that hides the operator-only F1TV controls), set the `HOSTED` build arg and point the compose `image:` at your own tag, or build directly:
 
-Full step by step instructions, the systemd units, the Caddyfile and the environment template are in [deploy/README.md](deploy/README.md).
+    docker build --build-arg HOSTED=true -t mcurmi05/f1-replay .
