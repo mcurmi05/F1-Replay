@@ -1,3 +1,6 @@
+<img width="1920" height="927" alt="Screenshot 2026-06-29 at 1 12 12 pm" src="https://github.com/user-attachments/assets/51460017-611f-4b66-a4d6-a77ccec580bc" />
+<img width="1920" height="928" alt="Screenshot 2026-06-29 at 1 13 01 pm" src="https://github.com/user-attachments/assets/ed522954-6317-410e-9d6c-f352c1d7cc4f" />
+
 # F1 Replay
 
 A dashboard for replaying live and past Formula 1 sessions: live timing, track maps, tyre strategy and lap by lap telemetry, powered by the [FastF1 Python package](https://github.com/theOehrly/Fast-F1).
